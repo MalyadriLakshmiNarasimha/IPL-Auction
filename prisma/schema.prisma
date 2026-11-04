@@ -1,0 +1,59 @@
+// Prisma schema for IPLAuction (MySQL)
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id            String    @id @default(cuid())
+  name          String    @db.VarChar(100)
+  email         String    @unique @db.VarChar(191)
+  password_hash String    @db.VarChar(255)
+  created_at    DateTime  @default(now())
+  updated_at    DateTime  @updatedAt
+  sessions      Session[]
+  hosted_rooms  Room[]
+
+  @@map("users")
+}
+
+model Session {
+  id            String   @id @default(cuid())
+  session_token String   @unique @db.VarChar(191)
+  user_id       String
+  expires_at    DateTime
+  created_at    DateTime @default(now())
+  user          User     @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@index([user_id])
+  @@map("sessions")
+}
+
+model Room {
+  room_code    String   @id @db.VarChar(6)
+  name         String   @db.VarChar(100)
+  host_user_id String
+  status       String   @default("lobby") @db.VarChar(32)
+  created_at   DateTime @default(now())
+  updated_at   DateTime @updatedAt
+  host         User     @relation(fields: [host_user_id], references: [id], onDelete: Cascade)
+
+  @@index([host_user_id])
+  @@map("rooms")
+}
+
+model Result {
+  room_code               String   @id @db.VarChar(6)
+  completed_at            BigInt
+  awards                  Json
+  leaderboard             Json
+  total_players_auctioned Int      @default(0)
+  total_money_spent       BigInt   @default(0)
+  created_at              DateTime @default(now())
+
+  @@map("results")
+}

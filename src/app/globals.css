@@ -1,0 +1,84 @@
+@import url('https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@700;800;900&family=DM+Sans:ital,opsz,wght@0,9..40,400..700;1,9..40,400..700&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --bg-dusk: #0B1530;
+  --surface-night: #121F42;
+  --surface-raised: #1A2A55;
+  --text-floodlight: #F2EFE4;
+  --color-turf: #1FA36B;
+  --color-flare: #FF7A1A;
+  --color-hammer: #FF3B4E;
+}
+
+.light {
+  --bg-dusk: #EDF2FA;
+  --surface-night: #FFFFFF;
+  --surface-raised: #E1E8F5;
+  --text-floodlight: #0B1530;
+}
+
+body {
+  background-color: var(--bg-dusk);
+  color: var(--text-floodlight);
+  font-family: 'DM Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  min-height: 100vh;
+  overflow-x: hidden;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Floodlight vignette at top of viewport */
+.floodlight-vignette {
+  background: radial-gradient(ellipse 80% 40% at 50% -10%, rgba(242, 239, 228, 0.08), transparent 70%);
+}
+
+.light .floodlight-vignette {
+  background: radial-gradient(ellipse 80% 40% at 50% -10%, rgba(255, 122, 26, 0.08), transparent 70%);
+}
+
+/* Split Flap Digits & Scoreboard */
+.scoreboard-panel {
+  background: linear-gradient(180deg, #121F42 0%, #0E1835 100%);
+  border: 1px solid #233566;
+  box-shadow: inset 0 2px 4px rgba(0,0,0,0.6), 0 8px 30px rgba(0,0,0,0.4);
+}
+
+.light .scoreboard-panel {
+  background: linear-gradient(180deg, #FFFFFF 0%, #EDF2FA 100%);
+  border: 1px solid #C8D5EC;
+  box-shadow: inset 0 1px 2px rgba(0,0,0,0.05), 0 8px 24px rgba(11,21,48,0.08);
+}
+
+.flip-card {
+  perspective: 400px;
+}
+
+/* Custom scrollbars */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: rgba(18, 31, 66, 0.5);
+}
+::-webkit-scrollbar-thumb {
+  background: #233566;
+  border-radius: 999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #FF7A1A;
+}
+
+/* Respect user preferences for reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  *, ::before, ::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
