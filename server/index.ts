@@ -14,8 +14,13 @@ const PORT = parseInt(process.env.PORT || '3001', 10);
 const CLIENT_ORIGIN = process.env.CLIENT_ORIGIN || 'http://localhost:3000';
 
 const server = http.createServer(async (req, res) => {
-  // Enable CORS for API routes
-  res.setHeader('Access-Control-Allow-Origin', CLIENT_ORIGIN);
+  // Enable CORS for API routes (reflect request origin to support credentials with cross-origin deployments)
+  const reqOrigin = req.headers.origin;
+  if (reqOrigin) {
+    res.setHeader('Access-Control-Allow-Origin', reqOrigin);
+  } else {
+    res.setHeader('Access-Control-Allow-Origin', CLIENT_ORIGIN);
+  }
   res.setHeader('Access-Control-Allow-Credentials', 'true');
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
@@ -168,7 +173,10 @@ const server = http.createServer(async (req, res) => {
 
 const io = new SocketIOServer<ClientToServerEvents, ServerToClientEvents>(server, {
   cors: {
-    origin: '*',
+    origin: (origin, callback) => {
+      // Dynamic origin reflection ensures browser withCredentials compliance
+      callback(null, true);
+    },
     methods: ['GET', 'POST'],
     credentials: true,
   },
