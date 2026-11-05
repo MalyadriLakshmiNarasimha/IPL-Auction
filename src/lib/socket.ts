@@ -46,8 +46,11 @@ export function getSocket(token?: string): Socket<ServerToClientEvents, ClientTo
       console.warn('⚠️ Socket connection error:', err.message);
     });
   } else if (authToken && socket.auth && (socket.auth as any).token !== authToken) {
-    // Update auth token if changed
+    // Update auth token if changed and reconnect to re-authenticate
     (socket.auth as any).token = authToken;
+    if (socket.connected) {
+      socket.disconnect().connect();
+    }
   }
 
   return socket;

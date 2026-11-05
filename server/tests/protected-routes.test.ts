@@ -2,7 +2,7 @@ import 'dotenv/config';
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { server, startServer } from '../index';
 import { io as ioClient, Socket } from 'socket.io-client';
-import { db } from '../../src/lib/db';
+import { db, prisma } from '../../src/lib/db';
 import { hashPassword, createSession } from '../../src/lib/auth';
 import http from 'http';
 
@@ -15,6 +15,13 @@ describe('Protected Routes & Socket.IO Authentication Verification', () => {
 
   beforeAll(async () => {
     await startServer(TEST_PORT);
+
+    // Clean up if leftover from previous run
+    try {
+      await prisma.user.deleteMany({
+        where: { email: 'pant@delhicapitals.com' },
+      });
+    } catch (e) {}
 
     // Create a real registered test user
     const password_hash = await hashPassword('ProtectedPass123!');
@@ -31,8 +38,13 @@ describe('Protected Routes & Socket.IO Authentication Verification', () => {
     validSessionToken = session.sessionToken;
   });
 
-  afterAll(done => {
-    server.close(done);
+  afterAll(async () => {
+    try {
+      await prisma.user.deleteMany({
+        where: { email: 'pant@delhicapitals.com' },
+      });
+    } catch (e) {}
+    await new Promise<void>((resolve) => server.close(() => resolve()));
   });
 
   it('1. Rejects unauthenticated Socket.IO connection without token', async () => {
@@ -151,3 +163,4 @@ describe('Protected Routes & Socket.IO Authentication Verification', () => {
     expect(resData.body.room_code).toHaveLength(6);
   });
 });
+

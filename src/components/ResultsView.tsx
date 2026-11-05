@@ -50,22 +50,22 @@ export const ResultsView: React.FC<ResultsViewProps> = ({
     if (!ctx) return;
 
     // Background Dusk
-    ctx.fillStyle = '#0B1530';
+    ctx.fillStyle = '#08090B';
     ctx.fillRect(0, 0, 1200, 630);
 
     // Header gradient
     const grad = ctx.createLinearGradient(0, 0, 1200, 150);
-    grad.addColorStop(0, '#121F42');
-    grad.addColorStop(1, '#1A2A55');
+    grad.addColorStop(0, '#151618');
+    grad.addColorStop(1, '#1E1D19');
     ctx.fillStyle = grad;
     ctx.fillRect(0, 0, 1200, 140);
 
     // Title
-    ctx.fillStyle = '#FF7A1A';
+    ctx.fillStyle = '#D6B65D';
     ctx.font = 'bold 52px "Big Shoulders Display", sans-serif';
     ctx.fillText('IPL AUCTION — MATCHDAY SQUAD RESULTS', 60, 80);
 
-    ctx.fillStyle = '#F2EFE4';
+    ctx.fillStyle = '#F4F0E6';
     ctx.font = '24px "DM Sans", sans-serif';
     ctx.fillText(`Room Code: ${results.room_code} · Total Spent: ${formatCurrency(results.total_money_spent)}`, 60, 120);
 
@@ -73,8 +73,8 @@ export const ResultsView: React.FC<ResultsViewProps> = ({
     const top3 = results.leaderboard.slice(0, 3);
     top3.forEach((team, idx) => {
       const y = 200 + idx * 110;
-      ctx.fillStyle = idx === 0 ? 'rgba(255, 122, 26, 0.15)' : '#121F42';
-      ctx.strokeStyle = idx === 0 ? '#FF7A1A' : '#233566';
+      ctx.fillStyle = idx === 0 ? 'rgba(255, 122, 26, 0.15)' : '#151618';
+      ctx.strokeStyle = idx === 0 ? '#D6B65D' : '#3A3426';
       ctx.lineWidth = 2;
       ctx.beginPath();
       ctx.roundRect(60, y, 1080, 90, 14);
@@ -82,7 +82,7 @@ export const ResultsView: React.FC<ResultsViewProps> = ({
       ctx.stroke();
 
       // Rank
-      ctx.fillStyle = idx === 0 ? '#FF7A1A' : '#F2EFE4';
+      ctx.fillStyle = idx === 0 ? '#D6B65D' : '#F4F0E6';
       ctx.font = 'bold 36px "Big Shoulders Display", sans-serif';
       ctx.fillText(`#${team.rank}`, 90, y + 55);
 
@@ -99,22 +99,22 @@ export const ResultsView: React.FC<ResultsViewProps> = ({
       ctx.textAlign = 'left';
 
       // Name & Score
-      ctx.fillStyle = '#F2EFE4';
+      ctx.fillStyle = '#F4F0E6';
       ctx.font = 'bold 24px "DM Sans", sans-serif';
       ctx.fillText(team.display_name, 230, y + 45);
 
       ctx.font = '16px "DM Sans", sans-serif';
-      ctx.fillStyle = '#9AA5C2';
+      ctx.fillStyle = '#A6A29A';
       ctx.fillText(`${team.players_count} Players · Spent: ${formatCurrency(team.total_spent)}`, 230, y + 70);
 
       // Score
-      ctx.fillStyle = '#FF7A1A';
+      ctx.fillStyle = '#D6B65D';
       ctx.font = 'bold 44px "Big Shoulders Display", sans-serif';
       ctx.fillText(`${team.total_score} PTS`, 960, y + 58);
     });
 
     // Disclaimer footer
-    ctx.fillStyle = '#586991';
+    ctx.fillStyle = '#716D65';
     ctx.font = '14px "DM Sans", sans-serif';
     ctx.fillText('Virtual money only. Unofficial fan game. Not affiliated with BCCI/IPL.', 60, 595);
 

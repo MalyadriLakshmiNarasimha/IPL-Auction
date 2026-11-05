@@ -24,6 +24,9 @@ export default function CreateRoomPage() {
         } else {
           setDisplayName(data.user.name);
           setUserId(data.user.id);
+          if (data.sessionToken) {
+            localStorage.setItem('ipl_session_token', data.sessionToken);
+          }
           setIsCheckingAuth(false);
         }
       })
@@ -48,6 +51,7 @@ export default function CreateRoomPage() {
 
       const res = await fetch(`${serverUrl}/api/rooms`, {
         method: 'POST',
+        credentials: 'include',
         headers: {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${sessionToken}`,

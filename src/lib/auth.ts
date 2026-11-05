@@ -9,6 +9,11 @@ export const SESSION_MAX_AGE_SECONDS = 7 * 24 * 60 * 60; // 7 days
 const authRateLimitMap = new Map<string, { count: number; resetAt: number }>();
 
 export function checkAuthRateLimit(identifier: string, maxAttempts: number = 5, windowMs: number = 60000): { allowed: boolean; remainingMs?: number } {
+  // Relax rate limit in development mode to prevent developer lockout on localhost
+  if (process.env.NODE_ENV === 'development') {
+    return { allowed: true };
+  }
+
   const now = Date.now();
   const record = authRateLimitMap.get(identifier);
 
@@ -99,3 +104,4 @@ export function getCookieOptions(isProduction = process.env.NODE_ENV === 'produc
     maxAge: SESSION_MAX_AGE_SECONDS,
   };
 }
+

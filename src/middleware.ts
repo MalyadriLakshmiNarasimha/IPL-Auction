@@ -17,13 +17,10 @@ export function middleware(req: NextRequest) {
     return NextResponse.redirect(loginUrl);
   }
 
-  if (isAuthPath && token) {
-    return NextResponse.redirect(new URL('/', req.url));
-  }
-
   return NextResponse.next();
 }
 
 export const config = {
-  matcher: ['/create', '/join/:path*', '/room/:path*', '/login', '/register'],
+  matcher: ['/create', '/join/:path*', '/room/:path*'],
 };
+

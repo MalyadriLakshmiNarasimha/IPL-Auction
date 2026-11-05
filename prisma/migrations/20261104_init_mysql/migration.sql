@@ -51,3 +51,4 @@ CREATE TABLE IF NOT EXISTS `results` (
 
     PRIMARY KEY (`room_code`)
 ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+

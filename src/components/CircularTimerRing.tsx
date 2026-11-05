@@ -54,7 +54,7 @@ export const CircularTimerRing: React.FC<CircularTimerRingProps> = ({
   const strokeDashoffset = circumference * (1 - progress);
 
   const isUrgent = remaining <= 5 && remaining > 0;
-  const ringColor = isUrgent ? '#FF3B4E' : '#FF7A1A';
+  const ringColor = isUrgent ? '#E05252' : '#D6B65D';
 
   return (
     <div className="relative flex items-center justify-center select-none">
@@ -95,7 +95,7 @@ export const CircularTimerRing: React.FC<CircularTimerRingProps> = ({
         }`}
         style={{
           backgroundColor: '#121F42',
-          border: `2px solid ${isUrgent ? '#FF3B4E' : roleColor}`,
+          border: `2px solid ${isUrgent ? '#E05252' : roleColor}`,
         }}
       >
         <span className="font-display text-3xl font-extrabold tracking-tight text-floodlight">

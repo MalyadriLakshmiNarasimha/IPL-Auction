@@ -1,6 +1,6 @@
 import 'dotenv/config';
-import { describe, it, expect, beforeEach } from 'vitest';
-import { db } from '../../src/lib/db';
+import { describe, it, expect, beforeEach, beforeAll, afterAll } from 'vitest';
+import { db, prisma } from '../../src/lib/db';
 import {
   hashPassword,
   verifyPassword,
@@ -17,6 +17,22 @@ describe('Authentication & Session Management System', () => {
     email: 'sanju@rajasthanroyals.com',
     password: 'SuperSecretPassword123!',
   };
+
+  beforeAll(async () => {
+    try {
+      await prisma.user.deleteMany({
+        where: { email: { in: [testUser.email, 'another_sanju@rajasthanroyals.com'] } },
+      });
+    } catch (e) {}
+  });
+
+  afterAll(async () => {
+    try {
+      await prisma.user.deleteMany({
+        where: { email: { in: [testUser.email, 'another_sanju@rajasthanroyals.com'] } },
+      });
+    } catch (e) {}
+  });
 
   beforeEach(() => {
     resetAuthRateLimit('test_ip_1');

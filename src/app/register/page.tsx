@@ -60,8 +60,7 @@ function RegisterForm() {
       }
 
       // Automatically authenticated and redirected
-      router.push(redirectTarget);
-      router.refresh();
+      window.location.href = redirectTarget;
     } catch (err: any) {
       setError(err.message || 'An error occurred during registration.');
       setIsLoading(false);

@@ -61,26 +61,35 @@ const server = http.createServer(async (req, res) => {
       try {
         const parsed = JSON.parse(body || '{}');
 
-        // Allow fallback for test bots or fallback if host_session_id is provided in test mode
-        const hostId = authenticatedUser ? authenticatedUser.id : (parsed.host_session_id || '');
-        const hostName = authenticatedUser ? authenticatedUser.name : (parsed.host_display_name || 'Host');
-
-        if (!hostId) {
+        // Allow fallback for automated bot stress tests, otherwise require verified authenticated user
+        const isBotTest = typeof parsed.host_session_id === 'string' && parsed.host_session_id.startsWith('bot-');
+        if (!authenticatedUser && !isBotTest) {
           res.writeHead(401, { 'Content-Type': 'application/json' });
           res.end(JSON.stringify({ error: 'Authentication required to create a room.' }));
           return;
         }
 
-        // Generate random 6-character room code (uppercase letters/numbers without confusing chars 0/O, 1/I)
+        const hostId = authenticatedUser ? authenticatedUser.id : parsed.host_session_id;
+        const hostName = authenticatedUser ? authenticatedUser.name : (parsed.host_display_name || 'Host');
+        const roomName = typeof parsed.room_name === 'string' && parsed.room_name.trim().length > 0
+          ? parsed.room_name.trim().slice(0, 50)
+          : 'IPL Auction Room';
+
+        // Generate unique 6-character room code (uppercase letters/numbers without confusing chars 0/O, 1/I)
         const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
         let code = '';
-        for (let i = 0; i < 6; i++) {
-          code += chars.charAt(Math.floor(Math.random() * chars.length));
-        }
+        let attempts = 0;
+        do {
+          code = '';
+          for (let i = 0; i < 6; i++) {
+            code += chars.charAt(Math.floor(Math.random() * chars.length));
+          }
+          attempts++;
+        } while (roomManager.getRoom(code) && attempts < 10);
 
         const room = roomManager.createRoom(
           code,
-          parsed.room_name || 'IPL Auction Room',
+          roomName,
           hostId,
           hostName
         );
@@ -224,6 +233,9 @@ io.on('connection', socket => {
   const userId = user.id;
   const userName = user.name;
   let boundRoomCode: string | null = null;
+
+  // Join personal user room for private events (bid_rejected, errors, etc.)
+  socket.join(userId);
 
   socket.on('room_join', data => {
     const { room_code } = data;

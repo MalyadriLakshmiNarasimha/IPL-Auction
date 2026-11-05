@@ -15,6 +15,7 @@ import { DEFAULT_ROOM_SETTINGS, MIN_RESERVE_PER_SLOT } from '../src/shared/const
 import { validateBid } from '../src/shared/validation';
 import { computeAuctionResults } from '../src/shared/scoring';
 import { persistResults } from './db';
+import { prisma } from '../src/lib/db';
 import { Server as SocketIOServer } from 'socket.io';
 
 export interface RoomRecord {
@@ -258,7 +259,18 @@ export class RoomManager {
 
     // Sort order
     if (room.settings.order_type === 'role') {
-      const rolePriority: Record<string, number> = { BAT: 1, WK: 2, AR: 3, BOWL: 4 };
+      const rolePriority: Record<string, number> = {
+        BAT: 1,
+        Batter: 1,
+        WK: 2,
+        Wicketkeeper: 2,
+        'Wicket Keeper': 2,
+        AR: 3,
+        'All-Rounder': 3,
+        'All Rounder': 3,
+        BOWL: 4,
+        Bowler: 4,
+      };
       selectedPlayers.sort((a, b) => (rolePriority[a.role] || 9) - (rolePriority[b.role] || 9));
     } else if (room.settings.order_type === 'base_price') {
       selectedPlayers.sort((a, b) => b.base_price - a.base_price);
@@ -277,6 +289,12 @@ export class RoomManager {
     room.auction_state.phase = 'starting';
     room.auction_state.round_number = 1;
     room.auction_state.current_player_index = -1;
+
+    // Update room status in MySQL
+    prisma.room.updateMany({
+      where: { room_code: room.room_code },
+      data: { status: 'live' },
+    }).catch(() => {});
 
     this.broadcastState(room);
 
@@ -398,14 +416,15 @@ export class RoomManager {
 
     try {
       const participant = room.participants.get(sessionId);
+      const recipient = participant?.socket_id || sessionId;
       if (!participant || !participant.franchise) {
-        this.io.to(sessionId).emit('bid_rejected', { reason: 'Must choose a franchise to bid' });
+        this.io.to(recipient).emit('bid_rejected', { reason: 'Must choose a franchise to bid' });
         return false;
       }
 
       const validation = validateBid(participant, room.auction_state, room.settings, increment, false);
       if (!validation.valid || !validation.expectedAmount) {
-        this.io.to(sessionId).emit('bid_rejected', { reason: validation.reason || 'Invalid bid' });
+        this.io.to(recipient).emit('bid_rejected', { reason: validation.reason || 'Invalid bid' });
         return false;
       }
 
@@ -628,6 +647,12 @@ export class RoomManager {
 
     room.results = results;
     persistResults(results);
+
+    // Update room status in MySQL
+    prisma.room.updateMany({
+      where: { room_code: room.room_code },
+      data: { status: 'completed' },
+    }).catch(() => {});
 
     this.io.to(room.room_code).emit('auction_ended', results);
     this.broadcastState(room);

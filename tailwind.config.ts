@@ -10,25 +10,25 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
-        dusk: "#0B1530",
+        dusk: "#08090B",
         night: {
-          DEFAULT: "#121F42",
-          raised: "#1A2A55",
-          border: "#233566",
+          DEFAULT: "#111214",
+          raised: "#191A1D",
+          border: "#2B2B2D",
         },
         floodlight: {
-          DEFAULT: "#F2EFE4",
-          muted: "#9AA5C2",
-          subtle: "#586991",
+          DEFAULT: "#F4F0E6",
+          muted: "#A6A29A",
+          subtle: "#716D65",
         },
         turf: {
           DEFAULT: "#1FA36B",
           glow: "rgba(31, 163, 107, 0.35)",
         },
         flare: {
-          DEFAULT: "#FF7A1A",
-          hover: "#E66810",
-          glow: "rgba(255, 122, 26, 0.4)",
+          DEFAULT: "#D6B65D",
+          hover: "#E6C96F",
+          glow: "rgba(214, 182, 93, 0.32)",
         },
         hammer: {
           DEFAULT: "#FF3B4E",
@@ -42,7 +42,7 @@ const config: Config = {
         },
       },
       fontFamily: {
-        display: ["'Big Shoulders Display'", "ui-monospace", "Impact", "sans-serif"],
+        display: ["'Cormorant Garamond'", "ui-monospace", "Impact", "sans-serif"],
         sans: ["'DM Sans'", "-apple-system", "BlinkMacSystemFont", "Segoe UI", "sans-serif"],
       },
       borderRadius: {
@@ -50,15 +50,15 @@ const config: Config = {
         pill: "999px",
       },
       boxShadow: {
-        flare: "0 0 25px rgba(255, 122, 26, 0.45)",
+        flare: "0 0 28px rgba(214, 182, 93, 0.24)",
         turf: "0 0 25px rgba(31, 163, 107, 0.45)",
         hammer: "0 0 25px rgba(255, 59, 78, 0.45)",
         scoreboard: "inset 0 2px 4px rgba(0,0,0,0.6), 0 8px 30px rgba(0,0,0,0.5)",
       },
       keyframes: {
         pulseFlare: {
-          "0%, 100%": { boxShadow: "0 0 15px rgba(255, 122, 26, 0.3)" },
-          "50%": { boxShadow: "0 0 35px rgba(255, 122, 26, 0.7)" },
+          "0%, 100%": { boxShadow: "0 0 15px rgba(214, 182, 93, 0.2)" },
+          "50%": { boxShadow: "0 0 35px rgba(214, 182, 93, 0.45)" },
         },
         gavelStrike: {
           "0%": { transform: "rotate(-35deg) translateY(-20px)", opacity: "0" },

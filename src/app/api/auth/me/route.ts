@@ -17,16 +17,26 @@ export async function GET(req: NextRequest) {
     if (!token) {
       return NextResponse.json(
         { authenticated: false, user: null },
-        { status: 401 }
+        { status: 200 }
       );
     }
 
     const sessionData = await validateSessionToken(token);
     if (!sessionData) {
-      return NextResponse.json(
+      const res = NextResponse.json(
         { authenticated: false, user: null },
-        { status: 401 }
+        { status: 200 }
       );
+      // Clear invalid or expired cookie
+      res.cookies.set(AUTH_COOKIE_NAME, '', {
+        httpOnly: true,
+        sameSite: 'lax',
+        secure: process.env.NODE_ENV === 'production',
+        path: '/',
+        maxAge: 0,
+        expires: new Date(0),
+      });
+      return res;
     }
 
     return NextResponse.json({

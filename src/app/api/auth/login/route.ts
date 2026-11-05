@@ -20,10 +20,10 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const body = await req.json();
+    const body = await req.json().catch(() => ({}));
     const { email, password } = body;
 
-    if (!email || !password) {
+    if (!email || typeof email !== 'string' || !password || typeof password !== 'string') {
       return NextResponse.json(
         { error: 'Email and password are required.' },
         { status: 400 }
@@ -79,3 +79,4 @@ export async function POST(req: NextRequest) {
     );
   }
 }
+

@@ -275,18 +275,12 @@ export default function RoomPage() {
 
   // Role Color helper
   const getRoleColor = (role: string) => {
-    switch (role) {
-      case 'BAT':
-        return '#F5B83D';
-      case 'BOWL':
-        return '#4C8DFF';
-      case 'AR':
-        return '#2FCB8F';
-      case 'WK':
-        return '#A56BFF';
-      default:
-        return '#FF7A1A';
-    }
+    const r = (role || '').toUpperCase();
+    if (r.startsWith('BAT')) return '#F5B83D';
+    if (r.startsWith('BOWL')) return '#4C8DFF';
+    if (r.startsWith('ALL') || r === 'AR') return '#2FCB8F';
+    if (r.startsWith('WICKET') || r === 'WK') return '#A56BFF';
+    return '#FF7A1A';
   };
 
   if (!isJoined || !auctionState) {
@@ -646,6 +640,16 @@ export default function RoomPage() {
                       <span className="px-2 py-0.5 rounded-pill bg-night-border text-[10px] font-bold text-floodlight-muted">
                         Tier {auctionState.current_player.tier}
                       </span>
+                      {auctionState.current_player.jersey_number && (
+                        <span className="px-2 py-0.5 rounded-pill bg-night-border text-[10px] font-bold text-floodlight-muted">
+                          #{auctionState.current_player.jersey_number}
+                        </span>
+                      )}
+                      {auctionState.current_player.team && (
+                        <span className="px-2 py-0.5 rounded-pill bg-night-raised border border-night-border text-[10px] font-bold text-flare">
+                          {auctionState.current_player.team_code || auctionState.current_player.team}
+                        </span>
+                      )}
                       {auctionState.current_player.capped ? (
                         <span className="text-[10px] text-floodlight-subtle">Capped</span>
                       ) : (
@@ -659,10 +663,12 @@ export default function RoomPage() {
 
                     <div className="text-xs text-floodlight-muted space-y-0.5 mt-1">
                       <div>
-                        {auctionState.current_player.country} · {auctionState.current_player.home_state}
+                        {auctionState.current_player.country}
+                        {auctionState.current_player.team ? ` · ${auctionState.current_player.team}` : (auctionState.current_player.home_state ? ` · ${auctionState.current_player.home_state}` : '')}
                       </div>
                       <div className="text-[11px] text-floodlight-subtle">
-                        {auctionState.current_player.batting_style} · {auctionState.current_player.bowling_style}
+                        {auctionState.current_player.batting_style || 'Right Handed'}
+                        {auctionState.current_player.bowling_style ? ` · ${auctionState.current_player.bowling_style}` : ''}
                       </div>
                     </div>
 

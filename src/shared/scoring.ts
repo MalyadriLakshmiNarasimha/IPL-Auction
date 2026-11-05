@@ -1,6 +1,15 @@
 import { AuctionResults, Award, BoughtPlayer, Participant, Player, RoomSettings, TeamScoreBreakdown } from './types';
 import { formatCurrency } from './constants';
 
+export function normalizeRoleToCode(role: string): 'BAT' | 'BOWL' | 'AR' | 'WK' {
+  const r = (role || '').toUpperCase();
+  if (r.startsWith('BAT')) return 'BAT';
+  if (r.startsWith('BOWL')) return 'BOWL';
+  if (r.startsWith('ALL') || r === 'AR') return 'AR';
+  if (r.startsWith('WICKET') || r === 'WK') return 'WK';
+  return 'BAT';
+}
+
 /**
  * Calculates a squad's score out of 100 based on:
  * - 40% Role Balance
@@ -28,8 +37,9 @@ export function calculateTeamScore(
   // WK: 1-2 (scale)
   const counts = { BAT: 0, BOWL: 0, AR: 0, WK: 0 };
   for (const item of squad) {
-    if (counts[item.player.role] !== undefined) {
-      counts[item.player.role]++;
+    const code = normalizeRoleToCode(item.player.role);
+    if (counts[code] !== undefined) {
+      counts[code]++;
     }
   }
 

@@ -48,8 +48,7 @@ function LoginForm() {
         localStorage.setItem('ipl_session_token', data.sessionToken);
       }
 
-      router.push(redirectTarget);
-      router.refresh();
+      window.location.href = redirectTarget;
     } catch (err: any) {
       setError(err.message || 'Failed to log in.');
       setIsLoading(false);

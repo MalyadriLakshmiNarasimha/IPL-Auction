@@ -1,5 +1,28 @@
-export type PlayerRole = 'BAT' | 'BOWL' | 'AR' | 'WK';
+export type PlayerRole =
+  | 'BAT'
+  | 'BOWL'
+  | 'AR'
+  | 'WK'
+  | 'Batter'
+  | 'Bowler'
+  | 'All-Rounder'
+  | 'Wicketkeeper';
+
 export type PlayerTier = 'A' | 'B' | 'C';
+
+export interface PlayerDatabaseRecord {
+  id: string;
+  card_text: string | null;
+  player_name_from_card: string | null;
+  jersey_number: number | null;
+  team: string;
+  'team code': string;
+  player_name: string;
+  nationality: string;
+  role: string;
+  batting_style: string | null;
+  bowling_style: string | null;
+}
 
 export interface Player {
   id: string;
@@ -13,6 +36,15 @@ export interface Player {
   capped: boolean;
   tier: PlayerTier;
   initials: string;
+
+  // Scraped centralized database fields
+  card_text?: string | null;
+  player_name_from_card?: string | null;
+  jersey_number?: number | null;
+  team?: string;
+  team_code?: string;
+  player_name?: string;
+  nationality?: string;
 }
 
 export interface FranchiseIdentity {
