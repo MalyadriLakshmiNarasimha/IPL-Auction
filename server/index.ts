@@ -405,7 +405,7 @@ io.on('connection', socket => {
 
 export function startServer(port = PORT): Promise<http.Server> {
   return new Promise((resolve) => {
-    server.listen(port, () => {
+    server.listen(port, '0.0.0.0', () => {
       console.log(`[IPL-AUCTION SERVER] Authoritative Server running on port ${port}`);
       resolve(server);
     });
