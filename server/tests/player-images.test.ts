@@ -67,8 +67,8 @@ describe('Player Photograph System — Comprehensive Integrity Suite', () => {
       }
     }
 
-    expect(verifiedCount).toBe(261);
-    expect(missingCount).toBe(13);
+    expect(verifiedCount).toBe(255);
+    expect(missingCount).toBe(19);
     expect(verifiedCount + missingCount).toBe(274);
   });
 
@@ -83,7 +83,7 @@ describe('Player Photograph System — Comprehensive Integrity Suite', () => {
       }
     }
 
-    expect(seenPaths.size).toBe(261);
+    expect(seenPaths.size).toBe(255);
   });
 
   it('5. Old unverified /players/ directory is cleaned up and replaced with /images/players/', () => {
@@ -112,7 +112,13 @@ describe('Player Photograph System — Comprehensive Integrity Suite', () => {
     }
   });
 
-  it('7. Marquee players (Virat Kohli, Jasprit Bumrah, MS Dhoni) have authentic verified photos', () => {
+  it('7. Marquee players and reference standards have correct photos or fallbacks', () => {
+    // Reference standard player (Salil Arora)
+    const salil = ALL_PLAYERS.find(p => p.name === 'Salil Arora')!;
+    expect(salil.has_photo).toBe(true);
+    expect(salil.image_url).toBe('/images/players/player-272.webp');
+
+    // Marquee players with high-quality studio RGBA cutouts
     const virat = ALL_PLAYERS.find(p => p.name === 'Virat Kohli')!;
     expect(virat.has_photo).toBe(true);
     expect(virat.image_url).toMatch(/\/images\/players\/player-\d{3}\.webp/);
@@ -124,6 +130,12 @@ describe('Player Photograph System — Comprehensive Integrity Suite', () => {
     const dhoni = ALL_PLAYERS.find(p => p.name === 'Mahendra Singh Dhoni')!;
     expect(dhoni.has_photo).toBe(true);
     expect(dhoni.image_url).toMatch(/\/images\/players\/player-\d{3}\.webp/);
+
+    // Keshav Maharaj must NOT display an action shot — must use procedural fallback
+    const maharaj = ALL_PLAYERS.find(p => p.name === 'Keshav Maharaj')!;
+    expect(maharaj.has_photo).toBe(false);
+    expect(maharaj.image_url.startsWith('data:image/svg+xml')).toBe(true);
+    expect(maharaj.photo_source).toContain('Procedural IPL Fallback');
   });
 
   it('8. Contact sheets exist for visual audit', () => {
@@ -143,4 +155,3 @@ describe('Player Photograph System — Comprehensive Integrity Suite', () => {
     expect(missingHtml).toContain('Missing Photographs (IPL Fallback Roster)');
   });
 });
-
