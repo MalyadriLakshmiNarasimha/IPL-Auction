@@ -67,3 +67,4 @@
 | Database schema divergence | High | TiDB Cloud database untouched. Prisma migrations preserved under `prisma/migrations/`. |
 | Render server startup failure | High | Hardened `scripts/db-manager.ts` with explicit cloud detection bypass. |
 | Broken client Socket.IO connections | Medium | Verified `src/lib/socket.ts` reconnect logic and transports (`['websocket', 'polling']`). |
+

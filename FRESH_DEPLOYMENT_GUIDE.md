@@ -150,3 +150,4 @@ Once both Render and Netlify display **Published / Live**:
 5. Confirm real-time participant synchronization and team selection.
 6. Start the auction — verify player portraits load cleanly in 4:5 ratio on the studio charcoal background with zero black halos or action photos.
 7. Test live bidding and pass actions.
+

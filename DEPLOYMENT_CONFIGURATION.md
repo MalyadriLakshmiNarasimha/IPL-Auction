@@ -118,3 +118,4 @@ Netlify provides same-origin proxying to prevent 3rd-party cross-domain cookie b
 2. **Preservation**: All tables, user accounts, and past auction records remain completely untouched.
 3. **SSL Requirement**: TiDB Cloud strictly requires TLS connections. Ensure `?sslaccept=strict` or `?ssl={"rejectUnauthorized":true}` is present in the `DATABASE_URL`.
 4. **Auto-Recovery**: If a network disconnect occurs between Render and TiDB, the connection pool automatically reconnects with exponential backoff (500ms, 1000ms, 2000ms, 4000ms).
+

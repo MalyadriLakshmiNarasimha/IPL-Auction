@@ -77,3 +77,4 @@ Follow this checklist upon completing the fresh deployment on Render and Netlify
   3. `.gitignore`: Added explicit exclusion rules for `.dist/`, `archive/`, `audit-evidence/`, and `*.zip`.
 - **Database Status**: TiDB Cloud MySQL cluster 100% preserved. Zero records or migrations deleted.
 - **Backup Verification**: Complete source backup confirmed at `C:\Game_backup_pre_cleanup`.
+
