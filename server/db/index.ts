@@ -1,5 +1,6 @@
 import { AuctionResults, Participant, Player, RoomSettings, WorkflowStage, TradeOffer, TradeTransaction, PlayingXISubmission, CommentaryEvent, AuctionState } from '../../src/shared/types';
 import { db, prisma, checkMySqlConnection, DatabaseConnectionError } from '../../src/lib/db';
+import { ensureMysqlRunning } from '../../scripts/db-manager';
 
 const memoryResults = new Map<string, AuctionResults>();
 
@@ -58,8 +59,18 @@ export function validateProductionEnv(): void {
  * Initializes database with exponential backoff retries.
  * In production: Retries up to maxRetries without terminating the process so the HTTP/Socket server remains listening.
  */
-export async function initDatabaseWithRetry(maxRetries = 5, initialDelayMs = 1000): Promise<boolean> {
+export async function initDatabaseWithRetry(
+  maxRetries = process.env.NODE_ENV === 'production' ? 5 : 2,
+  initialDelayMs = process.env.NODE_ENV === 'production' ? 1000 : 500
+): Promise<boolean> {
   validateProductionEnv();
+
+  // In non-test environments, attempt auto-starting local MySQL if not running
+  if (process.env.NODE_ENV !== 'test') {
+    try {
+      await ensureMysqlRunning(false);
+    } catch {}
+  }
 
   let delay = initialDelayMs;
   for (let attempt = 1; attempt <= maxRetries; attempt++) {

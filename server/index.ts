@@ -386,7 +386,6 @@ const io = new SocketIOServer<ClientToServerEvents, ServerToClientEvents>(server
   pingTimeout: 5000,
 });
 
-initDatabase();
 export const roomManager = new RoomManager(io);
 
 // Socket.IO Authentication Middleware
