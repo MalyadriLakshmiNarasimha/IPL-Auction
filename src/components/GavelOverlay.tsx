@@ -24,7 +24,9 @@ export const GavelOverlay: React.FC<GavelOverlayProps> = ({
   currentUserId,
 }) => {
   const isMyPurchase = winner?.id === currentUserId;
-  const winnerColor = winner?.franchise?.color || '#FF7A1A';
+  const winnerColor = winner?.team_color || winner?.franchise?.color || '#DCC477';
+  const winnerName = winner?.team_name || winner?.franchise?.name || 'Winning Team';
+  const winnerCode = winner?.team_short_code || winner?.franchise?.short_code || 'TM';
 
   useEffect(() => {
     // 1. Play Gavel Sound
@@ -120,18 +122,18 @@ export const GavelOverlay: React.FC<GavelOverlayProps> = ({
           </div>
 
           {/* Winner details */}
-          {phase === 'sold' && winner && winner.franchise && (
+          {phase === 'sold' && winner && (winner.team_name || winner.franchise) && (
             <div className="mt-5 p-3 rounded-card bg-night-raised border border-night-border flex items-center justify-between">
               <div className="flex items-center gap-3 text-left">
                 <div
                   className="w-10 h-10 rounded-full flex items-center justify-center font-display font-bold text-lg text-white"
-                  style={{ backgroundColor: winner.franchise.color }}
+                  style={{ backgroundColor: winnerColor }}
                 >
-                  {winner.franchise.short_code}
+                  {winnerCode}
                 </div>
                 <div>
                   <div className="font-bold text-sm text-floodlight">
-                    {winner.franchise.name}
+                    {winnerName}
                   </div>
                   <div className="text-xs text-floodlight-muted">
                     {winner.display_name} {isMyPurchase && '(You)'}

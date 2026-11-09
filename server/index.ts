@@ -1,10 +1,11 @@
 import http from 'http';
 import { Server as SocketIOServer } from 'socket.io';
 import { RoomManager } from './room';
-import { initDatabase, getPersistedResults } from './db';
+import { initDatabase, initDatabaseWithRetry, validateProductionEnv, getPersistedResults } from './db';
 import { ClientToServerEvents, ServerToClientEvents, Reaction, ChatMessage } from '../src/shared/types';
+import { MAX_ROOM_PARTICIPANTS } from '../src/shared/constants';
 import { validateSessionToken, AUTH_COOKIE_NAME } from '../src/lib/auth';
-import { db } from '../src/lib/db';
+import { db, checkMySqlConnection } from '../src/lib/db';
 import { parseCookie } from 'cookie';
 import dotenv from 'dotenv';
 
@@ -33,10 +34,16 @@ const server = http.createServer(async (req, res) => {
 
   const url = new URL(req.url || '/', `http://${req.headers.host}`);
 
-  // Health check
+  // Health check: pings DB and returns 200 (connected) or 503 (disconnected)
   if (url.pathname === '/health') {
-    res.writeHead(200, { 'Content-Type': 'application/json' });
-    res.end(JSON.stringify({ status: 'ok', time: Date.now() }));
+    const isConnected = await checkMySqlConnection(true);
+    if (isConnected) {
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ status: 'ok', db: 'connected', time: Date.now() }));
+    } else {
+      res.writeHead(503, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ status: 'degraded', db: 'disconnected', error: 'Database connection failed', time: Date.now() }));
+    }
     return;
   }
 
@@ -109,8 +116,13 @@ const server = http.createServer(async (req, res) => {
               status: 'lobby',
             },
           });
-        } catch (dbErr) {
-          // If MySQL is not running locally, room is kept in memory
+        } catch (dbErr: any) {
+          if (process.env.NODE_ENV !== 'test') {
+            roomManager.removeRoom(code);
+            res.writeHead(503, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ error: 'Database unavailable: unable to persist room' }));
+            return;
+          }
         }
 
         res.writeHead(201, { 'Content-Type': 'application/json' });
@@ -249,11 +261,33 @@ io.on('connection', socket => {
     const { room_code } = data;
     boundRoomCode = room_code.toUpperCase();
 
-    socket.join(boundRoomCode);
-    const room = roomManager.joinRoom(boundRoomCode, userId, userName, socket.id);
-    if (!room) {
-      socket.emit('error_message', { message: 'Room not found or maximum limit reached (20).' });
+    if (roomManager.isRoomRestoring(boundRoomCode)) {
+      socket.emit('error_message', { message: 'Room is currently restoring from persistence snapshot. Please retry in a moment.' });
+      return;
     }
+
+    socket.join(boundRoomCode);
+    const room = roomManager.joinRoom(boundRoomCode, userId, userName, socket.id, data.is_spectator || false);
+    if (!room) {
+      socket.emit('error_message', { message: `Room not found or maximum limit reached (${MAX_ROOM_PARTICIPANTS}).` });
+    }
+  });
+
+  socket.on('set_team_name', data => {
+    const room = roomManager.getRoom(data.room_code);
+    if (!room || !room.participants.has(userId)) return;
+
+    const result = roomManager.setTeamName(data.room_code, userId, data.team_name, data.team_color);
+    if (!result.success) {
+      socket.emit('error_message', { message: result.reason || 'Failed to update team name.' });
+    }
+  });
+
+  socket.on('announcement_completed', data => {
+    const room = roomManager.getRoom(data.room_code);
+    if (!room || !room.participants.has(userId)) return;
+
+    roomManager.handleClientAnnouncementCompleted(data.room_code, userId, data.player_id);
   });
 
   socket.on('franchise_pick', data => {
@@ -284,7 +318,13 @@ io.on('connection', socket => {
     const room = roomManager.getRoom(data.room_code);
     if (!room || !room.participants.has(userId)) return;
 
-    roomManager.placeBid(data.room_code, userId, data.increment);
+    const bidAmount = (data.increment ?? (data as any).amount) || 0;
+    roomManager.placeBid(
+      data.room_code,
+      userId,
+      bidAmount,
+      Boolean((data as any).is_explicit_amount || (data as any).is_custom)
+    );
   });
 
   socket.on('withdraw_bid', data => {
@@ -292,6 +332,13 @@ io.on('connection', socket => {
     if (!room || !room.participants.has(userId)) return;
 
     roomManager.withdrawBid(data.room_code, userId);
+  });
+
+  socket.on('pass_player', data => {
+    const room = roomManager.getRoom(data.room_code);
+    if (!room || !room.participants.has(userId)) return;
+
+    roomManager.passPlayer(data.room_code, userId);
   });
 
   socket.on('host_pause', data => {
@@ -340,6 +387,90 @@ io.on('connection', socket => {
     const room = roomManager.getRoom(data.room_code);
     if (room && room.participants.has(userId)) {
       roomManager.broadcastState(room);
+    }
+  });
+
+  // Stage Transitions
+  socket.on('stage_change', data => {
+    const room = roomManager.getRoom(data.room_code);
+    if (!room || room.host_session_id !== userId) return;
+
+    roomManager.transitionStage(data.room_code, userId, data.stage, data.duration_seconds);
+  });
+
+  // Spectator Toggle
+  socket.on('toggle_spectator', data => {
+    const room = roomManager.getRoom(data.room_code);
+    if (!room || !room.participants.has(userId)) return;
+
+    roomManager.setSpectatorMode(data.room_code, userId, data.is_spectator);
+  });
+
+  // Unsold Pool Configuration
+  socket.on('unsold_pool_configure', data => {
+    const room = roomManager.getRoom(data.room_code);
+    if (!room || room.host_session_id !== userId) return;
+
+    roomManager.configureUnsoldPool(data.room_code, userId, data.player_ids, data.order_type);
+  });
+
+  // Player Trading Window Events
+  socket.on('trade_propose', data => {
+    const room = roomManager.getRoom(data.room_code);
+    if (!room || !room.participants.has(userId)) return;
+
+    const res = roomManager.proposeTrade(
+      data.room_code,
+      userId,
+      data.target_participant_id,
+      data.offered_player_id,
+      data.requested_player_id
+    );
+
+    if (!res.success) {
+      socket.emit('error_message', { message: res.error || 'Failed to propose trade.' });
+    }
+  });
+
+  socket.on('trade_respond', data => {
+    const room = roomManager.getRoom(data.room_code);
+    if (!room || !room.participants.has(userId)) return;
+
+    const res = roomManager.respondTrade(
+      data.room_code,
+      userId,
+      data.trade_id,
+      data.action,
+      data.counter_player_id
+    );
+
+    if (!res.success) {
+      socket.emit('error_message', { message: res.error || 'Failed to respond to trade.' });
+    }
+  });
+
+  socket.on('trade_cancel', data => {
+    const room = roomManager.getRoom(data.room_code);
+    if (!room || !room.participants.has(userId)) return;
+
+    roomManager.cancelTrade(data.room_code, userId, data.trade_id);
+  });
+
+  // Playing XI Selection Events
+  socket.on('playing_xi_save_draft', data => {
+    const room = roomManager.getRoom(data.room_code);
+    if (!room || !room.participants.has(userId)) return;
+
+    roomManager.savePlayingXIDraft(data.room_code, userId, data.submission);
+  });
+
+  socket.on('playing_xi_submit', data => {
+    const room = roomManager.getRoom(data.room_code);
+    if (!room || !room.participants.has(userId)) return;
+
+    const res = roomManager.submitPlayingXI(data.room_code, userId, data.submission);
+    if (!res.success) {
+      socket.emit('error_message', { message: res.error || 'Invalid Playing XI submission.' });
     }
   });
 
@@ -398,7 +529,7 @@ io.on('connection', socket => {
       id: `rx-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
       participant_id: participant.id,
       display_name: participant.display_name,
-      franchise_color: participant.franchise?.color || '#FF7A1A',
+      franchise_color: participant.team_color || participant.franchise?.color || '#DCC477',
       emoji: data.emoji,
       timestamp: Date.now(),
     };
@@ -411,7 +542,22 @@ io.on('connection', socket => {
   });
 });
 
-export function startServer(port = PORT): Promise<http.Server> {
+export async function startServer(port = PORT): Promise<http.Server> {
+  // 1. Validate environment in production
+  validateProductionEnv();
+
+  // 2. Initialize database with retry backoff
+  const dbConnected = await initDatabaseWithRetry();
+
+  // 3. Rehydrate active rooms from database snapshots if connected
+  if (dbConnected) {
+    try {
+      await roomManager.restoreAllActiveRoomsFromDb();
+    } catch (restoreErr: any) {
+      console.error('[SERVER] Error restoring active rooms on boot:', restoreErr);
+    }
+  }
+
   return new Promise((resolve) => {
     server.listen(port, '0.0.0.0', () => {
       console.log(`[IPL-AUCTION SERVER] Authoritative Server running on port ${port}`);
@@ -419,6 +565,26 @@ export function startServer(port = PORT): Promise<http.Server> {
     });
   });
 }
+
+// Graceful shutdown handling
+const handleShutdown = async (signal: string) => {
+  console.log(`[SERVER] Received ${signal}. Performing graceful shutdown...`);
+  roomManager.stopPeriodicSnapshotLoop();
+  try {
+    await roomManager.snapshotAllActiveRooms();
+    console.log('[SERVER] Active rooms successfully snapshotted before shutdown.');
+  } catch (err) {
+    console.error('[SERVER] Error saving snapshots during shutdown:', err);
+  }
+  server.close(() => {
+    console.log('[SERVER] Server closed.');
+    process.exit(0);
+  });
+  setTimeout(() => process.exit(0), 5000).unref();
+};
+
+process.on('SIGTERM', () => handleShutdown('SIGTERM'));
+process.on('SIGINT', () => handleShutdown('SIGINT'));
 
 // Auto-start if running index.ts directly
 if (process.argv[1] && (process.argv[1].endsWith('index.ts') || process.argv[1].endsWith('index.js'))) {

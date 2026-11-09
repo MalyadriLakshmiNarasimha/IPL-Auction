@@ -4,6 +4,8 @@ import React, { useState } from 'react';
 import { Participant, RoomSettings } from '@/shared/types';
 import { formatCurrency, formatRoleName } from '@/shared/constants';
 import { ChevronDown, ChevronUp, Users, Shield } from 'lucide-react';
+import { FranchiseLogo } from '@/components/FranchiseLogo';
+import { PlayerPortrait } from '@/components/PlayerPortrait';
 
 interface TeamsDrawerProps {
   participants: Participant[];
@@ -20,7 +22,7 @@ export const TeamsDrawer: React.FC<TeamsDrawerProps> = ({
 }) => {
   const [expandedTeamId, setExpandedTeamId] = useState<string | null>(null);
 
-  const activeTeams = participants.filter(p => p.franchise !== null);
+  const activeTeams = participants.filter(p => !p.is_spectator && (p.team_name || p.franchise));
 
   const toggleExpand = (id: string) => {
     setExpandedTeamId(prev => (prev === id ? null : id));
@@ -32,7 +34,7 @@ export const TeamsDrawer: React.FC<TeamsDrawerProps> = ({
         <div className="flex items-center gap-2">
           <Users className="w-4 h-4 text-flare" />
           <h3 className="text-xs font-bold uppercase tracking-wider text-floodlight">
-            Franchises ({activeTeams.length})
+            Teams ({activeTeams.length})
           </h3>
         </div>
         <span className="text-[11px] text-floodlight-muted">
@@ -45,19 +47,20 @@ export const TeamsDrawer: React.FC<TeamsDrawerProps> = ({
           const isMe = p.id === currentUserId;
           const isLeader = p.id === currentBidderId;
           const isExpanded = expandedTeamId === p.id;
-          const franchise = p.franchise!;
+          const teamName = p.team_name || p.franchise?.name || 'Custom Team';
+          const teamShortCode = p.team_short_code || p.franchise?.short_code || 'TM';
+          const teamColor = p.team_color || p.franchise?.color || '#DCC477';
           const totalSpent = p.squad.reduce((sum, item) => sum + item.bought_for, 0);
 
           return (
             <div
               key={p.id}
-              className={`rounded-lg border transition-all ${
-                isLeader
+              className={`rounded-lg border transition-all ${isLeader
                   ? 'border-flare bg-flare/10 shadow-sm'
                   : isMe
-                  ? 'border-turf/50 bg-night-raised'
-                  : 'border-night-border bg-night-raised/60'
-              }`}
+                    ? 'border-turf/50 bg-night-raised'
+                    : 'border-night-border bg-night-raised/60'
+                }`}
             >
               {/* Team Row Header */}
               <div
@@ -66,12 +69,14 @@ export const TeamsDrawer: React.FC<TeamsDrawerProps> = ({
               >
                 <div className="flex items-center gap-2.5 min-w-0">
                   <div
-                    className="w-3.5 h-3.5 rounded-full flex-shrink-0"
-                    style={{ backgroundColor: franchise.color }}
-                  />
+                    className="w-6 h-6 rounded-md flex items-center justify-center font-display font-black text-[10px] text-white shadow-sm flex-shrink-0"
+                    style={{ backgroundColor: teamColor }}
+                  >
+                    {teamShortCode.slice(0, 3)}
+                  </div>
                   <div className="truncate">
                     <div className="font-bold text-xs sm:text-sm text-floodlight flex items-center gap-1.5 truncate">
-                      <span>{franchise.short_code}</span>
+                      <span className="truncate">{teamName}</span>
                       <span className="text-floodlight-muted font-normal text-xs truncate">
                         ({p.display_name})
                       </span>
@@ -121,6 +126,9 @@ export const TeamsDrawer: React.FC<TeamsDrawerProps> = ({
                           className="flex items-center justify-between py-1 px-2 rounded bg-night/80 border border-night-border text-xs"
                         >
                           <div className="flex items-center gap-2 truncate">
+                            <div className="w-6 h-7 rounded overflow-hidden flex-shrink-0">
+                              <PlayerPortrait player={item.player} aspectRatio="4/5" size="responsive" showBadge={false} />
+                            </div>
                             <span className="font-bold text-floodlight truncate">
                               {item.player.name}
                             </span>

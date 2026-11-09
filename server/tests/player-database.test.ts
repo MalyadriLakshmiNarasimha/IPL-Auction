@@ -238,6 +238,24 @@ describe('3. Auction Engine & Room Manager Integration with 274 Players', () => 
     expect(room.pool.map(p => p.id)).toEqual(expect.arrayContaining(selected));
   });
 
+  it('Allows host to start auction with single participant when MIN_AUCTION_PARTICIPANTS is 1', () => {
+    const rm = new RoomManager(mockIo);
+    const room = rm.createRoom('TEST-SOLO', 'Solo Test Room', 'host-solo', 'Solo Host');
+
+    // Host selects franchise
+    const host = room.participants.get('host-solo')!;
+    host.franchise = FRANCHISE_PRESETS[0];
+
+    // Room has default 274 players selected, squad size 15 (requires 15)
+    expect(room.participants.size).toBe(1);
+    expect(room.settings.selected_player_ids.length).toBe(274);
+
+    const started = rm.startAuction('TEST-SOLO', 'host-solo');
+    expect(started).toBe(true);
+    expect(room.auction_state.phase).toBe('starting');
+    expect(room.pool.length).toBe(274);
+  });
+
   it('Executes bidding and sold cycle on newly imported player', () => {
     const rm = new RoomManager(mockIo);
     const room = rm.createRoom('TEST03', 'Test Room 3', 'host-1', 'Host User');
@@ -344,5 +362,32 @@ describe('3. Auction Engine & Room Manager Integration with 274 Players', () => 
     expect(score.total_score).toBeGreaterThan(0);
     expect(score.role_balance_score).toBeGreaterThanOrEqual(0);
     expect(score.completeness_score).toBeGreaterThan(0);
+  });
+
+  it('Verifies all 274 players have verified 2026 IPL statistics, image_url, category, and points', () => {
+    expect(ALL_PLAYERS.length).toBe(274);
+
+    for (const player of ALL_PLAYERS) {
+      expect(player.stats_2026).toBeDefined();
+      expect(player.stats_2026.season).toBe('2026');
+      expect(player.stats_2026.source).toBe('Official IPL Match Center & Historical Registry');
+      expect(player.stats_2026.matches).toBeGreaterThanOrEqual(4);
+      expect(player.player_points).toBeGreaterThanOrEqual(140);
+      expect(player.player_points).toBeLessThanOrEqual(1000);
+      expect(player.image_url).toBeDefined();
+      expect(player.image_url.length).toBeGreaterThan(20);
+      expect(['Marquee', 'International Star', 'Domestic Proven', 'Emerging Talent']).toContain(player.category);
+    }
+
+    // Verify marquee stars verified data
+    const virat = ALL_PLAYERS.find(p => p.name === 'Virat Kohli')!;
+    expect(virat.stats_2026.runs).toBe(741);
+    expect(virat.stats_2026.highest_score).toBe(113);
+    expect(virat.category).toBe('Marquee');
+
+    const bumrah = ALL_PLAYERS.find(p => p.name === 'Jasprit Bumrah')!;
+    expect(bumrah.stats_2026.wickets).toBe(20);
+    expect(bumrah.stats_2026.economy_rate).toBe(6.48);
+    expect(bumrah.category).toBe('Marquee');
   });
 });

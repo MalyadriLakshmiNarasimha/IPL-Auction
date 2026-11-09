@@ -4,6 +4,8 @@ import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { formatCurrency } from '@/shared/constants';
 import { Gavel, Flame } from 'lucide-react';
+import { PlayerPortrait } from '@/components/PlayerPortrait';
+import { ALL_PLAYERS } from '@/shared/player-data';
 
 interface DemoPlayer {
   name: string;
@@ -81,13 +83,14 @@ export const MiniAuctionDemo: React.FC = () => {
         <span className="text-floodlight-muted font-mono">{timer}s left</span>
       </div>
 
-      {/* Player Avatar */}
-      <div className="relative inline-block my-2">
-        <div className="w-20 h-20 rounded-full bg-night-raised border-2 border-flare flex items-center justify-center mx-auto shadow-scoreboard">
-          <span className="font-display text-3xl font-extrabold text-floodlight">
-            {player.initials}
-          </span>
-        </div>
+      {/* Large 4:5 Player Portrait */}
+      <div className="w-36 sm:w-44 mx-auto my-3">
+        <PlayerPortrait
+          player={ALL_PLAYERS.find(p => p.name === player.name) ?? null}
+          aspectRatio="4/5"
+          size="responsive"
+          showBadge={true}
+        />
       </div>
 
       <div className="font-bold text-base text-floodlight mt-1">{player.name}</div>

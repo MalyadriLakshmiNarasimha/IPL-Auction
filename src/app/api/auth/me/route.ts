@@ -46,6 +46,12 @@ export async function GET(req: NextRequest) {
     });
   } catch (err: any) {
     console.error('[API Me Error]:', err);
+    if (err.name === 'DatabaseConnectionError' || err.statusCode === 503) {
+      return NextResponse.json(
+        { authenticated: false, error: 'Database service is currently unavailable.' },
+        { status: 503 }
+      );
+    }
     return NextResponse.json(
       { authenticated: false, error: err.message },
       { status: 500 }

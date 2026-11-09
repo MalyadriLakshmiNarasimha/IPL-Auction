@@ -93,7 +93,7 @@ export default function CreateRoomPage() {
             CREATE AUCTION ROOM
           </h1>
           <p className="text-xs text-floodlight-muted mt-1">
-            Host a live auction room for up to 20 friends
+            Host a live auction room for up to 30 friends
           </p>
         </div>
 

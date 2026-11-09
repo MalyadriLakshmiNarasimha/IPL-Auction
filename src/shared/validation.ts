@@ -1,5 +1,5 @@
 import { AuctionState, Participant, Player, RoomSettings } from './types';
-import { MIN_RESERVE_PER_SLOT, formatCurrency } from './constants';
+import { MIN_RESERVE_PER_SLOT, formatCurrency, getMinAuctionParticipants } from './constants';
 
 export interface BidValidationResult {
   valid: boolean;
@@ -18,6 +18,9 @@ export function validateBid(
   isExplicitAmount: boolean = false
 ): BidValidationResult {
   // 1. Auction Phase Check
+  if (auctionState.phase === 'announcing') {
+    return { valid: false, reason: 'Bidding has not started yet. Player announcement in progress.' };
+  }
   if (auctionState.phase !== 'bidding') {
     return { valid: false, reason: 'Bidding is not currently active' };
   }
@@ -135,4 +138,60 @@ export function getBidButtonStatus(
     targetAmount,
   };
 }
+
+export interface AuctionStartValidationResult {
+  valid: boolean;
+  reason?: string;
+}
+
+/**
+ * Validates whether an auction room is ready to be started by the host.
+ * Checks:
+ * 1. Host has selected a franchise.
+ * 2. Active franchise count meets the minimum required participants.
+ * 3. Selected player pool is non-empty and meets activeParticipants * squad_size.
+ */
+export function validateAuctionStart(
+  hostParticipant: Participant | null | undefined,
+  participants: Participant[],
+  settings: RoomSettings,
+  totalAvailablePlayersCount: number = 274,
+  customMinParticipants?: number
+): AuctionStartValidationResult {
+  const hostHasTeam = Boolean(hostParticipant?.team_name || hostParticipant?.franchise);
+  if (!hostParticipant || !hostHasTeam) {
+    return {
+      valid: false,
+      reason: 'Host must set a team name to start the auction.',
+    };
+  }
+
+  const minParticipants = customMinParticipants ?? getMinAuctionParticipants();
+  const activeParticipants = participants.filter(
+    p => !p.is_spectator && (p.team_name || p.franchise)
+  );
+
+  if (activeParticipants.length < minParticipants) {
+    return {
+      valid: false,
+      reason: `At least ${minParticipants} participant${minParticipants > 1 ? 's' : ''} must set a team name to start the auction.`,
+    };
+  }
+
+  const poolCount =
+    settings.selected_player_ids && settings.selected_player_ids.length > 0
+      ? settings.selected_player_ids.length
+      : totalAvailablePlayersCount;
+
+  const minPoolRequired = activeParticipants.length * settings.squad_size;
+  if (poolCount < minPoolRequired || poolCount === 0) {
+    return {
+      valid: false,
+      reason: `Pool requires at least ${minPoolRequired} players (${poolCount} selected).`,
+    };
+  }
+
+  return { valid: true };
+}
+
 

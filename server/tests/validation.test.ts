@@ -1,7 +1,8 @@
 import { describe, it, expect } from 'vitest';
-import { validateBid, getBidButtonStatus } from '../../src/shared/validation';
+import { validateBid, getBidButtonStatus, validateAuctionStart } from '../../src/shared/validation';
+import { validateTeamName, deriveTeamShortCode } from '../../src/shared/team-validation';
 import { AuctionState, Participant, Player, RoomSettings } from '../../src/shared/types';
-import { MIN_RESERVE_PER_SLOT } from '../../src/shared/constants';
+import { MIN_RESERVE_PER_SLOT, getMinAuctionParticipants, MIN_AUCTION_PARTICIPANTS } from '../../src/shared/constants';
 
 describe('Authoritative Auction Rules & Bid Validation', () => {
   const dummyPlayer: Player = {
@@ -16,6 +17,33 @@ describe('Authoritative Auction Rules & Bid Validation', () => {
     capped: true,
     tier: 'A',
     initials: 'VK',
+    category: 'Marquee',
+    image_url: '/players/virat-kohli.svg',
+    player_points: 920,
+    stats_2026: {
+      season: '2026',
+      source: 'IPL 2026 Official Archive',
+      last_updated: '2026-03-01',
+      matches: 15,
+      innings: 15,
+      runs: 741,
+      highest_score: 113,
+      batting_average: 61.75,
+      strike_rate: 154.7,
+      fifties: 5,
+      hundreds: 1,
+      fours: 62,
+      sixes: 38,
+      wickets: 0,
+      economy_rate: 0,
+      bowling_average: 0,
+      best_bowling: '0/0',
+      maidens: 0,
+      dot_balls: 0,
+      catches: 8,
+      stumpings: 0,
+      player_points: 920,
+    },
   };
 
   const defaultSettings: RoomSettings = {
@@ -183,6 +211,161 @@ describe('Authoritative Auction Rules & Bid Validation', () => {
     const status = getBidButtonStatus(participant, state, defaultSettings, 2500000);
     expect(status.disabled).toBe(true);
     expect(status.reason).toMatch(/already the highest bidder/i);
+  });
+});
+
+describe('Auction Start & Player Pool Validation (Single-Player & Multiplayer)', () => {
+  function makeHost(hasFranchise = true): Participant {
+    return {
+      id: 'host-1',
+      room_code: 'TEST01',
+      display_name: 'Host Manager',
+      is_host: true,
+      is_connected: true,
+      last_active: Date.now(),
+      franchise: hasFranchise
+        ? { id: 'csk', name: 'Chennai Super Kings', short_code: 'CSK', color: '#F9CD05' }
+        : null,
+      purse_remaining: 100_00_00_000,
+      squad: [],
+      has_withdrawn_current: false,
+    };
+  }
+
+  function makeGuest(hasFranchise = true): Participant {
+    return {
+      id: 'guest-1',
+      room_code: 'TEST01',
+      display_name: 'Guest Manager',
+      is_host: false,
+      is_connected: true,
+      last_active: Date.now(),
+      franchise: hasFranchise
+        ? { id: 'mi', name: 'Mumbai Indians', short_code: 'MI', color: '#004BA0' }
+        : null,
+      purse_remaining: 100_00_00_000,
+      squad: [],
+      has_withdrawn_current: false,
+    };
+  }
+
+  const baseSettings: RoomSettings = {
+    purse: 100_00_00_000,
+    squad_size: 25,
+    timer_seconds: 10,
+    order_type: 'random',
+    accelerated_round: true,
+    selected_player_ids: Array.from({ length: 274 }, (_, i) => `p-${i + 1}`),
+  };
+
+  it('1. Rejects auction start when host has NOT chosen a franchise or team name', () => {
+    const host = makeHost(false);
+    const result = validateAuctionStart(host, [host], baseSettings, 274, 1);
+    expect(result.valid).toBe(false);
+    expect(result.reason).toBe('Host must set a team name to start the auction.');
+  });
+
+  it('2. Single-player mode: Allows host to start auction alone when minParticipants is 1', () => {
+    const host = makeHost(true);
+    const result = validateAuctionStart(host, [host], baseSettings, 274, 1);
+    expect(result.valid).toBe(true);
+    expect(result.reason).toBeUndefined();
+  });
+
+  it('3. Multiplayer mode: Rejects when only 1 participant chose franchise/team name and minParticipants is 2', () => {
+    const host = makeHost(true);
+    const result = validateAuctionStart(host, [host], baseSettings, 274, 2);
+    expect(result.valid).toBe(false);
+    expect(result.reason).toBe('At least 2 participants must set a team name to start the auction.');
+  });
+
+  it('4. Multiplayer mode: Passes when 2 participants have chosen franchises', () => {
+    const host = makeHost(true);
+    const guest = makeGuest(true);
+    const result = validateAuctionStart(host, [host, guest], baseSettings, 274, 2);
+    expect(result.valid).toBe(true);
+  });
+
+  it('5. Pool validation: Passes with 274 selected players when squad size is 25 (requires 25)', () => {
+    const host = makeHost(true);
+    const result = validateAuctionStart(host, [host], baseSettings, 274, 1);
+    expect(result.valid).toBe(true);
+  });
+
+  it('6. Pool validation: Rejects when pool has fewer players than required for squad size', () => {
+    const host = makeHost(true);
+    const insufficientSettings: RoomSettings = {
+      ...baseSettings,
+      squad_size: 25,
+      selected_player_ids: Array.from({ length: 10 }, (_, i) => `p-${i + 1}`), // only 10 selected
+    };
+    const result = validateAuctionStart(host, [host], insufficientSettings, 274, 1);
+    expect(result.valid).toBe(false);
+    expect(result.reason).toBe('Pool requires at least 25 players (10 selected).');
+  });
+
+  it('7. Pool validation: Handles zero minimum pool configuration correctly (274 selected passes)', () => {
+    const host = makeHost(true);
+    const zeroPoolSettings: RoomSettings = {
+      ...baseSettings,
+      squad_size: 0, // 1 team of 0 = 0 players min required
+    };
+    const result = validateAuctionStart(host, [host], zeroPoolSettings, 274, 1);
+    expect(result.valid).toBe(true);
+  });
+
+  it('8. Centralized setting: Resolves configurable participant minimum from environment', () => {
+    const min = getMinAuctionParticipants();
+    expect(typeof min).toBe('number');
+    expect(min).toBeGreaterThanOrEqual(1);
+  });
+});
+
+describe('Custom Team Name Validation & Short Code Derivation', () => {
+  it('1. Allows valid team names within 2-30 chars', () => {
+    const res1 = validateTeamName('Bengaluru Blasters');
+    expect(res1.valid).toBe(true);
+    expect(res1.reason).toBeUndefined();
+
+    const res2 = validateTeamName("King's XI - Rockers & Rollers.");
+    expect(res2.valid).toBe(true);
+  });
+
+  it('2. Rejects empty, whitespace-only, or too short team names', () => {
+    expect(validateTeamName('').valid).toBe(false);
+    expect(validateTeamName('   ').valid).toBe(false);
+    expect(validateTeamName('A').valid).toBe(false);
+  });
+
+  it('3. Rejects team names longer than 30 characters', () => {
+    const longName = 'This Team Name Is Way Too Long And Exceeds Thirty Characters';
+    const res = validateTeamName(longName);
+    expect(res.valid).toBe(false);
+    expect(res.reason).toContain('cannot exceed 30 characters');
+  });
+
+  it('4. Rejects invalid characters and injection attempts', () => {
+    expect(validateTeamName('<script>alert(1)</script>').valid).toBe(false);
+    expect(validateTeamName('Team #1 @ Mumbai').valid).toBe(false);
+    expect(validateTeamName('Team $Money$').valid).toBe(false);
+  });
+
+  it('5. Enforces case-insensitive uniqueness in the room', () => {
+    const existing = ['Chennai Dynamos', 'Kolkata Knights'];
+    const dupResult = validateTeamName('chennai dynamos', existing);
+    expect(dupResult.valid).toBe(false);
+    expect(dupResult.reason).toContain('already taken');
+
+    // Participant editing their own name should not trigger duplicate
+    const selfEdit = validateTeamName('Chennai Dynamos', existing, 'Chennai Dynamos');
+    expect(selfEdit.valid).toBe(true);
+  });
+
+  it('6. Derives clean 2 to 4 letter short codes', () => {
+    expect(deriveTeamShortCode('Mumbai Mavericks')).toBe('MM');
+    expect(deriveTeamShortCode('Royal Challengers Bengaluru')).toBe('RCB');
+    expect(deriveTeamShortCode('Delhi Capitals Super Kings')).toBe('DCSK');
+    expect(deriveTeamShortCode('Warriors')).toBe('WAR');
   });
 });
 

@@ -77,6 +77,9 @@ describe('Full End-to-End Auction Lifecycle & Multi-Client Synchronization', () 
     if (hostSocket?.connected) hostSocket.disconnect();
     if (guestSocket?.connected) guestSocket.disconnect();
 
+    // Drain queued background snapshots before deleting test entities
+    await new Promise((r) => setTimeout(r, 250));
+
     // Clean up test records
     try {
       if (roomCode) {
@@ -237,7 +240,26 @@ describe('Full End-to-End Auction Lifecycle & Multi-Client Synchronization', () 
     const nextPlayerData = await startPromise;
     expect(nextPlayerData.player).toBeDefined();
     expect(nextPlayerData.player.name).toBeDefined();
-    expect(nextPlayerData.auction_state.phase).toBe('bidding');
+    expect(nextPlayerData.auction_state.phase).toBe('announcing');
+
+    // Authoritative Announcement: clients signal completion, transitioning server to bidding phase
+    const biddingPromise = new Promise<any>((resolve) => {
+      guestSocket.once('bidding_started', resolve);
+      hostSocket.emit('announcement_completed', {
+        room_code: roomCode,
+        session_id: hostUser.id,
+        player_id: nextPlayerData.player.id,
+      });
+      guestSocket.emit('announcement_completed', {
+        room_code: roomCode,
+        session_id: guestUser.id,
+        player_id: nextPlayerData.player.id,
+      });
+    });
+
+    const biddingData = await biddingPromise;
+    expect(biddingData.auction_state.phase).toBe('bidding');
+    expect(biddingData.auction_state.timer_ends_at).toBeGreaterThan(Date.now());
 
     // Verify MySQL room status changed to 'live'
     const dbRoomLive = await db.room.findUnique({ where: { room_code: roomCode } });
@@ -322,15 +344,15 @@ describe('Full End-to-End Auction Lifecycle & Multi-Client Synchronization', () 
     expect(results.total_players_auctioned).toBe(1);
     expect(results.awards.length).toBeGreaterThan(0);
 
-    // Give MySQL 300ms to persist async
-    await new Promise((r) => setTimeout(r, 300));
+    // Give MySQL 600ms to persist async
+    await new Promise((r) => setTimeout(r, 600));
 
     // Verify room status in MySQL is updated to 'completed'
     const dbRoomCompleted = await db.room.findUnique({ where: { room_code: roomCode } });
     expect(dbRoomCompleted?.status).toBe('completed');
 
-    // Verify results record exists in MySQL results table
-    const dbResult = await prisma.result.findUnique({ where: { room_code: roomCode } });
+    // Verify results record exists in results table
+    const dbResult = await db.result.findUnique({ where: { room_code: roomCode } });
     expect(dbResult).not.toBeNull();
     expect(dbResult?.room_code).toBe(roomCode);
     expect(dbResult?.total_players_auctioned).toBe(1);

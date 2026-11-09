@@ -1,5 +1,29 @@
 import { FranchiseIdentity, RoomSettings } from './types';
 
+/**
+ * Resolves the minimum active participants (with franchise chosen) required to start an auction.
+ * Centralized configuration:
+ * - Production default: 2 (for normal multiplayer operation)
+ * - Configurable via NEXT_PUBLIC_MIN_AUCTION_PARTICIPANTS or MIN_AUCTION_PARTICIPANTS
+ *   (e.g., set to 1 for local single-player testing).
+ */
+export function getMinAuctionParticipants(): number {
+  const envVal =
+    typeof process !== 'undefined' && process.env
+      ? process.env.NEXT_PUBLIC_MIN_AUCTION_PARTICIPANTS || process.env.MIN_AUCTION_PARTICIPANTS
+      : undefined;
+  if (envVal) {
+    const parsed = parseInt(envVal, 10);
+    if (!isNaN(parsed) && parsed > 0) {
+      return parsed;
+    }
+  }
+  return 2; // Production default
+}
+
+export const MIN_AUCTION_PARTICIPANTS: number = getMinAuctionParticipants();
+export const MAX_ROOM_PARTICIPANTS = 30;
+
 export const MIN_RESERVE_PER_SLOT = 20_00_000; // ₹20 Lakhs
 
 export const BID_INCREMENTS = [
@@ -21,14 +45,14 @@ export const FRANCHISE_PRESETS: FranchiseIdentity[] = [
   { id: 'csk', name: 'Chennai Super Kings', short_code: 'CSK', color: '#F9CD05', secondary_color: '#005FA2' },
   { id: 'mi', name: 'Mumbai Indians', short_code: 'MI', color: '#004BA0', secondary_color: '#D1AB3E' },
   { id: 'rcb', name: 'Royal Challengers Bengaluru', short_code: 'RCB', color: '#E31B23', secondary_color: '#2B2A29' },
+  { id: 'srh', name: 'Sunrisers Hyderabad', short_code: 'SRH', color: '#F26522', secondary_color: '#000000' },
   { id: 'kkr', name: 'Kolkata Knight Riders', short_code: 'KKR', color: '#3A225D', secondary_color: '#F4C430' },
   { id: 'rr', name: 'Rajasthan Royals', short_code: 'RR', color: '#EA1A85', secondary_color: '#004BA0' },
-  { id: 'srh', name: 'Sunrisers Hyderabad', short_code: 'SRH', color: '#F26522', secondary_color: '#000000' },
   { id: 'dc', name: 'Delhi Capitals', short_code: 'DC', color: '#17449E', secondary_color: '#B9251C' },
   { id: 'pbks', name: 'Punjab Kings', short_code: 'PBKS', color: '#DD1F2D', secondary_color: '#B0B0B0' },
   { id: 'gt', name: 'Gujarat Titans', short_code: 'GT', color: '#1B2133', secondary_color: '#BE9B52' },
   { id: 'lsg', name: 'Lucknow Super Giants', short_code: 'LSG', color: '#0057E7', secondary_color: '#E65100' },
-  // Extra custom franchises to support up to 20 players:
+  // Extra custom franchises to support larger mock rooms up to 20 players:
   { id: 'ktk', name: 'Kochi Tuskers', short_code: 'KTK', color: '#7E22CE', secondary_color: '#EAB308' },
   { id: 'pw', name: 'Pune Warriors', short_code: 'PW', color: '#0D9488', secondary_color: '#0284C7' },
   { id: 'gl', name: 'Gujarat Lions', short_code: 'GL', color: '#EA580C', secondary_color: '#1E293B' },
@@ -40,6 +64,8 @@ export const FRANCHISE_PRESETS: FranchiseIdentity[] = [
   { id: 'mum', name: 'Mumbai Mavericks', short_code: 'MM', color: '#0284C7', secondary_color: '#10B981' },
   { id: 'bng', name: 'Bengal Blasters', short_code: 'BB', color: '#6366F1', secondary_color: '#F59E0B' },
 ];
+
+export const OFFICIAL_IPL_FRANCHISES = FRANCHISE_PRESETS.slice(0, 10);
 
 /**
  * Formats a currency amount into Indian Crore / Lakh string

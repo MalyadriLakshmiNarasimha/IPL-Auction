@@ -73,6 +73,12 @@ export async function POST(req: NextRequest) {
     return response;
   } catch (err: any) {
     console.error('[API Login Error]:', err);
+    if (err.name === 'DatabaseConnectionError' || err.statusCode === 503) {
+      return NextResponse.json(
+        { error: 'Database service is currently unavailable. Please try again shortly.' },
+        { status: 503 }
+      );
+    }
     return NextResponse.json(
       { error: err.message || 'An error occurred during login.' },
       { status: 500 }

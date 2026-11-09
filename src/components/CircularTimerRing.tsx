@@ -1,31 +1,38 @@
 'use client';
 
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { soundManager } from '@/lib/sound';
 
 interface CircularTimerRingProps {
-  initials: string;
-  role: string;
-  roleColor: string;
   timerSeconds: number;
   timerEndsAt: number;
-  serverTime: number;
+  serverTime?: number;
   isPaused: boolean;
+  size?: number;
+  roleColor?: string;
+  // Optional backward-compat props
+  initials?: string;
+  role?: string;
+  imageUrl?: string;
+  playerName?: string;
 }
 
 export const CircularTimerRing: React.FC<CircularTimerRingProps> = ({
-  initials,
-  roleColor,
   timerSeconds,
   timerEndsAt,
-  serverTime,
   isPaused,
+  size = 92,
+  roleColor = '#DCC477',
 }) => {
-  const [remaining, setRemaining] = React.useState<number>(timerSeconds);
+  const [remaining, setRemaining] = useState<number>(timerSeconds);
   const lastHeartbeatSec = useRef<number>(-1);
 
   useEffect(() => {
-    if (isPaused || timerEndsAt <= 0) return;
+    if (timerEndsAt <= 0) {
+      setRemaining(timerSeconds);
+      return;
+    }
+    if (isPaused) return;
 
     const interval = setInterval(() => {
       const now = Date.now();
@@ -41,36 +48,38 @@ export const CircularTimerRing: React.FC<CircularTimerRingProps> = ({
     }, 100);
 
     return () => clearInterval(interval);
-  }, [timerEndsAt, isPaused]);
+  }, [timerEndsAt, isPaused, timerSeconds]);
 
-  const size = 110;
   const strokeWidth = 6;
   const radius = (size - strokeWidth) / 2;
   const circumference = 2 * Math.PI * radius;
 
+  const isAnnouncing = timerEndsAt <= 0;
   const totalMs = timerSeconds * 1000;
-  const currentMs = Math.max(0, timerEndsAt - Date.now());
-  const progress = totalMs > 0 ? Math.min(1, Math.max(0, currentMs / totalMs)) : 0;
+  const currentMs = isAnnouncing ? 0 : Math.max(0, timerEndsAt - Date.now());
+  const progress = isAnnouncing ? 1 : totalMs > 0 ? Math.min(1, Math.max(0, currentMs / totalMs)) : 0;
   const strokeDashoffset = circumference * (1 - progress);
 
-  const isUrgent = remaining <= 5 && remaining > 0;
-  const ringColor = isUrgent ? '#E05252' : '#D6B65D';
+  const isUrgent = !isAnnouncing && remaining <= 5 && remaining > 0;
+  const ringColor = isAnnouncing ? '#DCC477' : isUrgent ? '#EF4444' : '#F9CD05';
 
   return (
-    <div className="relative flex items-center justify-center select-none">
+    <div
+      className="relative flex items-center justify-center select-none flex-shrink-0"
+      style={{ width: size, height: size }}
+      aria-label={`Auction Timer: ${isAnnouncing ? 'Player Announcement' : `${remaining} seconds remaining`}`}
+    >
       {/* SVG Circular Ring */}
       <svg width={size} height={size} className="transform -rotate-90">
-        {/* Track background */}
         <circle
           cx={size / 2}
           cy={size / 2}
           r={radius}
           stroke="currentColor"
           strokeWidth={strokeWidth}
-          className="text-night-border"
+          className="text-night-border/70"
           fill="transparent"
         />
-        {/* Progress ring */}
         <circle
           cx={size / 2}
           cy={size / 2}
@@ -83,33 +92,37 @@ export const CircularTimerRing: React.FC<CircularTimerRingProps> = ({
           fill="transparent"
           style={{
             transition: 'stroke-dashoffset 0.15s linear, stroke 0.3s ease',
-            filter: isUrgent ? 'drop-shadow(0 0 8px rgba(255, 59, 78, 0.7))' : undefined,
+            filter: isUrgent
+              ? 'drop-shadow(0 0 10px rgba(239, 68, 68, 0.8))'
+              : 'drop-shadow(0 0 6px rgba(249, 205, 5, 0.4))',
           }}
         />
       </svg>
 
-      {/* Center Initials Avatar & Seconds Badge */}
-      <div
-        className={`absolute inset-2 rounded-full flex flex-col items-center justify-center font-bold transition-all duration-300 ${
-          isUrgent ? 'animate-pulse' : ''
-        }`}
-        style={{
-          backgroundColor: '#121F42',
-          border: `2px solid ${isUrgent ? '#E05252' : roleColor}`,
-        }}
-      >
-        <span className="font-display text-3xl font-extrabold tracking-tight text-floodlight">
-          {initials}
-        </span>
-        <span
-          className={`text-xs font-black tracking-wider px-1.5 py-0.2 rounded-full ${
-            isUrgent ? 'bg-hammer text-white font-mono' : 'text-floodlight-muted'
-          }`}
-        >
-          {remaining}s
-        </span>
+      {/* Center Countdown Display */}
+      <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+        {isAnnouncing ? (
+          <div className="flex flex-col items-center animate-pulse text-center">
+            <span className="text-[10px] uppercase font-black text-flare tracking-widest leading-none">
+              INTRO
+            </span>
+            <span className="text-[8px] text-floodlight-muted font-bold mt-0.5">READY</span>
+          </div>
+        ) : (
+          <div className="flex flex-col items-center text-center">
+            <span
+              className={`font-display text-2xl sm:text-3xl font-black tabular-nums leading-none tracking-tight transition-colors ${
+                isUrgent ? 'text-hammer animate-pulse' : 'text-floodlight'
+              }`}
+            >
+              {remaining}
+            </span>
+            <span className="text-[9px] uppercase font-bold text-floodlight-muted tracking-wider leading-none mt-0.5">
+              SEC
+            </span>
+          </div>
+        )}
       </div>
     </div>
   );
 };
-

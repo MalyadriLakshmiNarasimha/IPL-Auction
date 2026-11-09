@@ -1,9 +1,27 @@
 'use client';
 
 import React, { useState } from 'react';
-import { AuctionResults, TeamScoreBreakdown } from '@/shared/types';
+import { AuctionResults, Player } from '@/shared/types';
 import { formatCurrency } from '@/shared/constants';
-import { Trophy, Award as AwardIcon, Share2, RotateCcw, Home, ChevronDown, ChevronUp, Info, Download } from 'lucide-react';
+import { ChampionshipAwardsView } from '@/components/ChampionshipAwardsView';
+import { SquadEvaluationView } from '@/components/SquadEvaluationView';
+import { ManagerLeaderboardView } from '@/components/ManagerLeaderboardView';
+import { PlayingXILeaderboardView } from '@/components/PlayingXILeaderboardView';
+import { TeamDashboardView } from '@/components/TeamDashboardView';
+import { SeasonRecapView } from '@/components/SeasonRecapView';
+import { PlayerDossierModal } from '@/components/PlayerDossierModal';
+import {
+  Trophy,
+  Award as AwardIcon,
+  Share2,
+  RotateCcw,
+  Home,
+  Download,
+  Briefcase,
+  Users,
+  Shield,
+  Sparkles,
+} from 'lucide-react';
 import Link from 'next/link';
 
 interface ResultsViewProps {
@@ -12,20 +30,16 @@ interface ResultsViewProps {
   onPlayAgain?: () => void;
 }
 
+type TabType = 'awards' | 'squads' | 'managers' | 'lineups' | 'dashboard' | 'recap';
+
 export const ResultsView: React.FC<ResultsViewProps> = ({
   results,
   currentUserId,
   onPlayAgain,
 }) => {
-  const [expandedId, setExpandedId] = useState<string | null>(null);
-  const [showFormulaTooltip, setShowFormulaTooltip] = useState(false);
+  const [activeTab, setActiveTab] = useState<TabType>('awards');
+  const [inspectPlayer, setInspectPlayer] = useState<Player | null>(null);
   const [copiedLink, setCopiedLink] = useState(false);
-
-  const myTeam = results.leaderboard.find(t => t.participant_id === currentUserId);
-
-  const toggleExpand = (id: string) => {
-    setExpandedId(prev => (prev === id ? null : id));
-  };
 
   const handleShare = () => {
     if (navigator.share) {
@@ -67,7 +81,11 @@ export const ResultsView: React.FC<ResultsViewProps> = ({
 
     ctx.fillStyle = '#F4F0E6';
     ctx.font = '24px "DM Sans", sans-serif';
-    ctx.fillText(`Room Code: ${results.room_code} · Total Spent: ${formatCurrency(results.total_money_spent)}`, 60, 120);
+    ctx.fillText(
+      `Room Code: ${results.room_code} · Total Spent: ${formatCurrency(results.total_money_spent)}`,
+      60,
+      120
+    );
 
     // Top 3 Leaderboard
     const top3 = results.leaderboard.slice(0, 3);
@@ -105,7 +123,11 @@ export const ResultsView: React.FC<ResultsViewProps> = ({
 
       ctx.font = '16px "DM Sans", sans-serif';
       ctx.fillStyle = '#A6A29A';
-      ctx.fillText(`${team.players_count} Players · Spent: ${formatCurrency(team.total_spent)}`, 230, y + 70);
+      ctx.fillText(
+        `${team.players_count} Players · Spent: ${formatCurrency(team.total_spent)}`,
+        230,
+        y + 70
+      );
 
       // Score
       ctx.fillStyle = '#D6B65D';
@@ -126,7 +148,7 @@ export const ResultsView: React.FC<ResultsViewProps> = ({
   };
 
   return (
-    <div className="max-w-5xl mx-auto p-4 sm:p-6 space-y-6">
+    <div className="max-w-7xl mx-auto p-3 sm:p-6 space-y-6">
       {/* Hero Header */}
       <div className="text-center py-6 scoreboard-panel rounded-card border border-night-border relative overflow-hidden">
         <div className="inline-flex items-center gap-2 px-3.5 py-1 rounded-pill bg-flare/20 border border-flare text-flare text-xs font-bold mb-3">
@@ -135,10 +157,11 @@ export const ResultsView: React.FC<ResultsViewProps> = ({
         </div>
 
         <h1 className="font-display text-4xl sm:text-6xl font-black text-floodlight tracking-tight">
-          MATCHDAY SQUAD RESULTS
+          MATCHDAY CHAMPIONSHIP PORTAL
         </h1>
-        <p className="text-sm text-floodlight-muted mt-1 max-w-lg mx-auto">
-          {results.total_players_auctioned} players drafted across {results.leaderboard.length} franchises with a total turnover of {formatCurrency(results.total_money_spent)}.
+        <p className="text-sm text-floodlight-muted mt-1 max-w-xl mx-auto">
+          {results.total_players_auctioned} players drafted across {results.leaderboard.length}{' '}
+          franchises with a gross turnover of {formatCurrency(results.total_money_spent)}.
         </p>
 
         {/* Action buttons */}
@@ -176,198 +199,128 @@ export const ResultsView: React.FC<ResultsViewProps> = ({
         </div>
       </div>
 
-      {/* Awards Strip (Horizontal Scroll) */}
-      {results.awards.length > 0 && (
-        <div>
-          <div className="flex items-center gap-2 mb-3">
-            <AwardIcon className="w-4 h-4 text-flare" />
-            <h2 className="text-xs font-bold uppercase tracking-wider text-floodlight">
-              Auction Night Awards
-            </h2>
-          </div>
+      {/* Post-Auction View Navigation Tabs */}
+      <div className="flex items-center gap-2 overflow-x-auto pb-2 border-b border-night-border scrollbar-none">
+        <button
+          onClick={() => setActiveTab('awards')}
+          className={`px-4 py-2 rounded-pill text-xs font-bold flex items-center gap-1.5 flex-shrink-0 transition-all ${
+            activeTab === 'awards'
+              ? 'bg-flare text-white shadow-flare'
+              : 'bg-night-raised text-floodlight-muted hover:text-white border border-night-border'
+          }`}
+        >
+          <Trophy className="w-4 h-4" />
+          <span>Championship Honors (7)</span>
+        </button>
 
-          <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-none">
-            {results.awards.map(award => (
-              <div
-                key={award.id}
-                className="flex-shrink-0 w-64 bg-night rounded-card border border-night-border p-4 shadow-sm flex flex-col justify-between"
-              >
-                <div>
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="text-[11px] font-bold uppercase tracking-wider text-flare">
-                      {award.title}
-                    </span>
-                    <span
-                      className="w-2.5 h-2.5 rounded-full"
-                      style={{ backgroundColor: award.franchise_color }}
-                    />
-                  </div>
-                  <div className="text-sm font-bold text-floodlight truncate">
-                    {award.winner_name}
-                  </div>
-                  <div className="text-[11px] text-floodlight-muted mt-1">
-                    {award.description}
-                  </div>
-                </div>
+        <button
+          onClick={() => setActiveTab('squads')}
+          className={`px-4 py-2 rounded-pill text-xs font-bold flex items-center gap-1.5 flex-shrink-0 transition-all ${
+            activeTab === 'squads'
+              ? 'bg-flare text-white shadow-flare'
+              : 'bg-night-raised text-floodlight-muted hover:text-white border border-night-border'
+          }`}
+        >
+          <Shield className="w-4 h-4" />
+          <span>Squad Evaluation & Rankings</span>
+        </button>
 
-                <div className="mt-3 pt-2 border-t border-night-border flex items-center justify-between text-xs">
-                  <span className="text-floodlight-subtle font-medium">Highlight</span>
-                  <span className="font-display font-black text-flare text-sm">
-                    {award.value_highlight}
-                  </span>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
+        <button
+          onClick={() => setActiveTab('managers')}
+          className={`px-4 py-2 rounded-pill text-xs font-bold flex items-center gap-1.5 flex-shrink-0 transition-all ${
+            activeTab === 'managers'
+              ? 'bg-flare text-white shadow-flare'
+              : 'bg-night-raised text-floodlight-muted hover:text-white border border-night-border'
+          }`}
+        >
+          <Briefcase className="w-4 h-4" />
+          <span>Manager Leaderboard</span>
+        </button>
+
+        <button
+          onClick={() => setActiveTab('lineups')}
+          className={`px-4 py-2 rounded-pill text-xs font-bold flex items-center gap-1.5 flex-shrink-0 transition-all ${
+            activeTab === 'lineups'
+              ? 'bg-flare text-white shadow-flare'
+              : 'bg-night-raised text-floodlight-muted hover:text-white border border-night-border'
+          }`}
+        >
+          <Users className="w-4 h-4" />
+          <span>Playing XI Standings</span>
+        </button>
+
+        <button
+          onClick={() => setActiveTab('dashboard')}
+          className={`px-4 py-2 rounded-pill text-xs font-bold flex items-center gap-1.5 flex-shrink-0 transition-all ${
+            activeTab === 'dashboard'
+              ? 'bg-flare text-white shadow-flare'
+              : 'bg-night-raised text-floodlight-muted hover:text-white border border-night-border'
+          }`}
+        >
+          <AwardIcon className="w-4 h-4" />
+          <span>Franchise Dossier & PDF Export</span>
+        </button>
+
+        <button
+          onClick={() => setActiveTab('recap')}
+          className={`px-4 py-2 rounded-pill text-xs font-bold flex items-center gap-1.5 flex-shrink-0 transition-all ${
+            activeTab === 'recap'
+              ? 'bg-flare text-white shadow-flare'
+              : 'bg-night-raised text-floodlight-muted hover:text-white border border-night-border'
+          }`}
+        >
+          <Sparkles className="w-4 h-4" />
+          <span>Season Archives & Recap</span>
+        </button>
+      </div>
+
+      {/* Tab Panels */}
+      {activeTab === 'awards' && <ChampionshipAwardsView awards={results.awards} />}
+
+      {activeTab === 'squads' && (
+        <SquadEvaluationView
+          leaderboard={results.leaderboard}
+          currentUserId={currentUserId}
+          isHost={false}
+        />
       )}
 
-      {/* Leaderboard Table with 100-Point Formula */}
-      <div className="bg-night rounded-card border border-night-border p-4 sm:p-5 shadow-sm">
-        <div className="flex items-center justify-between mb-4 pb-3 border-b border-night-border">
-          <div>
-            <h2 className="text-base sm:text-lg font-bold text-floodlight">Franchise Leaderboard</h2>
-            <p className="text-xs text-floodlight-muted">Ranked by 100-point balanced squad algorithm</p>
-          </div>
+      {activeTab === 'managers' && (
+        <ManagerLeaderboardView
+          managers={results.manager_leaderboard || []}
+          currentUserId={currentUserId}
+          isHost={false}
+        />
+      )}
 
-          {/* Formula Tooltip Trigger */}
-          <div className="relative">
-            <button
-              onClick={() => setShowFormulaTooltip(prev => !prev)}
-              className="flex items-center gap-1.5 px-3 py-1 rounded-pill bg-night-raised border border-night-border text-xs text-floodlight-muted hover:text-white"
-            >
-              <Info className="w-3.5 h-3.5 text-flare" />
-              <span>Score Formula</span>
-            </button>
+      {activeTab === 'lineups' && (
+        <PlayingXILeaderboardView
+          lineups={results.playing_xi_leaderboard || []}
+          submissions={results.playing_xi_submissions || []}
+          currentUserId={currentUserId}
+          isHost={false}
+        />
+      )}
 
-            {showFormulaTooltip && (
-              <div className="absolute right-0 top-9 z-30 w-72 p-3 rounded-card bg-night-raised border border-night-border shadow-xl text-xs text-floodlight-muted">
-                <div className="font-bold text-floodlight mb-1">Squad Rating Formula (100 Pts):</div>
-                <ul className="space-y-1 list-disc list-inside">
-                  <li><strong className="text-flare">40% Role Balance:</strong> Optimum distribution (4-6 BAT, 4-6 BOWL, 2-4 AR, 1-2 WK).</li>
-                  <li><strong className="text-turf">30% Completeness:</strong> Filled squad slots / squad size target.</li>
-                  <li><strong className="text-blue-400">30% Value for Money:</strong> Player tier quality vs final purchase price.</li>
-                </ul>
-              </div>
-            )}
-          </div>
-        </div>
+      {activeTab === 'dashboard' && (
+        <TeamDashboardView
+          results={results}
+          currentUserId={currentUserId}
+          onOpenDossier={player => setInspectPlayer(player)}
+        />
+      )}
 
-        {/* Leaderboard Rows */}
-        <div className="space-y-2.5">
-          {results.leaderboard.map(team => {
-            const isFirst = team.rank === 1;
-            const isMe = team.participant_id === currentUserId;
-            const isExpanded = expandedId === team.participant_id;
+      {activeTab === 'recap' && results.season_recap && (
+        <SeasonRecapView recap={results.season_recap} results={results} />
+      )}
 
-            return (
-              <div
-                key={team.participant_id}
-                className={`rounded-card border transition-all ${
-                  isFirst
-                    ? 'border-flare bg-flare/10 shadow-flare'
-                    : isMe
-                    ? 'border-turf/50 bg-night-raised'
-                    : 'border-night-border bg-night-raised/50'
-                }`}
-              >
-                {/* Row Header */}
-                <div
-                  onClick={() => toggleExpand(team.participant_id)}
-                  className="p-3 sm:p-4 flex items-center justify-between cursor-pointer select-none"
-                >
-                  <div className="flex items-center gap-3 min-w-0">
-                    <span
-                      className={`font-display font-black text-xl sm:text-2xl w-7 text-center ${
-                        isFirst ? 'text-flare' : 'text-floodlight-muted'
-                      }`}
-                    >
-                      #{team.rank}
-                    </span>
-
-                    <div
-                      className="w-8 h-8 rounded-full flex items-center justify-center font-display font-bold text-sm text-white flex-shrink-0"
-                      style={{ backgroundColor: team.franchise.color }}
-                    >
-                      {team.franchise.short_code}
-                    </div>
-
-                    <div className="truncate">
-                      <div className="font-bold text-xs sm:text-sm text-floodlight flex items-center gap-2 truncate">
-                        <span>{team.franchise.name}</span>
-                        <span className="text-xs font-normal text-floodlight-muted truncate">
-                          ({team.display_name})
-                        </span>
-                        {isMe && (
-                          <span className="text-[10px] bg-turf/20 text-turf px-1.5 py-0.2 rounded font-bold">
-                            YOU
-                          </span>
-                        )}
-                      </div>
-                      <div className="text-[11px] text-floodlight-muted">
-                        {team.players_count} players · Spent: {formatCurrency(team.total_spent)} · Purse left: {formatCurrency(team.purse_remaining)}
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center gap-3 flex-shrink-0 text-right">
-                    <div>
-                      <div className="font-display font-black text-2xl sm:text-3xl text-flare tabular-nums">
-                        {team.total_score}
-                        <span className="text-xs text-floodlight-subtle ml-0.5">/100</span>
-                      </div>
-                      <div className="text-[10px] text-floodlight-muted">
-                        Role: {team.role_balance_score} · Value: {team.value_score}
-                      </div>
-                    </div>
-
-                    {isExpanded ? (
-                      <ChevronUp className="w-5 h-5 text-floodlight-muted" />
-                    ) : (
-                      <ChevronDown className="w-5 h-5 text-floodlight-muted" />
-                    )}
-                  </div>
-                </div>
-
-                {/* Expanded Squad Breakdown */}
-                {isExpanded && (
-                  <div className="px-4 pb-4 pt-2 border-t border-night-border/70 text-xs">
-                    <div className="text-xs font-bold text-floodlight mb-2">
-                      Full Squad ({team.squad.length} players)
-                    </div>
-
-                    {team.squad.length === 0 ? (
-                      <div className="text-floodlight-subtle italic py-2">No players signed</div>
-                    ) : (
-                      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2">
-                        {team.squad.map((item, idx) => (
-                          <div
-                            key={`${item.player_id}-${idx}`}
-                            className="p-2 rounded bg-night border border-night-border flex items-center justify-between"
-                          >
-                            <div className="truncate">
-                              <div className="font-bold text-floodlight truncate">
-                                {item.player.name}
-                              </div>
-                              <div className="text-[10px] text-floodlight-muted">
-                                {item.player.role} · {item.player.country}
-                              </div>
-                            </div>
-                            <div className="font-display font-bold text-flare text-sm tabular-nums ml-2 flex-shrink-0">
-                              {formatCurrency(item.bought_for)}
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                )}
-              </div>
-            );
-          })}
-        </div>
-      </div>
+      {/* Player Dossier Inspector Modal */}
+      {inspectPlayer && (
+        <PlayerDossierModal
+          player={inspectPlayer}
+          onClose={() => setInspectPlayer(null)}
+        />
+      )}
     </div>
   );
 };
-

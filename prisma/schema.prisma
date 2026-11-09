@@ -17,6 +17,7 @@ model User {
   updated_at    DateTime  @updatedAt
   sessions      Session[]
   hosted_rooms  Room[]
+  room_participations RoomParticipant[]
 
   @@map("users")
 }
@@ -34,16 +35,50 @@ model Session {
 }
 
 model Room {
-  room_code    String   @id @db.VarChar(6)
-  name         String   @db.VarChar(100)
+  room_code    String         @id @db.VarChar(6)
+  name         String         @db.VarChar(100)
   host_user_id String
-  status       String   @default("lobby") @db.VarChar(32)
-  created_at   DateTime @default(now())
-  updated_at   DateTime @updatedAt
-  host         User     @relation(fields: [host_user_id], references: [id], onDelete: Cascade)
+  status       String         @default("lobby") @db.VarChar(32)
+  created_at   DateTime       @default(now())
+  updated_at      DateTime          @updatedAt
+  host            User              @relation(fields: [host_user_id], references: [id], onDelete: Cascade)
+  snapshots       RoomSnapshot[]
+  bid_events      BidEvent[]
+  participants    RoomParticipant[]
+  commentary_logs CommentaryLog[]
 
   @@index([host_user_id])
   @@map("rooms")
+}
+
+model RoomSnapshot {
+  id             String   @id @default(cuid())
+  room_code      String   @db.VarChar(6)
+  schema_version Int      @default(1)
+  stage          String   @db.VarChar(32)
+  phase          String   @db.VarChar(32)
+  state_data     Json
+  created_at     DateTime @default(now())
+  room           Room     @relation(fields: [room_code], references: [room_code], onDelete: Cascade)
+
+  @@index([room_code])
+  @@index([room_code, created_at])
+  @@map("room_snapshots")
+}
+
+model BidEvent {
+  id             String   @id @default(cuid())
+  room_code      String   @db.VarChar(6)
+  player_id      String   @db.VarChar(64)
+  bid_sequence   Int
+  participant_id String   @db.VarChar(191)
+  amount         BigInt
+  created_at     DateTime @default(now())
+  room           Room     @relation(fields: [room_code], references: [room_code], onDelete: Cascade)
+
+  @@unique([room_code, player_id, bid_sequence])
+  @@index([room_code])
+  @@map("bid_events")
 }
 
 model Result {
@@ -57,4 +92,48 @@ model Result {
 
   @@map("results")
 }
+
+model RoomParticipant {
+  id                    String   @id @default(cuid())
+  room_code             String   @db.VarChar(6)
+  user_id               String?  @db.VarChar(191)
+  session_id            String   @db.VarChar(191)
+  display_name          String   @db.VarChar(100)
+  team_name             String?  @db.VarChar(100)
+  team_name_normalized  String?  @db.VarChar(100)
+  team_short_code       String?  @db.VarChar(10)
+  team_color            String?  @db.VarChar(32)
+  franchise_id          String?  @db.VarChar(32)
+  franchise_name        String?  @db.VarChar(100)
+  franchise_code        String?  @db.VarChar(10)
+  franchise_color       String?  @db.VarChar(32)
+  is_host               Boolean  @default(false)
+  is_spectator          Boolean  @default(false)
+  joined_at             DateTime @default(now())
+  updated_at            DateTime @updatedAt
+
+  room                  Room     @relation(fields: [room_code], references: [room_code], onDelete: Cascade)
+  user                  User?    @relation(fields: [user_id], references: [id], onDelete: SetNull)
+
+  @@unique([room_code, session_id])
+  @@index([room_code])
+  @@index([room_code, team_name_normalized])
+  @@index([user_id])
+  @@map("room_participants")
+}
+
+model CommentaryLog {
+  id         String   @id @default(cuid())
+  room_code  String   @db.VarChar(6)
+  text       String   @db.VarChar(500)
+  event_type String   @db.VarChar(32)
+  created_at DateTime @default(now())
+
+  room       Room     @relation(fields: [room_code], references: [room_code], onDelete: Cascade)
+
+  @@index([room_code])
+  @@index([room_code, created_at])
+  @@map("commentary_logs")
+}
+
 

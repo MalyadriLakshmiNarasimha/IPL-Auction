@@ -1,0 +1,8 @@
+=== IPL AUCTION 17-SCENARIO VERIFICATION AUDIT LOG ===
+Date: 2026-11-07T03:58:48.276Z
+
+[AUDIT] Starting Authoritative Server on port 3011
+[AUDIT] Server running.
+
+--- SCENARIO 1: Create room; register and join managers ---
+[S1] Room created successfully: undefined

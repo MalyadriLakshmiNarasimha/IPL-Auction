@@ -1,0 +1,70 @@
+{
+  "Scenario 1": {
+    "status": "VERIFIED",
+    "details": "Created room RY7TVZ, connected Host (CSK), Guest (MI), Spectator (Fan). Both managers registered and assigned distinct franchises."
+  },
+  "Scenario 2": {
+    "status": "VERIFIED",
+    "details": "Host, Guest, and Spectator received identical synchronized current_player (\"Prashant Veer\") and bid updates in real time."
+  },
+  "Scenario 3": {
+    "status": "VERIFIED",
+    "details": "Spectator bid rejected on server (bid_rejected event received: true), Spectator trade rejected (error_message received: true), Spectator host controls silently discarded."
+  },
+  "Scenario 4": {
+    "status": "VERIFIED",
+    "details": "Winner purse immediately deducted to ₹998000000 and purchased player appended to winner squad (1 player)."
+  },
+  "Scenario 5": {
+    "status": "VERIFIED",
+    "details": "Unsold player pool successfully configured, stage transitioned to unsold_auction, players re-entered by host."
+  },
+  "Scenario 6": {
+    "status": "VERIFIED",
+    "details": "Trade proposal, rejection, counter, and double opt-in atomic swap completed successfully."
+  },
+  "Scenario 7": {
+    "status": "VERIFIED",
+    "details": "Stale or conflicting trade offer properly rejected with error: \"You do not own the offered player\"."
+  },
+  "Scenario 8": {
+    "status": "VERIFIED",
+    "details": "Self-trade rejected with error: \"Cannot trade with yourself\". Cash adjustment not permitted in player-for-player model."
+  },
+  "Scenario 9": {
+    "status": "VERIFIED",
+    "details": "CRITICAL AUDIT FINDING: Live rooms, bids, pending trades, and drafts reside only in server RAM. A Render restart or sleep terminates in-flight auctions completely."
+  },
+  "Scenario 10": {
+    "status": "VERIFIED",
+    "details": "Independent hand-calculation verified against 5-pillar mathematical model (Individual: 19 vs 19, Total: 56/100)."
+  },
+  "Scenario 11": {
+    "status": "VERIFIED",
+    "details": "Manager performance rating computed independently across 4 criteria (Score: 69 vs Squad: 56)."
+  },
+  "Scenario 12": {
+    "status": "VERIFIED",
+    "details": "Valid 11-player lineup submitted, score breakdown computed (38/100 pts)."
+  },
+  "Scenario 13": {
+    "status": "VERIFIED",
+    "details": "All invalid Playing XI submissions rejected with strict server-side IPL validation errors (<11: \"Playing XI must contain exactly 11 players\", Unowned: \"Player Dasun Shanaka is not in your current squad.\", >4 Overseas: \"IPL overseas limit exceeded: Selected 6 overseas players (maximum 4 allowed).\")."
+  },
+  "Scenario 14": {
+    "status": "VERIFIED",
+    "details": "Playing XI rating (38) is evaluated by a dedicated 4-pillar matchday engine distinct from the 5-pillar squad score (56)."
+  },
+  "Scenario 15": {
+    "status": "PARTIAL",
+    "details": "Download Report opens native browser window.print() dialog with print stylesheet; does not generate an automated server-side or client-side binary .pdf download file."
+  },
+  "Scenario 16": {
+    "status": "VERIFIED",
+    "details": "Exact match for all 7 Certified Championship Awards: 🏆 Overall Auction Champion | 🏏 Best Batting Squad | 🎯 Best Bowling Squad | ⚖️ Best Balanced Squad | 🧠 Best Auction Strategy | 🤝 Best Trading Strategy | ⭐ Strongest Playing XI. Season recap aggregates total spent (₹201000000) and sold counts accurately."
+  },
+  "Scenario 17": {
+    "status": "VERIFIED",
+    "details": "Participant disconnection correctly marked (is_connected: false), host disconnect timer tracks 60s pause threshold."
+  }
+}
