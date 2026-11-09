@@ -56,7 +56,7 @@ export function validateProductionEnv(): void {
 
 /**
  * Initializes database with exponential backoff retries.
- * In production: If connection cannot be established, exits with code 1.
+ * In production: Retries up to maxRetries without terminating the process so the HTTP/Socket server remains listening.
  */
 export async function initDatabaseWithRetry(maxRetries = 5, initialDelayMs = 1000): Promise<boolean> {
   validateProductionEnv();
@@ -81,8 +81,8 @@ export async function initDatabaseWithRetry(maxRetries = 5, initialDelayMs = 100
   }
 
   if (process.env.NODE_ENV === 'production') {
-    console.error('[FATAL] Failed to connect to MySQL database after maximum retries. Process terminated.');
-    process.exit(1);
+    console.error('[FATAL] Failed to connect to MySQL database after maximum retries. Operating in degraded mode.');
+    return false;
   }
 
   console.warn('[DB] MySQL is not reachable. Operating in test fallback mode if NODE_ENV === "test".');

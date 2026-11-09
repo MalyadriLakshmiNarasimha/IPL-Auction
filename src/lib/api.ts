@@ -2,11 +2,11 @@
  * Centralized API Client and URL Configuration for IPL Auction
  *
  * Directs API requests to:
- * - Production: Render backend (https://ipl-auction-jgsd.onrender.com) or custom NEXT_PUBLIC_API_URL
- * - Local development: http://localhost:3001
+ * - Production: Same-origin relative URLs on Netlify by default (or custom NEXT_PUBLIC_API_URL if configured)
+ * - Local development: http://localhost:3001 (Authoritative backend)
  *
  * Automatically includes credentials: "include" for HTTP-only session cookies.
- * Provides resilient fallback to same-origin proxies if cross-origin requests encounter CORS/network restrictions.
+ * Provides resilient fallback to same-origin proxies if cross-origin requests encounter 404, 502, or network failures.
  */
 
 export function getApiUrl(): string {
@@ -14,13 +14,13 @@ export function getApiUrl(): string {
     if (process.env.NEXT_PUBLIC_API_URL) {
       return process.env.NEXT_PUBLIC_API_URL.replace(/\/$/, '');
     }
-    // Check if running on a remote/production domain (e.g., Netlify)
+    // On production frontend (e.g., Netlify), use same-origin relative URLs for REST API endpoints
     const isLocalhost =
       window.location.hostname === 'localhost' ||
       window.location.hostname === '127.0.0.1';
 
     if (!isLocalhost) {
-      return 'https://ipl-auction-jgsd.onrender.com';
+      return ''; // Same-origin relative requests on Netlify prevent 404 and cross-domain cookie issues
     }
     return 'http://localhost:3001';
   }
@@ -65,6 +65,26 @@ export async function apiFetch<T = any>(
 
   try {
     const res = await fetch(targetUrl, fetchOptions);
+
+    // If a cross-origin request returned 404, 502, 503, or 504 and we are in the browser,
+    // automatically attempt same-origin fallback
+    if (!res.ok && typeof window !== 'undefined' && targetUrl.startsWith('http') && !targetUrl.startsWith(window.location.origin)) {
+      if ([404, 502, 503, 504].includes(res.status)) {
+        try {
+          console.warn(`[API] Cross-origin ${targetUrl} returned status ${res.status}. Attempting same-origin fallback: ${normalizedEndpoint}`);
+          const fallbackRes = await fetch(normalizedEndpoint, fetchOptions);
+          const fallbackContentType = fallbackRes.headers.get('content-type') || '';
+          const fallbackData = fallbackContentType.includes('application/json')
+            ? await fallbackRes.json().catch(() => ({}))
+            : await fallbackRes.text().catch(() => '');
+
+          if (fallbackRes.ok) {
+            return { ok: true, status: fallbackRes.status, data: fallbackData };
+          }
+        } catch {}
+      }
+    }
+
     const contentType = res.headers.get('content-type') || '';
     const isJson = contentType.includes('application/json');
     const data = isJson ? await res.json().catch(() => ({})) : await res.text().catch(() => '');
@@ -79,8 +99,7 @@ export async function apiFetch<T = any>(
 
     return { ok: true, status: res.status, data };
   } catch (err: any) {
-    // If cross-origin fetch to Render failed (e.g. CORS block, network blip, or third-party cookie restrictions),
-    // attempt resilient fallback to same-origin proxy if endpoint is not already same-origin.
+    // If network fetch failed completely (e.g. CORS block, network blip), try same-origin fallback
     if (typeof window !== 'undefined' && targetUrl.startsWith('http') && !targetUrl.startsWith(window.location.origin)) {
       try {
         console.warn(`[API] Cross-origin fetch to ${targetUrl} failed (${err.message}). Attempting same-origin fallback: ${normalizedEndpoint}`);
@@ -116,4 +135,3 @@ export async function apiFetch<T = any>(
     };
   }
 }
-

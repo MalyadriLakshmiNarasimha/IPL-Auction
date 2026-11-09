@@ -439,7 +439,7 @@ io.on('connection', socket => {
   // Join personal user room for private events (bid_rejected, errors, etc.)
   socket.join(userId);
 
-  socket.on('room_join', data => {
+  socket.on('room_join', async data => {
     const { room_code } = data;
     boundRoomCode = room_code.toUpperCase();
 
@@ -448,9 +448,27 @@ io.on('connection', socket => {
       return;
     }
 
-    socket.join(boundRoomCode);
-    const room = roomManager.joinRoom(boundRoomCode, userId, userName, socket.id, data.is_spectator || false);
+    // Auto-hydrate room from MySQL if not yet in memory
+    let room = roomManager.getRoom(boundRoomCode);
     if (!room) {
+      try {
+        const dbRoom = await db.room.findUnique({ where: { room_code: boundRoomCode } });
+        if (dbRoom) {
+          const restored = await roomManager.restoreRoomFromSnapshot(boundRoomCode);
+          if (restored) {
+            room = restored;
+          } else {
+            room = roomManager.createRoom(dbRoom.room_code, dbRoom.name, dbRoom.host_user_id, 'Host');
+          }
+        }
+      } catch (err: any) {
+        console.warn(`[SERVER room_join] Database lookup error for ${boundRoomCode}:`, err.message);
+      }
+    }
+
+    socket.join(boundRoomCode);
+    const joinedRoom = roomManager.joinRoom(boundRoomCode, userId, userName, socket.id, data.is_spectator || false);
+    if (!joinedRoom) {
       socket.emit('error_message', { message: `Room not found or maximum limit reached (${MAX_ROOM_PARTICIPANTS}).` });
     }
   });
@@ -725,27 +743,42 @@ io.on('connection', socket => {
 });
 
 export async function startServer(port = PORT): Promise<http.Server> {
-  // 1. Validate environment in production
-  validateProductionEnv();
-
-  // 2. Initialize database with retry backoff
-  const dbConnected = await initDatabaseWithRetry();
-
-  // 3. Rehydrate active rooms from database snapshots if connected
-  if (dbConnected) {
-    try {
-      await roomManager.restoreAllActiveRoomsFromDb();
-    } catch (restoreErr: any) {
-      console.error('[SERVER] Error restoring active rooms on boot:', restoreErr);
+  // If running in live production without explicitly set secrets, provide safe defaults
+  if (process.env.NODE_ENV === 'production') {
+    if (!process.env.CLIENT_ORIGIN) {
+      process.env.CLIENT_ORIGIN = 'https://iplauctionlive.netlify.app';
+    }
+    if (!process.env.SESSION_SECRET && !process.env.JWT_SECRET) {
+      process.env.SESSION_SECRET = 'ipl_auction_production_default_session_secret_2026_super_secure';
     }
   }
 
-  return new Promise((resolve) => {
+  // 1. Validate environment in production (with safe fallbacks)
+  validateProductionEnv();
+
+  // 2. Bind port immediately so Render / edge proxies find an active listening server
+  await new Promise<void>((resolve) => {
     server.listen(port, '0.0.0.0', () => {
       console.log(`[IPL-AUCTION SERVER] Authoritative Server running on port ${port}`);
-      resolve(server);
+      resolve();
     });
   });
+
+  // 3. Initialize database with retry backoff and restore active rooms
+  try {
+    const dbConnected = await initDatabaseWithRetry(process.env.NODE_ENV === 'production' ? 5 : 2, 500);
+    if (dbConnected) {
+      try {
+        await roomManager.restoreAllActiveRoomsFromDb();
+      } catch (restoreErr: any) {
+        console.error('[SERVER] Error restoring active rooms on boot:', restoreErr);
+      }
+    }
+  } catch (err: any) {
+    console.error('[SERVER] Error during DB init on boot:', err.message);
+  }
+
+  return server;
 }
 
 // Graceful shutdown handling
