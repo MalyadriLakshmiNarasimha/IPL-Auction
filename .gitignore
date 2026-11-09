@@ -5,7 +5,10 @@ node_modules/
 .next/
 out/
 dist/
+.dist/
 build/
+archive/
+audit-evidence/
 *.tsbuildinfo
 
 # Local environment secrets

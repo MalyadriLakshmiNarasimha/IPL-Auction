@@ -83,6 +83,18 @@ export function findMysqlAdminExecutable(): string | null {
  * Returns true if MySQL is running and accepting connections.
  */
 export async function ensureMysqlRunning(verbose = true): Promise<boolean> {
+  // 0. If in production or using remote database (e.g. TiDB Cloud on Render), skip local mysqld launch
+  const isProduction = process.env.NODE_ENV === 'production' || Boolean(process.env.RENDER);
+  const dbUrl = process.env.DATABASE_URL || '';
+  const isRemoteDb = dbUrl.length > 0 && !dbUrl.includes('localhost') && !dbUrl.includes('127.0.0.1');
+
+  if (isProduction || isRemoteDb) {
+    if (verbose) {
+      console.log('[DB-MANAGER] Production or remote database configured. Skipping local MySQL daemon check.');
+    }
+    return true;
+  }
+
   // 1. Check if port 3306 is already responding
   if (await isPortListening(3306)) {
     if (verbose) {
