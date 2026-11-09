@@ -8,7 +8,7 @@
 # Same-Origin Netlify reverse proxy for Render backend (bypasses browser 3rd-party cookie & CORS restrictions)
 [[redirects]]
   from = "/api/proxy/*"
-  to = "https://ipl-auction-jgsd.onrender.com/api/:splat"
+  to = "https://ipl-auction-jqsd.onrender.com/api/:splat"
   status = 200
   force = true
 

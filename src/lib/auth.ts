@@ -120,6 +120,7 @@ export function getSetCookieHeader(sessionToken: string, isProduction = process.
   if (isProduction) {
     parts.push('Secure');
     parts.push('SameSite=None');
+    parts.push('Partitioned');
   } else {
     parts.push('SameSite=Lax');
   }
@@ -140,6 +141,7 @@ export function getClearCookieHeader(isProduction = process.env.NODE_ENV === 'pr
   if (isProduction) {
     parts.push('Secure');
     parts.push('SameSite=None');
+    parts.push('Partitioned');
   } else {
     parts.push('SameSite=Lax');
   }

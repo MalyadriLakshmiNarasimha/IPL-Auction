@@ -16,7 +16,7 @@ export function getSocketUrl(): string {
       window.location.hostname === '127.0.0.1';
 
     if (!isLocalhost) {
-      return 'https://ipl-auction-jgsd.onrender.com';
+      return 'https://ipl-auction-jqsd.onrender.com';
     }
     return 'http://localhost:3001';
   }
@@ -31,10 +31,10 @@ export function getSocket(token?: string): Socket<ServerToClientEvents, ClientTo
     socket = io(url, {
       autoConnect: true,
       reconnection: true,
-      reconnectionAttempts: Infinity,
-      reconnectionDelay: 500,
-      reconnectionDelayMax: 2000,
-      timeout: 10000,
+      reconnectionAttempts: 10,
+      reconnectionDelay: 1000,
+      reconnectionDelayMax: 5000,
+      timeout: 15000,
       transports: ['websocket', 'polling'],
       auth: authToken ? { token: authToken } : {},
       withCredentials: true, // Sends HTTP-only session cookie automatically
@@ -46,6 +46,10 @@ export function getSocket(token?: string): Socket<ServerToClientEvents, ClientTo
 
     socket.on('connect_error', (err) => {
       console.warn('⚠️ Socket connection error:', err.message);
+      if (err.message.includes('Authentication required') || err.message.includes('Invalid or expired')) {
+        // Disconnect immediately on auth failure to avoid aggressive reconnection loops
+        socket?.disconnect();
+      }
     });
   } else if (authToken && socket.auth && (socket.auth as any).token !== authToken) {
     // Update auth token if provided and re-authenticate

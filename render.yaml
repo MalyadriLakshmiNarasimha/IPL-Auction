@@ -1,0 +1,16 @@
+services:
+  - type: web
+    name: ipl-auction-jqsd
+    runtime: node
+    plan: free
+    buildCommand: npm install && npx prisma generate
+    startCommand: npm run server
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: CLIENT_ORIGIN
+        value: https://iplauctionlive.netlify.app
+      - key: ALLOWED_ORIGINS
+        value: https://iplauctionlive.netlify.app,http://localhost:3000,http://localhost:3001
+      - key: PORT
+        value: 3001

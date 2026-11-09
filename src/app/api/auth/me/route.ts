@@ -40,6 +40,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({
       authenticated: true,
       user: sessionData.user,
+      socket_token: sessionData.sessionToken,
     });
   } catch (err: any) {
     console.error('[API Me Error]:', err);

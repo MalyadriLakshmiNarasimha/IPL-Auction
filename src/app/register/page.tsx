@@ -56,6 +56,25 @@ function RegisterForm() {
         localStorage.setItem('ipl_display_name', res.data.user.name);
       }
 
+      // Cross-origin cookie sync to Render backend with credentials: "include"
+      const socketUrl = process.env.NEXT_PUBLIC_SOCKET_URL || 'https://ipl-auction-jqsd.onrender.com';
+      if (typeof window !== 'undefined' && socketUrl.startsWith('http') && !socketUrl.includes(window.location.host)) {
+        try {
+          await fetch(`${socketUrl.replace(/\/$/, '')}/api/auth/register`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
+            body: JSON.stringify({
+              name: name.trim(),
+              email: email.trim().toLowerCase(),
+              password,
+            }),
+          });
+        } catch (syncErr) {
+          console.warn('[AUTH] Cross-origin cookie sync:', syncErr);
+        }
+      }
+
       // Automatically authenticated and redirected
       window.location.href = redirectTarget;
     } catch (err: any) {

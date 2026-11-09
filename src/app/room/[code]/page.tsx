@@ -145,7 +145,7 @@ export default function RoomPage() {
         setSessionId(user.id);
         setDisplayName(user.name);
 
-        const socket = getSocket();
+        const socket = getSocket(data.socket_token);
 
         socket.on('connect', () => {
           setIsConnected(true);
@@ -154,6 +154,13 @@ export default function RoomPage() {
             display_name: user.name,
             session_id: user.id,
           });
+        });
+
+        socket.on('connect_error', (err) => {
+          if (err.message.includes('Authentication required') || err.message.includes('Invalid or expired')) {
+            console.warn('[ROOM] Socket authentication failure:', err.message);
+            router.replace(`/login?redirect=/room/${roomCode}`);
+          }
         });
 
         socket.on('disconnect', () => {
