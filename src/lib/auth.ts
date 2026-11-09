@@ -98,10 +98,51 @@ export async function destroySession(token: string): Promise<void> {
 export function getCookieOptions(isProduction = process.env.NODE_ENV === 'production') {
   return {
     httpOnly: true,
-    sameSite: 'lax' as const,
     secure: isProduction,
+    sameSite: (isProduction ? 'none' : 'lax') as 'none' | 'lax',
     path: '/',
     maxAge: SESSION_MAX_AGE_SECONDS,
   };
+}
+
+/**
+ * Returns raw Set-Cookie header string for raw HTTP server responses.
+ * In production: HttpOnly; Secure; SameSite=None; Path=/; Max-Age=...
+ * In development: HttpOnly; SameSite=Lax; Path=/; Max-Age=...
+ */
+export function getSetCookieHeader(sessionToken: string, isProduction = process.env.NODE_ENV === 'production'): string {
+  const parts = [
+    `${AUTH_COOKIE_NAME}=${sessionToken}`,
+    'Path=/',
+    'HttpOnly',
+    `Max-Age=${SESSION_MAX_AGE_SECONDS}`,
+  ];
+  if (isProduction) {
+    parts.push('Secure');
+    parts.push('SameSite=None');
+  } else {
+    parts.push('SameSite=Lax');
+  }
+  return parts.join('; ');
+}
+
+/**
+ * Returns raw Set-Cookie header string to clear/expire session cookie.
+ */
+export function getClearCookieHeader(isProduction = process.env.NODE_ENV === 'production'): string {
+  const parts = [
+    `${AUTH_COOKIE_NAME}=`,
+    'Path=/',
+    'HttpOnly',
+    'Max-Age=0',
+    'Expires=Thu, 01 Jan 1970 00:00:00 GMT',
+  ];
+  if (isProduction) {
+    parts.push('Secure');
+    parts.push('SameSite=None');
+  } else {
+    parts.push('SameSite=Lax');
+  }
+  return parts.join('; ');
 }
 

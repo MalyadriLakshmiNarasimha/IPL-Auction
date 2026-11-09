@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { destroySession, AUTH_COOKIE_NAME } from '@/lib/auth';
+import { destroySession, AUTH_COOKIE_NAME, getCookieOptions } from '@/lib/auth';
 
 export async function POST(req: NextRequest) {
   try {
@@ -11,12 +11,10 @@ export async function POST(req: NextRequest) {
 
     const response = NextResponse.json({ success: true });
 
-    // Clear cookie
+    // Clear cookie using environment-aware options
+    const cookieOpts = getCookieOptions();
     response.cookies.set(AUTH_COOKIE_NAME, '', {
-      httpOnly: true,
-      sameSite: 'lax',
-      secure: process.env.NODE_ENV === 'production',
-      path: '/',
+      ...cookieOpts,
       maxAge: 0,
       expires: new Date(0),
     });

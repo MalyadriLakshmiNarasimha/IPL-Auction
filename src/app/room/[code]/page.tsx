@@ -3,6 +3,7 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { getSocket } from '@/lib/socket';
+import { apiFetch } from '@/lib/api';
 import {
   AuctionResults,
   AuctionState,
@@ -131,22 +132,20 @@ export default function RoomPage() {
   useEffect(() => {
     let active = true;
 
-    // Verify user authentication
-    fetch('/api/auth/me')
-      .then(res => (res.ok ? res.json() : null))
-      .then(authData => {
+    // Verify user authentication via centralized authenticated api client
+    apiFetch('/api/auth/me')
+      .then(({ ok, data }) => {
         if (!active) return;
-        if (!authData?.authenticated || !authData?.user) {
+        if (!ok || !data?.authenticated || !data?.user) {
           router.replace(`/login?redirect=/room/${roomCode}`);
           return;
         }
 
-        const user = authData.user;
-        const token = authData.sessionToken || localStorage.getItem('ipl_session_token') || '';
+        const user = data.user;
         setSessionId(user.id);
         setDisplayName(user.name);
 
-        const socket = getSocket(token);
+        const socket = getSocket();
 
         socket.on('connect', () => {
           setIsConnected(true);

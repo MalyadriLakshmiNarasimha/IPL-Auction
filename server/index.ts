@@ -2,9 +2,21 @@ import http from 'http';
 import { Server as SocketIOServer } from 'socket.io';
 import { RoomManager } from './room';
 import { initDatabase, initDatabaseWithRetry, validateProductionEnv, getPersistedResults } from './db';
+import { applyCorsHeaders, isAllowedOrigin, getAllowedOrigins } from './cors';
 import { ClientToServerEvents, ServerToClientEvents, Reaction, ChatMessage } from '../src/shared/types';
 import { MAX_ROOM_PARTICIPANTS } from '../src/shared/constants';
-import { validateSessionToken, AUTH_COOKIE_NAME } from '../src/lib/auth';
+import {
+  validateSessionToken,
+  AUTH_COOKIE_NAME,
+  hashPassword,
+  verifyPassword,
+  createSession,
+  destroySession,
+  getSetCookieHeader,
+  getClearCookieHeader,
+  checkAuthRateLimit,
+  resetAuthRateLimit,
+} from '../src/lib/auth';
 import { db, checkMySqlConnection } from '../src/lib/db';
 import { parseCookie } from 'cookie';
 import dotenv from 'dotenv';
@@ -15,24 +27,42 @@ const PORT = parseInt(process.env.PORT || '3001', 10);
 const CLIENT_ORIGIN = process.env.CLIENT_ORIGIN || 'http://localhost:3000';
 
 const server = http.createServer(async (req, res) => {
-  // Enable CORS for API routes (reflect request origin to support credentials with cross-origin deployments)
-  const reqOrigin = req.headers.origin;
-  if (reqOrigin) {
-    res.setHeader('Access-Control-Allow-Origin', reqOrigin);
-  } else {
-    res.setHeader('Access-Control-Allow-Origin', CLIENT_ORIGIN);
-  }
-  res.setHeader('Access-Control-Allow-Credentials', 'true');
-  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
-
-  if (req.method === 'OPTIONS') {
-    res.writeHead(200);
-    res.end();
+  // Centralized CORS policy enforcement
+  const isPreflight = applyCorsHeaders(req, res);
+  if (isPreflight) {
     return;
   }
 
   const url = new URL(req.url || '/', `http://${req.headers.host}`);
+
+  // Helper to extract session token from Authorization header or HTTP-only cookie
+  const extractToken = (): string => {
+    const authHeader = req.headers.authorization;
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+      return authHeader.substring(7);
+    }
+    if (req.headers.cookie) {
+      const parsed = parseCookie(req.headers.cookie);
+      return parsed[AUTH_COOKIE_NAME] || '';
+    }
+    return '';
+  };
+
+  // Helper to parse JSON body
+  const parseJsonBody = (): Promise<any> => {
+    return new Promise((resolve) => {
+      let body = '';
+      req.on('data', chunk => (body += chunk));
+      req.on('end', () => {
+        try {
+          resolve(JSON.parse(body || '{}'));
+        } catch {
+          resolve({});
+        }
+      });
+      req.on('error', () => resolve({}));
+    });
+  };
 
   // Health check: pings DB and returns 200 (connected) or 503 (disconnected)
   if (url.pathname === '/health') {
@@ -47,18 +77,163 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
+  // --- Authentication Endpoints ---
+
+  // Register
+  if (url.pathname === '/api/auth/register' && req.method === 'POST') {
+    try {
+      const body = await parseJsonBody();
+      const { name, email, password } = body;
+
+      if (!name || typeof name !== 'string' || !email || typeof email !== 'string' || !password || typeof password !== 'string') {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Name, email, and password are required.' }));
+        return;
+      }
+
+      const cleanEmail = email.trim().toLowerCase();
+      const cleanName = name.trim();
+
+      if (cleanPassword(password).length < 6) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Password must be at least 6 characters.' }));
+        return;
+      }
+
+      const existing = await db.user.findUnique({ where: { email: cleanEmail } });
+      if (existing) {
+        res.writeHead(409, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'An account with this email already exists.' }));
+        return;
+      }
+
+      const password_hash = await hashPassword(password);
+      const user = await db.user.create({
+        data: {
+          name: cleanName,
+          email: cleanEmail,
+          password_hash,
+        },
+      });
+
+      const { sessionToken } = await createSession(user.id);
+      res.setHeader('Set-Cookie', getSetCookieHeader(sessionToken));
+      res.writeHead(201, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({
+        success: true,
+        user: { id: user.id, name: user.name, email: user.email },
+      }));
+      return;
+    } catch (err: any) {
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: err.message || 'Registration failed' }));
+      return;
+    }
+  }
+
+  // Login
+  if (url.pathname === '/api/auth/login' && req.method === 'POST') {
+    try {
+      const ip = (req.headers['x-forwarded-for'] as string) || req.socket.remoteAddress || '127.0.0.1';
+      const rateCheck = checkAuthRateLimit(`login_${ip}`, 5, 60000);
+      if (!rateCheck.allowed) {
+        res.writeHead(429, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Too many failed login attempts. Please wait 1 minute.' }));
+        return;
+      }
+
+      const body = await parseJsonBody();
+      const { email, password } = body;
+
+      if (!email || !password) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Email and password are required.' }));
+        return;
+      }
+
+      const cleanEmail = String(email).trim().toLowerCase();
+      const user = await db.user.findUnique({ where: { email: cleanEmail } });
+      if (!user) {
+        res.writeHead(401, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Invalid email or password.' }));
+        return;
+      }
+
+      const isValid = await verifyPassword(String(password), user.password_hash);
+      if (!isValid) {
+        res.writeHead(401, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Invalid email or password.' }));
+        return;
+      }
+
+      resetAuthRateLimit(`login_${ip}`);
+      const { sessionToken } = await createSession(user.id);
+
+      res.setHeader('Set-Cookie', getSetCookieHeader(sessionToken));
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({
+        success: true,
+        user: { id: user.id, name: user.name, email: user.email },
+      }));
+      return;
+    } catch (err: any) {
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: err.message || 'Login failed' }));
+      return;
+    }
+  }
+
+  // Logout
+  if (url.pathname === '/api/auth/logout' && req.method === 'POST') {
+    const token = extractToken();
+    if (token) {
+      try {
+        await destroySession(token);
+      } catch { }
+    }
+    res.setHeader('Set-Cookie', getClearCookieHeader());
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ success: true }));
+    return;
+  }
+
+  // Me (Session status)
+  if (url.pathname === '/api/auth/me' && req.method === 'GET') {
+    const token = extractToken();
+    if (!token) {
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ authenticated: false, user: null }));
+      return;
+    }
+
+    try {
+      const sessionData = await validateSessionToken(token);
+      if (!sessionData || !sessionData.user) {
+        res.setHeader('Set-Cookie', getClearCookieHeader());
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ authenticated: false, user: null }));
+        return;
+      }
+
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({
+        authenticated: true,
+        user: sessionData.user,
+      }));
+      return;
+    } catch (err: any) {
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ authenticated: false, error: err.message }));
+      return;
+    }
+  }
+
+  // --- Room Endpoints ---
+
   // Create room endpoint (Protected: requires authenticated user)
   if (url.pathname === '/api/rooms' && req.method === 'POST') {
     // 1. Authenticate user from header or cookie
-    let token = '';
-    const authHeader = req.headers.authorization;
-    if (authHeader && authHeader.startsWith('Bearer ')) {
-      token = authHeader.substring(7);
-    } else if (req.headers.cookie) {
-      const parsedCookies = parseCookie(req.headers.cookie);
-      token = parsedCookies[AUTH_COOKIE_NAME] || '';
-    }
-
+    const token = extractToken();
     let authenticatedUser: { id: string; name: string; email: string } | null = null;
     if (token) {
       const sessionData = await validateSessionToken(token);
@@ -67,72 +242,69 @@ const server = http.createServer(async (req, res) => {
       }
     }
 
-    let body = '';
-    req.on('data', chunk => (body += chunk));
-    req.on('end', async () => {
-      try {
-        const parsed = JSON.parse(body || '{}');
+    try {
+      const parsed = await parseJsonBody();
 
-        // Allow fallback for automated bot stress tests, otherwise require verified authenticated user
-        const isBotTest = typeof parsed.host_session_id === 'string' && parsed.host_session_id.startsWith('bot-');
-        if (!authenticatedUser && !isBotTest) {
-          res.writeHead(401, { 'Content-Type': 'application/json' });
-          res.end(JSON.stringify({ error: 'Authentication required to create a room.' }));
+      // Allow fallback for automated bot stress tests, otherwise require verified authenticated user
+      const isBotTest = typeof parsed.host_session_id === 'string' && parsed.host_session_id.startsWith('bot-');
+      if (!authenticatedUser && !isBotTest) {
+        res.writeHead(401, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Authentication required to create a room.' }));
+        return;
+      }
+
+      const hostId = authenticatedUser ? authenticatedUser.id : parsed.host_session_id;
+      const hostName = authenticatedUser ? authenticatedUser.name : (parsed.host_display_name || 'Host');
+      const roomName = typeof parsed.room_name === 'string' && parsed.room_name.trim().length > 0
+        ? parsed.room_name.trim().slice(0, 50)
+        : 'IPL Auction Room';
+
+      // Generate unique 6-character room code (uppercase letters/numbers without confusing chars 0/O, 1/I)
+      const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+      let code = '';
+      let attempts = 0;
+      do {
+        code = '';
+        for (let i = 0; i < 6; i++) {
+          code += chars.charAt(Math.floor(Math.random() * chars.length));
+        }
+        attempts++;
+      } while (roomManager.getRoom(code) && attempts < 10);
+
+      const room = roomManager.createRoom(
+        code,
+        roomName,
+        hostId,
+        hostName
+      );
+
+      // Persist room in database
+      try {
+        await db.room.create({
+          data: {
+            room_code: code,
+            name: room.name,
+            host_user_id: hostId,
+            status: 'lobby',
+          },
+        });
+      } catch (dbErr: any) {
+        if (process.env.NODE_ENV !== 'test') {
+          roomManager.removeRoom(code);
+          res.writeHead(503, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'Database unavailable: unable to persist room' }));
           return;
         }
-
-        const hostId = authenticatedUser ? authenticatedUser.id : parsed.host_session_id;
-        const hostName = authenticatedUser ? authenticatedUser.name : (parsed.host_display_name || 'Host');
-        const roomName = typeof parsed.room_name === 'string' && parsed.room_name.trim().length > 0
-          ? parsed.room_name.trim().slice(0, 50)
-          : 'IPL Auction Room';
-
-        // Generate unique 6-character room code (uppercase letters/numbers without confusing chars 0/O, 1/I)
-        const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-        let code = '';
-        let attempts = 0;
-        do {
-          code = '';
-          for (let i = 0; i < 6; i++) {
-            code += chars.charAt(Math.floor(Math.random() * chars.length));
-          }
-          attempts++;
-        } while (roomManager.getRoom(code) && attempts < 10);
-
-        const room = roomManager.createRoom(
-          code,
-          roomName,
-          hostId,
-          hostName
-        );
-
-        // Persist room in database
-        try {
-          await db.room.create({
-            data: {
-              room_code: code,
-              name: room.name,
-              host_user_id: hostId,
-              status: 'lobby',
-            },
-          });
-        } catch (dbErr: any) {
-          if (process.env.NODE_ENV !== 'test') {
-            roomManager.removeRoom(code);
-            res.writeHead(503, { 'Content-Type': 'application/json' });
-            res.end(JSON.stringify({ error: 'Database unavailable: unable to persist room' }));
-            return;
-          }
-        }
-
-        res.writeHead(201, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ room_code: code, room_name: room.name }));
-      } catch (err: any) {
-        res.writeHead(400, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ error: err.message }));
       }
-    });
-    return;
+
+      res.writeHead(201, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ room_code: code, room_name: room.name }));
+      return;
+    } catch (err: any) {
+      res.writeHead(400, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: err.message }));
+      return;
+    }
   }
 
   // Check room status endpoint
@@ -183,13 +355,22 @@ const server = http.createServer(async (req, res) => {
   res.end('Not found');
 });
 
+// Helper for password length check
+function cleanPassword(pw: any): string {
+  return typeof pw === 'string' ? pw : '';
+}
+
 const io = new SocketIOServer<ClientToServerEvents, ServerToClientEvents>(server, {
   cors: {
     origin: (origin, callback) => {
-      // Dynamic origin reflection ensures browser withCredentials compliance
-      callback(null, true);
+      // Check origin against centralized allowed origins
+      if (!origin || isAllowedOrigin(origin)) {
+        callback(null, true);
+      } else {
+        callback(new Error(`CORS origin not allowed: ${origin}`), false);
+      }
     },
-    methods: ['GET', 'POST'],
+    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
     credentials: true,
   },
   pingInterval: 10000,
@@ -203,8 +384,9 @@ export const roomManager = new RoomManager(io);
 io.use(async (socket, next) => {
   try {
     let token = socket.handshake.auth?.token;
-    if (!token && socket.handshake.headers.cookie) {
-      const parsed = parseCookie(socket.handshake.headers.cookie);
+    const cookieHeader = socket.handshake.headers.cookie || (socket.request as any)?.headers?.cookie;
+    if (!token && cookieHeader) {
+      const parsed = parseCookie(cookieHeader);
       token = parsed[AUTH_COOKIE_NAME];
     }
 

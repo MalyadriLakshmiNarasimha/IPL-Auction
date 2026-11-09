@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import { apiFetch } from '@/lib/api';
 import { ArrowRight, AlertCircle, User } from 'lucide-react';
 
 export default function JoinRoomPage() {
@@ -12,16 +13,12 @@ export default function JoinRoomPage() {
   const [isCheckingAuth, setIsCheckingAuth] = useState(true);
 
   useEffect(() => {
-    fetch('/api/auth/me')
-      .then(res => (res.ok ? res.json() : null))
-      .then(data => {
-        if (!data?.authenticated || !data?.user) {
+    apiFetch('/api/auth/me')
+      .then(({ ok, data }) => {
+        if (!ok || !data?.authenticated || !data?.user) {
           router.replace('/login?redirect=/join');
         } else {
           setDisplayName(data.user.name);
-          if (data.sessionToken) {
-            localStorage.setItem('ipl_session_token', data.sessionToken);
-          }
           setIsCheckingAuth(false);
         }
       })

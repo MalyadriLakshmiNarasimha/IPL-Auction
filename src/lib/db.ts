@@ -10,9 +10,8 @@ export const prisma =
     log: process.env.NODE_ENV === 'development' ? ['warn', 'error'] : ['error'],
   });
 
-if (process.env.NODE_ENV !== 'production') {
-  globalThis.prismaGlobal = prisma;
-}
+// Always cache singleton in globalThis across all environments to prevent connection exhaustion
+globalThis.prismaGlobal = prisma;
 
 export class DatabaseConnectionError extends Error {
   statusCode: number;
@@ -85,7 +84,7 @@ export async function getDbAccess(): Promise<boolean> {
   }
 
   throw new DatabaseConnectionError(
-    'Database server is unreachable at localhost:3306. In-memory fallback is strictly disabled outside NODE_ENV=test.'
+    'Database server is unreachable. In-memory fallback is strictly disabled outside NODE_ENV=test.'
   );
 }
 

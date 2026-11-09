@@ -3,6 +3,7 @@
 import React, { useState, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
+import { apiFetch } from '@/lib/api';
 import { Shield, ArrowRight, AlertCircle, User, Mail, Lock } from 'lucide-react';
 
 function RegisterForm() {
@@ -37,9 +38,8 @@ function RegisterForm() {
     setIsLoading(true);
 
     try {
-      const res = await fetch('/api/auth/register', {
+      const res = await apiFetch<{ user: { id: string; name: string; email: string } }>('/api/auth/register', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           name: name.trim(),
           email: email.trim().toLowerCase(),
@@ -47,16 +47,13 @@ function RegisterForm() {
         }),
       });
 
-      const data = await res.json();
-
       if (!res.ok) {
-        throw new Error(data.error || 'Failed to register account.');
+        throw new Error(res.error || 'Failed to register account.');
       }
 
       // Store display name in local storage for convenience
-      localStorage.setItem('ipl_display_name', data.user.name);
-      if (data.sessionToken) {
-        localStorage.setItem('ipl_session_token', data.sessionToken);
+      if (res.data?.user?.name) {
+        localStorage.setItem('ipl_display_name', res.data.user.name);
       }
 
       // Automatically authenticated and redirected

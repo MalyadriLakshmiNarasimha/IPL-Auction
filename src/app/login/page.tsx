@@ -3,6 +3,7 @@
 import React, { useState, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
+import { apiFetch } from '@/lib/api';
 import { ArrowRight, AlertCircle, Mail, Lock, Shield } from 'lucide-react';
 
 function LoginForm() {
@@ -27,25 +28,21 @@ function LoginForm() {
     setIsLoading(true);
 
     try {
-      const res = await fetch('/api/auth/login', {
+      const res = await apiFetch<{ user: { id: string; name: string; email: string } }>('/api/auth/login', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           email: email.trim().toLowerCase(),
           password,
         }),
       });
 
-      const data = await res.json();
-
       if (!res.ok) {
-        throw new Error(data.error || 'Invalid credentials.');
+        throw new Error(res.error || 'Invalid credentials.');
       }
 
       // Store display name in local storage for quick access
-      localStorage.setItem('ipl_display_name', data.user.name);
-      if (data.sessionToken) {
-        localStorage.setItem('ipl_session_token', data.sessionToken);
+      if (res.data?.user?.name) {
+        localStorage.setItem('ipl_display_name', res.data.user.name);
       }
 
       window.location.href = redirectTarget;

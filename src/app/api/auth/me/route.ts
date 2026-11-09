@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { validateSessionToken, AUTH_COOKIE_NAME } from '@/lib/auth';
+import { validateSessionToken, AUTH_COOKIE_NAME, getCookieOptions } from '@/lib/auth';
 
 export const dynamic = 'force-dynamic';
 
@@ -27,12 +27,10 @@ export async function GET(req: NextRequest) {
         { authenticated: false, user: null },
         { status: 200 }
       );
-      // Clear invalid or expired cookie
+      // Clear invalid or expired cookie using environment-aware options
+      const cookieOpts = getCookieOptions();
       res.cookies.set(AUTH_COOKIE_NAME, '', {
-        httpOnly: true,
-        sameSite: 'lax',
-        secure: process.env.NODE_ENV === 'production',
-        path: '/',
+        ...cookieOpts,
         maxAge: 0,
         expires: new Date(0),
       });
@@ -42,7 +40,6 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({
       authenticated: true,
       user: sessionData.user,
-      sessionToken: token,
     });
   } catch (err: any) {
     console.error('[API Me Error]:', err);

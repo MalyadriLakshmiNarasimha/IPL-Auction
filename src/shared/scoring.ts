@@ -710,9 +710,9 @@ export function generateChampionshipAwards(
       id: 'strongest_playing_xi',
       title: '⭐ Strongest Playing XI',
       description: 'Crafted the most dominant 11-player matchday starting lineup',
-      winner_name: `${strongestXI.display_name} (${strongestXI.franchise.name})`,
-      franchise_short_code: strongestXI.franchise.short_code,
-      franchise_color: strongestXI.franchise.color,
+      winner_name: `${strongestXI.display_name} (${strongestXI.franchise?.name || 'Independent'})`,
+      franchise_short_code: strongestXI.franchise?.short_code || 'IND',
+      franchise_color: strongestXI.franchise?.color || '#DCC477',
       value_highlight: `${strongestXI.total_score} PTS`,
     });
   }

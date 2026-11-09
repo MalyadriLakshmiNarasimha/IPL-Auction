@@ -3,6 +3,7 @@
 import React, { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import { apiFetch } from '@/lib/api';
 import { User, LogOut, LogIn, UserPlus, ChevronDown } from 'lucide-react';
 
 interface AuthUser {
@@ -18,11 +19,10 @@ export const UserNav: React.FC = () => {
   const [isLoggingOut, setIsLoggingOut] = useState(false);
 
   useEffect(() => {
-    // Fetch authenticated user
-    fetch('/api/auth/me')
-      .then(res => (res.ok ? res.json() : null))
-      .then(data => {
-        if (data?.authenticated && data?.user) {
+    // Fetch authenticated user using centralized authenticated api client
+    apiFetch('/api/auth/me')
+      .then(({ ok, data }) => {
+        if (ok && data?.authenticated && data?.user) {
           setUser(data.user);
         } else {
           setUser(null);
@@ -34,7 +34,7 @@ export const UserNav: React.FC = () => {
   const handleLogout = async () => {
     setIsLoggingOut(true);
     try {
-      await fetch('/api/auth/logout', { method: 'POST' });
+      await apiFetch('/api/auth/logout', { method: 'POST' });
       localStorage.removeItem('ipl_session_token');
       localStorage.removeItem('ipl_display_name');
       setUser(null);

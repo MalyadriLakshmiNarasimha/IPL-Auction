@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { getSocketUrl } from '@/lib/socket';
+import { apiFetch } from '@/lib/api';
 import { Shield, ArrowRight, AlertCircle, User } from 'lucide-react';
 import Link from 'next/link';
 
@@ -16,17 +16,13 @@ export default function CreateRoomPage() {
   const [isCheckingAuth, setIsCheckingAuth] = useState(true);
 
   useEffect(() => {
-    fetch('/api/auth/me')
-      .then(res => (res.ok ? res.json() : null))
-      .then(data => {
-        if (!data?.authenticated || !data?.user) {
+    apiFetch('/api/auth/me')
+      .then(({ ok, data }) => {
+        if (!ok || !data?.authenticated || !data?.user) {
           router.replace('/login?redirect=/create');
         } else {
           setDisplayName(data.user.name);
           setUserId(data.user.id);
-          if (data.sessionToken) {
-            localStorage.setItem('ipl_session_token', data.sessionToken);
-          }
           setIsCheckingAuth(false);
         }
       })
@@ -46,16 +42,8 @@ export default function CreateRoomPage() {
     setError(null);
 
     try {
-      const serverUrl = getSocketUrl();
-      const sessionToken = localStorage.getItem('ipl_session_token') || '';
-
-      const res = await fetch(`${serverUrl}/api/rooms`, {
+      const res = await apiFetch<{ room_code: string; room_name: string }>('/api/rooms', {
         method: 'POST',
-        credentials: 'include',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${sessionToken}`,
-        },
         body: JSON.stringify({
           room_name: roomName.trim() || 'IPL Auction Room',
           host_session_id: userId,
@@ -64,12 +52,10 @@ export default function CreateRoomPage() {
       });
 
       if (!res.ok) {
-        const errData = await res.json().catch(() => ({}));
-        throw new Error(errData.error || 'Failed to create room');
+        throw new Error(res.error || 'Failed to create room');
       }
 
-      const data = await res.json();
-      router.push(`/room/${data.room_code}`);
+      router.push(`/room/${res.data.room_code}`);
     } catch (err: any) {
       setError(err.message || 'Error connecting to auction server');
       setIsSubmitting(false);

@@ -5,22 +5,26 @@ import { ClientToServerEvents, ServerToClientEvents } from '@/shared/types';
 
 let socket: Socket<ServerToClientEvents, ClientToServerEvents> | null = null;
 
-export function getAuthSessionToken(): string {
-  if (typeof window === 'undefined') return '';
-  return localStorage.getItem('ipl_session_token') || '';
-}
-
 export function getSocketUrl(): string {
   if (typeof window !== 'undefined') {
     const envUrl = process.env.NEXT_PUBLIC_SOCKET_URL;
-    if (envUrl) return envUrl;
-    return `${window.location.protocol}//${window.location.hostname}:3001`;
+    if (envUrl) return envUrl.replace(/\/$/, '');
+
+    // In production (Netlify or remote deployment), default to authoritative Render backend
+    const isLocalhost =
+      window.location.hostname === 'localhost' ||
+      window.location.hostname === '127.0.0.1';
+
+    if (!isLocalhost) {
+      return 'https://ipl-auction-jgsd.onrender.com';
+    }
+    return 'http://localhost:3001';
   }
-  return 'http://localhost:3001';
+  return process.env.NEXT_PUBLIC_SOCKET_URL?.replace(/\/$/, '') || 'http://localhost:3001';
 }
 
 export function getSocket(token?: string): Socket<ServerToClientEvents, ClientToServerEvents> {
-  const authToken = token || getAuthSessionToken();
+  const authToken = token || '';
 
   if (!socket) {
     const url = getSocketUrl();
@@ -32,10 +36,8 @@ export function getSocket(token?: string): Socket<ServerToClientEvents, ClientTo
       reconnectionDelayMax: 2000,
       timeout: 10000,
       transports: ['websocket', 'polling'],
-      auth: {
-        token: authToken,
-      },
-      withCredentials: true,
+      auth: authToken ? { token: authToken } : {},
+      withCredentials: true, // Sends HTTP-only session cookie automatically
     });
 
     socket.on('connect', () => {
@@ -46,7 +48,7 @@ export function getSocket(token?: string): Socket<ServerToClientEvents, ClientTo
       console.warn('⚠️ Socket connection error:', err.message);
     });
   } else if (authToken && socket.auth && (socket.auth as any).token !== authToken) {
-    // Update auth token if changed and reconnect to re-authenticate
+    // Update auth token if provided and re-authenticate
     (socket.auth as any).token = authToken;
     if (socket.connected) {
       socket.disconnect().connect();
@@ -62,3 +64,4 @@ export function disconnectSocket() {
     socket = null;
   }
 }
+
