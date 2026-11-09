@@ -14,3 +14,4 @@ services:
         value: https://iplauctionlive.netlify.app,http://localhost:3000,http://localhost:3001
       - key: PORT
         value: 3001
+
