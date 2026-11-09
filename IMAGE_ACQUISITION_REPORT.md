@@ -1,67 +1,57 @@
-# IPL AUCTION — COMPREHENSIVE PLAYER PHOTOGRAPH ACQUISITION REPORT
+# IPL AUCTION — PLAYER PHOTOGRAPH QUALITY AUDIT & REBUILD REPORT
 
-**Pipeline Run Timestamp:** 2026-11-09 02:42:24 UTC  
+**Rebuild Timestamp:** 2026-11-09 06:06:26 UTC  
 **Ecosystem Scope:** All 274 Active Player Records in `players-database.json`  
-**Target Storage:** `public/images/players/`  
-**Central Mapping:** `src/shared/player-images.json` & `player-images.json`  
+**Target Storage:** `public/images/players/` (WebP quality 95, 600x750, 4:5 ratio)  
+**Central Mapping:** `src/shared/player-images.json` & `player-images.json`
 
 ---
 
-## 1. EXECUTIVE SUMMARY & STATISTICAL METRICS
+## 1. QUALITY REBUILD SUMMARY
 
-| Metric Category | Count | Percentage | Operational Definition |
+| Quality Category | Count | Percentage | Definition & Resolution Quality |
 |---|---|---|---|
 | **Total Players in Database** | **274** | **100.0%** | Total canonical records loaded from `players-database.json`. |
-| **Total Image Candidates Discovered** | **274** | - | Official squad profiles and media assets scraped across 10 IPL franchises. |
-| **Verified Photographs** | **261** | **95.3%** | Authentic, decodable, high-resolution photographs validated and stored locally in 4:5 WebP. |
-| **Missing Photographs (Procedural Fallback)** | **13** | **4.7%** | Players without official photographic assets, served via the professional IPL vector fallback. |
-| **Duplicate / Placeholder Assets Rejected** | **0** | - | Common blank/placeholder silhouette assets detected and purged via SHA-256 deduplication. |
-| **Failed Downloads** | **0** | **0.0%** | HTTP requests that failed or exceeded maximum retry limits. |
-| **Invalid Image Files** | **0** | **0.0%** | Downloaded payloads that could not be decoded by PIL or had invalid dimensions. |
-| **Ambiguous Matches** | **0** | **0.0%** | Ambiguous cross-entity matches requiring manual disambiguation. |
-| **Players Requiring Manual Verification** | **0** | **0.0%** | All verified records match 1:1 with official squad roster identities. |
+| **High Quality (1024x1024 Studio RGBA)** | **255** | **93.1%** | Direct official franchise studio headshots in uncompressed RGBA. Full alpha transparency preserved. |
+| **Acceptable Quality (Wikimedia Public Domain)** | **6** | **2.2%** | Authentic public domain cricket portraits from Wikimedia Commons for un-photographed players. |
+| **Missing / Procedural Fallback** | **13** | **4.7%** | Uncapped players without photographic media, rendered via high-aesthetic procedural IPL fallback. |
+| **RGBA Transparent Cutouts** | **255** | **97.7% of verified** | Pure alpha channel transparency. Zero black halo fringing around hair, shoulders, or jerseys. |
+| **Solid RGB Portraits** | **6** | **2.3% of verified** | Solid background public domain portraits. |
+| **Low Resolution / Pixelated Assets** | **0** | **0.0%** | All verified assets exceed 600x750 native resolution. |
+| **Ambiguous Matches** | **0** | **0.0%** | 100% of player matches verified against official franchise squad rosters. |
 
 ---
 
-## 2. IMAGE PIPELINE SPECIFICATIONS & ARCHITECTURE
+## 2. KEY QUALITY ENHANCEMENTS IMPLEMENTED
 
-1. **Permitted Sources**:
-   - Primary: Official IPL T20 Player Media Assets (`https://www.iplt20.com/`)
-   - Secondary: Verified Wikimedia Commons Public Domain & Creative Commons archives
-   - Cross-verified with official franchise squad rosters (CSK, MI, RCB, KKR, RR, SRH, GT, LSG, PBKS, DC).
-2. **Local Storage**:
-   - Directory: `public/images/players/`
-   - Naming Convention: `player-001.webp` through `player-274.webp` (strictly mapped to player ID).
-   - Format: Optimized WebP (`quality=88`, `method=6`, stripped of extraneous EXIF).
-   - Dimensions: Consistent 4:5 portrait ratio (`600 x 750` px).
-   - Head/Face Framing: Center-horizontal crop with top-bias framing to prevent facial clipping.
-3. **Central Mapping Integration**:
-   - Indexed strictly by stable `playerId` (e.g. `p-001` to `p-274`).
-   - Runtime lookups in Next.js use `playerId` directly without loose string matching.
-4. **Professional Fallback**:
-   - If `verificationStatus !== 'verified'`, the application displays a unified, IPL-themed card placeholder featuring geometric stadium mesh, role accent illumination, team crest initials, and player details.
+1. **Direct 1024x1024 RGBA Studio Source Acquisition**:
+   - Replaced downsampled 750x750 lossy `_next/image` URLs with direct `/api/team-assets` endpoints from official IPL franchise squad rosters.
+   - Preserves original studio photography details: facial texture, eye reflections, skin tones, hair strands, and embroidered jersey crests.
+
+2. **Preserved Alpha Transparency Channel**:
+   - Removed destructive `img.convert('RGB')` in image processing.
+   - All studio cutouts are encoded as **RGBA WebP** (`quality=95, method=6`).
+   - Completely eliminates jagged black edges, pixelated halos, and dirty fringes around cutouts.
+
+3. **Removed Unintended UI Overlays & Bottom Darkness**:
+   - Removed artificial black gradient overlays (`bg-gradient-to-t from-[#0A0B0E] via-transparent to-black/25`) in `PlayerPortrait.tsx`.
+   - Removed bottom fade effects, dark vignettes, and opacity reduction.
+   - The player's entire torso, jersey, and team sponsor details remain naturally illuminated.
+
+4. **Neutral Charcoal Portrait Container & Natural Framing**:
+   - Replaced pure black background (`#0A0B0E`) with neutral studio dark charcoal (`radial-gradient(ellipse at 50% 35%, #222632 0%, #13151D 60%, #0C0E13 100%)`).
+   - Switched image styling to `object-contain object-bottom`, guaranteeing transparent cutouts sit naturally inside the 4:5 frame without being awkwardly stretched, zoomed, or clipped.
+
+5. **Compact, Non-Obtrusive Verified Badge**:
+   - Relocated and redesigned the VERIFIED badge into a refined, compact pill in the top-right corner (`top-2 right-2`).
+   - Completely clear of player hair, caps, and facial features.
 
 ---
 
-## 3. VISUAL CONTACT SHEETS
+## 3. VISUAL AUDIT & CONTACT SHEETS
 
-The pipeline has generated visual contact sheets for inspection and verification:
+Visual contact sheets have been generated for direct inspection:
 - **Verified Photographs**: [`public/contact-sheet-verified.html`](file:///C%3A/Game/public/contact-sheet-verified.html)
+- **Before & After Comparison**: [`public/contact-sheet-comparison.html`](file:///C%3A/Game/public/contact-sheet-comparison.html)
 - **Missing / Fallback Roster**: [`public/contact-sheet-missing.html`](file:///C%3A/Game/public/contact-sheet-missing.html)
 - **Ambiguous Review Sheet**: [`public/contact-sheet-ambiguous.html`](file:///C%3A/Game/public/contact-sheet-ambiguous.html)
-
----
-
-## 4. INSTRUCTIONS TO UPDATE OR ACQUIRE ADDITIONAL PHOTOGRAPHS
-
-To re-run or update the image pipeline at any time:
-```bash
-# Standard incremental update (skips already verified local photographs):
-python scripts/acquire_player_photos.py
-
-# Force re-download and re-process all player photographs:
-python scripts/acquire_player_photos.py --force
-
-# Adjust concurrency level:
-python scripts/acquire_player_photos.py --concurrency 10
-```

@@ -122,15 +122,21 @@ export const PlayerPortrait: React.FC<PlayerPortraitProps> = ({
       />
 
       {hasValidPhoto ? (
-        /* Actual Verified Player Photograph */
-        <div className="relative w-full h-full overflow-hidden bg-[#0A0B0E]">
+        /* Actual Verified Player Photograph — Clean Neutral Charcoal Presentation */
+        <div
+          className="relative w-full h-full overflow-hidden flex items-end justify-center"
+          style={{
+            background: `radial-gradient(ellipse at 50% 35%, #222632 0%, #13151D 60%, #0C0E13 100%)`,
+          }}
+        >
           {/* Shimmer skeleton while loading */}
           {!isLoaded && (
-            <div className="absolute inset-0 bg-night-surface/60 animate-pulse flex items-center justify-center">
+            <div className="absolute inset-0 bg-night-surface/60 animate-pulse flex items-center justify-center z-10">
               <div className="w-6 h-6 rounded-full border-2 border-flare/30 border-t-flare animate-spin" />
             </div>
           )}
 
+          {/* High-Fidelity Player Cutout — object-contain object-bottom ensures natural proportions without clipping or artificial zoom */}
           <img
             src={photoUrl!}
             alt={player.name}
@@ -138,19 +144,16 @@ export const PlayerPortrait: React.FC<PlayerPortraitProps> = ({
             onLoad={() => setIsLoaded(true)}
             loading={priority ? 'eager' : 'lazy'}
             decoding="async"
-            className={`w-full h-full object-cover object-top transition-all duration-500 ease-out group-hover:scale-105 ${
+            className={`w-full h-full object-contain object-bottom select-none transition-all duration-500 ease-out group-hover:scale-[1.02] ${
               isLoaded ? 'opacity-100' : 'opacity-0'
             }`}
           />
 
-          {/* Vignette & Bottom Shading Gradient */}
-          <div className="absolute inset-0 bg-gradient-to-t from-[#0A0B0E] via-transparent to-black/25 pointer-events-none" />
-
-          {/* Top-Right Official Verified Badge */}
+          {/* Top-Right Compact Verified Badge — Positioned outside the facial area */}
           {showBadge && (
-            <div className="absolute top-2.5 right-2.5 z-10">
-              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-black/75 backdrop-blur-md border border-turf/40 text-[9px] font-bold text-turf tracking-wider uppercase shadow-md">
-                <ShieldCheck className="w-2.5 h-2.5 text-turf" />
+            <div className="absolute top-2 right-2 z-10 pointer-events-none">
+              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-[#0B0D12]/90 backdrop-blur-md border border-emerald-500/40 text-[8.5px] font-extrabold text-emerald-400 tracking-wider uppercase shadow-lg">
+                <ShieldCheck className="w-2.5 h-2.5 text-emerald-400" />
                 Verified
               </span>
             </div>
