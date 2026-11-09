@@ -65,29 +65,34 @@ export async function createSession(userId: string): Promise<{ sessionToken: str
 export async function validateSessionToken(token: string) {
   if (!token || typeof token !== 'string') return null;
 
-  const session = await db.session.findUnique({
-    where: { session_token: token },
-    include: { user: true },
-  });
+  try {
+    const session = await db.session.findUnique({
+      where: { session_token: token },
+      include: { user: true },
+    });
 
-  if (!session || !session.user) {
+    if (!session || !session.user) {
+      return null;
+    }
+
+    if (new Date() > new Date(session.expires_at)) {
+      await db.session.delete({ where: { session_token: token } }).catch(() => {});
+      return null;
+    }
+
+    return {
+      user: {
+        id: session.user.id,
+        name: session.user.name,
+        email: session.user.email,
+        created_at: session.user.created_at,
+      },
+      sessionToken: token,
+    };
+  } catch (err: any) {
+    console.warn('[AUTH] Database session lookup error:', err.message);
     return null;
   }
-
-  if (new Date() > new Date(session.expires_at)) {
-    await db.session.delete({ where: { session_token: token } });
-    return null;
-  }
-
-  return {
-    user: {
-      id: session.user.id,
-      name: session.user.name,
-      email: session.user.email,
-      created_at: session.user.created_at,
-    },
-    sessionToken: token,
-  };
 }
 
 export async function destroySession(token: string): Promise<void> {

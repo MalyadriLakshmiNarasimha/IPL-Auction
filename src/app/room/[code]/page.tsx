@@ -157,10 +157,8 @@ export default function RoomPage() {
         });
 
         socket.on('connect_error', (err) => {
-          if (err.message.includes('Authentication required') || err.message.includes('Invalid or expired')) {
-            console.warn('[ROOM] Socket authentication failure:', err.message);
-            router.replace(`/login?redirect=/room/${roomCode}`);
-          }
+          console.warn('[ROOM] Socket connection warning:', err.message);
+          // Do NOT redirect an already-authenticated user to /login on socket blip
         });
 
         socket.on('disconnect', () => {
@@ -316,8 +314,8 @@ export default function RoomPage() {
           });
         }
       })
-      .catch(() => {
-        router.replace(`/login?redirect=/room/${roomCode}`);
+      .catch((err) => {
+        console.warn('[ROOM] Auth verification request error:', err);
       });
 
     return () => {

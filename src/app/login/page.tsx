@@ -11,6 +11,15 @@ function LoginForm() {
   const searchParams = useSearchParams();
   const redirectTarget = searchParams.get('redirect') || '/';
 
+  // If already authenticated, redirect immediately to target without displaying login form
+  React.useEffect(() => {
+    apiFetch('/api/auth/me').then(({ ok, data }) => {
+      if (ok && data?.authenticated && data?.user) {
+        window.location.href = redirectTarget;
+      }
+    }).catch(() => {});
+  }, [redirectTarget]);
+
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);

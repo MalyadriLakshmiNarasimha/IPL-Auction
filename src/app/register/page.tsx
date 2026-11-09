@@ -11,6 +11,15 @@ function RegisterForm() {
   const searchParams = useSearchParams();
   const redirectTarget = searchParams.get('redirect') || '/';
 
+  // If already authenticated, redirect immediately to target without displaying registration form
+  React.useEffect(() => {
+    apiFetch('/api/auth/me').then(({ ok, data }) => {
+      if (ok && data?.authenticated && data?.user) {
+        window.location.href = redirectTarget;
+      }
+    }).catch(() => {});
+  }, [redirectTarget]);
+
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
