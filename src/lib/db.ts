@@ -1,5 +1,4 @@
 import { PrismaClient } from '@prisma/client';
-import net from 'net';
 
 declare global {
   var prismaGlobal: PrismaClient | undefined;
@@ -43,25 +42,6 @@ export function __setMockDbConnected(val: boolean | null) {
   }
 }
 
-function isPortOpen(port = 3306, host = '127.0.0.1', timeoutMs = 400): Promise<boolean> {
-  return new Promise((resolve) => {
-    const socket = net.createConnection({ port, host });
-    socket.setTimeout(timeoutMs);
-    socket.once('connect', () => {
-      socket.destroy();
-      resolve(true);
-    });
-    socket.once('error', () => {
-      socket.destroy();
-      resolve(false);
-    });
-    socket.once('timeout', () => {
-      socket.destroy();
-      resolve(false);
-    });
-  });
-}
-
 export async function checkMySqlConnection(force = false): Promise<boolean> {
   if (mockDbAvailable !== null) {
     return mockDbAvailable;
@@ -70,17 +50,6 @@ export async function checkMySqlConnection(force = false): Promise<boolean> {
   const now = Date.now();
   if (!force && lastCheckResult === true && now - lastCheckTime < CHECK_CACHE_SUCCESS_MS) {
     return true;
-  }
-
-  // Fast pre-check: verify if port 3306 is open before triggering Prisma's noisy error logger
-  const portListening = await isPortOpen(3306, '127.0.0.1', 400);
-  if (!portListening) {
-    lastCheckResult = false;
-    lastCheckTime = now;
-    if (process.env.NODE_ENV !== 'test') {
-      console.warn('[DB] MySQL port 3306 is not accepting connections.');
-    }
-    return false;
   }
 
   try {
