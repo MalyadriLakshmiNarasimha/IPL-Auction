@@ -29,8 +29,6 @@ export const AuctionCommentaryTicker: React.FC<AuctionCommentaryTickerProps> = (
     if (latest && latest.id !== lastSpokenEventId.current) {
       lastSpokenEventId.current = latest.id;
       setPulse(true);
-      // Trigger authoritative voice commentary (deduplicated & queued)
-      voiceCommentary.speakEvent(latest);
       const timer = setTimeout(() => setPulse(false), 800);
       return () => clearTimeout(timer);
     }

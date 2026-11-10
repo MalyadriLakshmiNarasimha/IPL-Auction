@@ -69,6 +69,7 @@ import {
 } from 'lucide-react';
 import { validateTeamName, deriveTeamShortCode, TEAM_COLOR_PALETTE } from '@/shared/team-validation';
 import { voiceCommentary } from '@/lib/voice-commentary';
+import { buildPlayerIntroduction, buildSoldAnnouncement } from '@/shared/voice-templates';
 
 export default function RoomPage() {
   const params = useParams();
@@ -110,6 +111,7 @@ export default function RoomPage() {
   const [hasEditedName, setHasEditedName] = useState(false);
   const [isSavedBanner, setIsSavedBanner] = useState(false);
   const lastAnnouncedPlayerId = React.useRef<string | null>(null);
+  const lastSoldPlayerId = React.useRef<string | null>(null);
 
   // Local user participant
   const currentUser = useMemo(() => {
@@ -194,9 +196,14 @@ export default function RoomPage() {
           setAuctionState(data.auction_state);
           soundFX.playGavel();
           soundFX.playSold();
+          const winningTeam = data.winner.team_name || data.winner.franchise?.name || 'the winning franchise';
+          if (lastSoldPlayerId.current !== data.player.id) {
+            lastSoldPlayerId.current = data.player.id;
+            voiceCommentary.speakSoldAnnouncement(data.player.name, winningTeam, data.price, data.player.id);
+          }
           const el = document.getElementById('accessibility-announcer');
           if (el) {
-            el.innerText = `${data.player.name} sold to ${data.winner.franchise?.name} for ${formatCurrency(data.price)}`;
+            el.innerText = `${data.player.name} sold to ${winningTeam} for ${formatCurrency(data.price)}`;
           }
         });
 
@@ -204,10 +211,12 @@ export default function RoomPage() {
           setAuctionState(data.auction_state);
           soundFX.playGavel();
           soundFX.playUnsold();
+          // Never announce SOLD for unsold players
         });
 
         socket.on('next_player', data => {
           setAuctionState(data.auction_state);
+          voiceCommentary.cancelPending();
         });
 
         socket.on('bidding_started', data => {
@@ -464,17 +473,15 @@ export default function RoomPage() {
     }
   }, [currentUser, hasEditedName]);
 
-  // Authoritative Voice Announcement sequencing
+  // Authoritative Voice Announcement sequencing (Player Introduction triggered exactly once)
   useEffect(() => {
     if (auctionState?.phase === 'announcing' && auctionState.current_player) {
-      const currentPlayerId = auctionState.current_player.id;
+      const currentPlayer = auctionState.current_player;
+      const currentPlayerId = currentPlayer.id;
       if (lastAnnouncedPlayerId.current !== currentPlayerId) {
         lastAnnouncedPlayerId.current = currentPlayerId;
-        const text =
-          auctionState.announcement_text ||
-          `Now on spotlight: ${auctionState.current_player.name}, ${auctionState.current_player.role}. Base price: ${formatCurrency(auctionState.current_player.base_price)}.`;
 
-        voiceCommentary.speakAnnouncement(text, () => {
+        voiceCommentary.speakPlayerIntroduction(currentPlayer, () => {
           const socket = getSocket();
           socket.emit('announcement_completed', {
             room_code: roomCode,
@@ -484,7 +491,7 @@ export default function RoomPage() {
         });
       }
     }
-  }, [auctionState?.phase, auctionState?.current_player, auctionState?.announcement_text, roomCode, sessionId]);
+  }, [auctionState?.phase, auctionState?.current_player, roomCode, sessionId]);
 
   const otherTeamNames = useMemo(() => {
     return participants

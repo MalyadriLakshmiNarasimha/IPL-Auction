@@ -24,6 +24,7 @@ import {
   getPlayerCategory,
   PlayerAuctionCategory,
 } from '../src/shared/player-sequence';
+import { buildPlayerIntroduction } from '../src/shared/voice-templates';
 import { DEFAULT_ROOM_SETTINGS, MIN_RESERVE_PER_SLOT, formatCurrency, getMinAuctionParticipants, MAX_ROOM_PARTICIPANTS } from '../src/shared/constants';
 import { validateBid, validateAuctionStart } from '../src/shared/validation';
 import { validateTeamName, deriveTeamShortCode, normalizeTeamName } from '../src/shared/team-validation';
@@ -727,10 +728,10 @@ export class RoomManager {
       room.announcement_timeout_handle = null;
     }
 
-    const announcementText = `Up next in ${category}: ${nextPlayer.name}, ${nextPlayer.country} ${nextPlayer.role}. Base price: ${formatCurrency(nextPlayer.base_price)}.`;
+    const announcementText = buildPlayerIntroduction(nextPlayer);
     const wordCount = announcementText.split(/\s+/).length;
-    // Optimized for 1.10x speech rate: eliminates unnecessary delays
-    const announcementDurationMs = Math.max(3000, Math.min(5500, Math.round((wordCount / 2.7) * 1000) + 500));
+    // Optimized for natural 1.10x speech rate: eliminates unnecessary delays
+    const announcementDurationMs = Math.max(3200, Math.min(5800, Math.round((wordCount / 2.7) * 1000) + 500));
 
     room.auction_state.announcement_text = announcementText;
     room.auction_state.announcement_duration_ms = announcementDurationMs;

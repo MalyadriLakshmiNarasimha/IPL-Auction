@@ -257,10 +257,10 @@ describe('IPL Auction — Voice Optimization & Category-Wise Player Sequence Ver
       const rawText = '🔥 BID ₹15 Cr by CSK on Virat Kohli (BAT)! Base: ₹2 Cr.';
       const cleaned = voiceCommentary.cleanTextForSpeech(rawText);
 
-      expect(cleaned).toContain('15 Crore rupees');
+      expect(cleaned).toContain('fifteen crore rupees');
       expect(cleaned).toContain('Chennai Super Kings');
       expect(cleaned).toContain('Batter');
-      expect(cleaned).toContain('2 Crore rupees');
+      expect(cleaned).toContain('two crore rupees');
       expect(cleaned).not.toContain('🔥');
       expect(cleaned).not.toContain('₹');
     });

@@ -73,7 +73,7 @@ export const AudioSettingsModal: React.FC<AudioSettingsModalProps> = ({ isOpen, 
 
     setIsTesting(true);
     voiceCommentary.testVoice(
-      'Welcome to the TATA IPL 2026 Mega Auction! Virat Kohli is up next at a base price of 2 Crore rupees.',
+      "Up next, we have India's talented all-rounder, Hardik Pandya. His base price is two crore rupees.",
       () => {
         setIsTesting(false);
       }
@@ -159,7 +159,7 @@ export const AudioSettingsModal: React.FC<AudioSettingsModalProps> = ({ isOpen, 
                 <span>Voice Commentary</span>
               </div>
               <div className="text-[11px] text-floodlight-muted mt-0.5">
-                Spoken player spotlight announcements, bids & outcomes
+                Natural Indian female presenter for player introductions &amp; sold announcements
               </div>
             </div>
 

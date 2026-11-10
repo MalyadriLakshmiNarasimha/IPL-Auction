@@ -1,28 +1,41 @@
 'use client';
 
-import { CommentaryEvent } from '@/shared/types';
+import { Player, CommentaryEvent } from '../shared/types';
+import { formatInrForSpeech } from '../shared/currency-speech';
+import {
+  buildPlayerIntroduction,
+  buildSoldAnnouncement,
+  expandFranchiseName,
+} from '../shared/voice-templates';
 
 export interface SpeechQueueItem {
   id?: string;
   text: string;
-  priority: 'spotlight' | 'event';
+  type: 'intro' | 'sold';
   onComplete?: () => void;
 }
 
+/**
+ * Natural Indian Female Voice Presenter Service for IPL Auction
+ *
+ * Exclusively handles the TWO permitted voice events:
+ * 1. Player Introduction (when player enters auction block)
+ * 2. Sold Announcement (when authoritative server confirms sale)
+ *
+ * All continuous commentary (bids, timers, countdowns, reactions) is completely removed.
+ */
 class VoiceCommentaryService {
   private isVoiceMuted: boolean = false;
   private volume: number = 0.9; // 0.0 to 1.0
-  private speechRate: number = 1.10; // Default 1.10x crisp broadcast rate
-  private speechQueue: SpeechQueueItem[] = [];
+  private speechRate: number = 1.10; // Default 1.10x speed as requested
   private isSpeaking: boolean = false;
   private currentAudio: HTMLAudioElement | null = null;
   private currentWatchdogTimer: any = null;
-  private spokenEventIds: Set<string> = new Set();
-  private recentSpokenTexts: Map<string, number> = new Map();
   private selectedVoice: SpeechSynthesisVoice | null = null;
-  private detectedVoiceName: string = 'Detecting Indian English Voice...';
-  private isInitialized: boolean = false;
+  private detectedVoiceName: string = 'Detecting Indian English Female Voice...';
   private preferCentralAudio: boolean = true;
+  private lastSpokenPlayerId: string | null = null;
+  private lastSoldPlayerId: string | null = null;
 
   constructor() {
     if (typeof window !== 'undefined') {
@@ -78,7 +91,7 @@ class VoiceCommentaryService {
 
   public initVoiceSelection(): void {
     if (typeof window === 'undefined' || !('speechSynthesis' in window)) {
-      this.detectedVoiceName = 'Central Audio Presenter (Female en-IN)';
+      this.detectedVoiceName = 'Central Neural Presenter (en-IN Neerja)';
       return;
     }
 
@@ -86,7 +99,7 @@ class VoiceCommentaryService {
       const voices = window.speechSynthesis.getVoices();
       if (!voices || voices.length === 0) return;
 
-      // 1. Priority: Dedicated Indian English Female Voice
+      // 1. Priority: Dedicated Indian English Female Voice (Neerja, Kavya, Heera, Veena...)
       const indianFemale = voices.find(v => this.isFemaleIndianVoice(v));
 
       // 2. Priority: Any Indian English Voice
@@ -94,7 +107,7 @@ class VoiceCommentaryService {
         v => v.lang.toLowerCase().includes('en-in') || v.name.toLowerCase().includes('india')
       );
 
-      // 3. Priority: British / Commonwealth Female Voice
+      // 3. Priority: Commonwealth / British English Female Voice
       const commonwealthFemale = voices.find(
         v =>
           (v.lang.toLowerCase().includes('en-gb') || v.lang.toLowerCase().includes('en-au')) &&
@@ -110,12 +123,10 @@ class VoiceCommentaryService {
           v.lang.toLowerCase().startsWith('en') &&
           (v.name.toLowerCase().includes('female') ||
             v.name.toLowerCase().includes('zira') ||
-            v.name.toLowerCase().includes('samantha') ||
-            v.name.toLowerCase().includes('victoria') ||
-            v.name.toLowerCase().includes('karen'))
+            v.name.toLowerCase().includes('samantha'))
       );
 
-      // 5. Fallback: Any English voice or first available
+      // 5. Fallback: Any English voice
       const englishAny = voices.find(v => v.lang.toLowerCase().startsWith('en')) || voices[0];
 
       this.selectedVoice = indianFemale || indianAny || commonwealthFemale || englishFemale || englishAny || null;
@@ -124,13 +135,9 @@ class VoiceCommentaryService {
         this.detectedVoiceName = `Indian Female Presenter (${indianFemale.name})`;
       } else if (indianAny) {
         this.detectedVoiceName = `Indian English Presenter (${indianAny.name})`;
-      } else if (this.selectedVoice) {
-        this.detectedVoiceName = `English Presenter (${this.selectedVoice.name})`;
       } else {
-        this.detectedVoiceName = 'Central Neural Presenter (en-IN)';
+        this.detectedVoiceName = 'Central Neural Presenter (en-IN Neerja)';
       }
-
-      this.isInitialized = true;
     };
 
     selectBestVoice();
@@ -193,18 +200,22 @@ class VoiceCommentaryService {
   }
 
   /**
-   * Cleans technical strings, emojis, and currency formats to sound like authentic broadcast commentary
-   * with natural pauses between sentences.
+   * Cleans text and normalizes currency / team names for speech.
    */
   public cleanTextForSpeech(text: string): string {
     return text
       // Strip emojis and non-ascii symbols
       .replace(/[\u{1F300}-\u{1FAFF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}]/gu, '')
-      // Convert currency: ₹100.00 Cr / ₹15 Cr / ₹2.5 Cr to spoken words
-      .replace(/₹\s*([0-9.]+)\s*Cr/gi, '$1 Crore rupees')
-      // Convert currency: ₹50 L / ₹25L to spoken words
-      .replace(/₹\s*([0-9.]+)\s*L/gi, '$1 Lakh rupees')
-      .replace(/₹\s*([0-9,]+)/gi, '$1 rupees')
+      // Convert raw currency patterns using INR speech formatter
+      .replace(/₹\s*([0-9.]+)\s*Cr/gi, (_, val) =>
+        formatInrForSpeech(parseFloat(val) * 1_00_00_000, { capitalizeFirst: false })
+      )
+      .replace(/₹\s*([0-9.]+)\s*L/gi, (_, val) =>
+        formatInrForSpeech(parseFloat(val) * 1_00_000, { capitalizeFirst: false })
+      )
+      .replace(/₹\s*([0-9,]+)/gi, (_, val) =>
+        formatInrForSpeech(parseInt(val.replace(/,/g, ''), 10), { capitalizeFirst: false })
+      )
       // Expand official team names with natural spoken phrasing
       .replace(/\bCSK\b/g, 'Chennai Super Kings')
       .replace(/\bMI\b/g, 'Mumbai Indians')
@@ -216,7 +227,7 @@ class VoiceCommentaryService {
       .replace(/\bPBKS\b/g, 'Punjab Kings')
       .replace(/\bGT\b/g, 'Gujarat Titans')
       .replace(/\bLSG\b/g, 'Lucknow Super Giants')
-      // Expand roles to complete words
+      // Expand roles
       .replace(/\bBAT\b/g, 'Batter')
       .replace(/\bBOWL\b/g, 'Bowler')
       .replace(/\bAR\b/g, 'All-Rounder')
@@ -227,9 +238,64 @@ class VoiceCommentaryService {
   }
 
   /**
-   * Speaks an authoritative player spotlight announcement.
-   * Priority: Spotlight announcements take immediate priority over background event chatter.
-   * Authoritative sequence: calls onComplete() when audio finishes (or after watchdog timeout).
+   * VOICE EVENT 1: Player Introduction
+   * Triggered exactly once when a player becomes active.
+   * Example: "Up next, we have India's talented all-rounder, Hardik Pandya. His base price is two crore rupees."
+   */
+  public speakPlayerIntroduction(player: Player, onComplete?: () => void): void {
+    if (!player || !player.id) {
+      if (onComplete) onComplete();
+      return;
+    }
+
+    // Guard: Prevent repeat introduction for the same player
+    if (this.lastSpokenPlayerId === player.id) {
+      // Already announced: drop duplicate call
+      return;
+    }
+    this.lastSpokenPlayerId = player.id;
+
+    if (this.isVoiceMuted || typeof window === 'undefined') {
+      if (onComplete) onComplete();
+      return;
+    }
+
+    const introText = buildPlayerIntroduction(player);
+    this.executeSingleSpeech(introText, onComplete);
+  }
+
+  /**
+   * VOICE EVENT 2: Sold Announcement
+   * Triggered only after authoritative server confirms sale.
+   * Example: "Sold! Hardik Pandya goes to Mumbai Indians for fourteen crore fifty lakh rupees!"
+   */
+  public speakSoldAnnouncement(
+    playerName: string,
+    winningTeam: string | undefined | null,
+    finalPrice: number,
+    playerId?: string,
+    onComplete?: () => void
+  ): void {
+    // Guard: Prevent duplicate sold announcement for same player sale
+    if (playerId) {
+      if (this.lastSoldPlayerId === playerId) {
+        // Already announced: drop duplicate call
+        return;
+      }
+      this.lastSoldPlayerId = playerId;
+    }
+
+    if (this.isVoiceMuted || typeof window === 'undefined') {
+      if (onComplete) onComplete();
+      return;
+    }
+
+    const soldText = buildSoldAnnouncement(playerName, winningTeam, finalPrice);
+    this.executeSingleSpeech(soldText, onComplete);
+  }
+
+  /**
+   * Authoritative announcement bridge (used by room host and test voice)
    */
   public speakAnnouncement(text: string, onComplete?: () => void): void {
     if (this.isVoiceMuted || typeof window === 'undefined') {
@@ -237,94 +303,36 @@ class VoiceCommentaryService {
       return;
     }
 
-    const spokenText = this.cleanTextForSpeech(text);
-    if (!spokenText || spokenText.length < 3) {
+    const cleaned = this.cleanTextForSpeech(text);
+    if (!cleaned || cleaned.length < 3) {
       if (onComplete) onComplete();
       return;
     }
 
-    // Stop routine commentary chatter to spotlight the incoming player
+    this.executeSingleSpeech(cleaned, onComplete);
+  }
+
+  /**
+   * COMPLETELY REMOVED CONTINUOUS COMMENTARY
+   * Bid amount announcements, countdown commentary, repeated bidding updates,
+   * automatic reactions, and repetitive narrations are permanently silenced.
+   */
+  public speakEvent(_event: CommentaryEvent): void {
+    // Intentionally no-op. Continuous auction commentary is completely removed.
+  }
+
+  /**
+   * Executes a single, non-overlapping voice announcement.
+   * Never overlaps with previous or outdated audio.
+   */
+  private executeSingleSpeech(text: string, onDone?: () => void): void {
+    // 1. Immediately halt any currently playing audio/speech
     this.stopCurrentSpeech();
-
-    // Place spotlight announcement at the front of the queue
-    this.speechQueue.unshift({
-      id: `announcement_${Date.now()}`,
-      text: spokenText,
-      priority: 'spotlight',
-      onComplete,
-    });
-
-    this.processQueue();
-  }
-
-  /**
-   * Queues and speaks an authoritative commentary event (bids, sold, unsold, stage change).
-   * Automatically deduplicates repeated events and drops old queue items if fast bidding occurs.
-   */
-  public speakEvent(event: CommentaryEvent): void {
-    if (this.isVoiceMuted || typeof window === 'undefined') {
-      return;
-    }
-
-    // Deduplicate by unique event ID
-    if (this.spokenEventIds.has(event.id)) {
-      return;
-    }
-    this.spokenEventIds.add(event.id);
-    if (this.spokenEventIds.size > 100) {
-      const first = this.spokenEventIds.values().next().value;
-      if (first) this.spokenEventIds.delete(first);
-    }
-
-    const spokenText = this.cleanTextForSpeech(event.text);
-    if (!spokenText || spokenText.length < 3) return;
-
-    // Content-hash deduplication: prevent exact same text within 3 seconds
-    const now = Date.now();
-    const lastSpokenTime = this.recentSpokenTexts.get(spokenText);
-    if (lastSpokenTime && now - lastSpokenTime < 3000) {
-      return;
-    }
-    this.recentSpokenTexts.set(spokenText, now);
-    if (this.recentSpokenTexts.size > 50) {
-      const oldest = this.recentSpokenTexts.keys().next().value;
-      if (oldest) this.recentSpokenTexts.delete(oldest);
-    }
-
-    // Bounded queue: discard oldest non-spotlight commentary if queue grows past 4
-    if (this.speechQueue.length >= 4) {
-      const oldestIndex = this.speechQueue.findIndex(i => i.priority === 'event');
-      if (oldestIndex !== -1) {
-        this.speechQueue.splice(oldestIndex, 1);
-      }
-    }
-
-    this.speechQueue.push({
-      id: event.id,
-      text: spokenText,
-      priority: 'event',
-    });
-
-    if (!this.isSpeaking) {
-      this.processQueue();
-    }
-  }
-
-  /**
-   * Processes the speech queue sequentially without unnecessary delays between items.
-   */
-  private processQueue(): void {
-    if (this.isVoiceMuted || this.speechQueue.length === 0 || this.isSpeaking) {
-      return;
-    }
-
-    const item = this.speechQueue.shift();
-    if (!item) return;
 
     this.isSpeaking = true;
     let completed = false;
 
-    const onFinish = () => {
+    const finish = () => {
       if (completed) return;
       completed = true;
 
@@ -336,35 +344,30 @@ class VoiceCommentaryService {
       this.isSpeaking = false;
       this.currentAudio = null;
 
-      if (item.onComplete) {
+      if (onDone) {
         try {
-          item.onComplete();
+          onDone();
         } catch {}
       }
-
-      // Start the next announcement immediately after the previous one finishes
-      queueMicrotask(() => {
-        this.processQueue();
-      });
     };
 
     // Watchdog timer: calculates safe max speech duration based on word count & 1.10x rate
-    const words = item.text.split(/\s+/).length;
-    const estimatedSeconds = Math.max(3, (words / (this.speechRate * 2.8)) + 1.2);
-    this.currentWatchdogTimer = setTimeout(onFinish, Math.round(estimatedSeconds * 1000));
+    const words = text.split(/\s+/).length;
+    const estimatedSeconds = Math.max(2.5, words / (this.speechRate * 2.6) + 1.2);
+    this.currentWatchdogTimer = setTimeout(finish, Math.round(estimatedSeconds * 1000));
 
-    // Tier 1: High quality central audio stream
+    // Tier 1: High quality central server-side audio (Azure Neerja / ElevenLabs / Google Neural2)
     if (this.preferCentralAudio && typeof window !== 'undefined') {
       try {
-        const audioUrl = `/api/tts?text=${encodeURIComponent(item.text)}`;
+        const audioUrl = `/api/tts?text=${encodeURIComponent(text)}`;
         const audio = new Audio(audioUrl);
-        audio.volume = item.priority === 'spotlight' ? this.volume : this.volume * 0.9;
+        audio.volume = this.volume;
         audio.playbackRate = this.speechRate;
 
         audio.onended = () => {
           audio.onended = null;
           audio.onerror = null;
-          onFinish();
+          finish();
         };
 
         audio.onerror = () => {
@@ -372,7 +375,7 @@ class VoiceCommentaryService {
           audio.onerror = null;
           this.currentAudio = null;
           // Fallback to SpeechSynthesis
-          this.speakViaSpeechSynthesis(item.text, onFinish);
+          this.speakViaSpeechSynthesis(text, finish);
         };
 
         this.currentAudio = audio;
@@ -382,7 +385,7 @@ class VoiceCommentaryService {
             audio.onended = null;
             audio.onerror = null;
             this.currentAudio = null;
-            this.speakViaSpeechSynthesis(item.text, onFinish);
+            this.speakViaSpeechSynthesis(text, finish);
           });
         }
         return;
@@ -392,12 +395,12 @@ class VoiceCommentaryService {
     }
 
     // Tier 2: Browser SpeechSynthesis
-    this.speakViaSpeechSynthesis(item.text, onFinish);
+    this.speakViaSpeechSynthesis(text, finish);
   }
 
   /**
    * Synthesizes speech using the browser SpeechSynthesis API.
-   * Handles cancellation, paused synthesis, and audio rate accurately.
+   * Uses high-priority Indian female voice with exact 1.10x speed.
    */
   private speakViaSpeechSynthesis(text: string, onDone: () => void): void {
     if (typeof window === 'undefined' || !('speechSynthesis' in window)) {
@@ -416,7 +419,7 @@ class VoiceCommentaryService {
       }
       utterance.volume = this.volume;
       utterance.rate = this.speechRate;
-      utterance.pitch = 1.02;
+      utterance.pitch = 1.0;
 
       let hasDone = false;
       const finish = () => {
@@ -436,17 +439,24 @@ class VoiceCommentaryService {
   }
 
   /**
-   * Tests the presenter voice with an authentic IPL announcement sample.
+   * Tests the presenter voice with the natural Hardik Pandya announcement sample.
    */
   public testVoice(
-    sampleText: string = 'Welcome to the TATA IPL 2026 Auction! Virat Kohli is up next at a base price of 2 Crore rupees.',
+    sampleText: string = "Up next, we have India's talented all-rounder, Hardik Pandya. His base price is two crore rupees.",
     onComplete?: () => void
   ): void {
-    this.speakAnnouncement(sampleText, onComplete);
+    this.executeSingleSpeech(sampleText, onComplete);
   }
 
   /**
-   * Stops currently playing speech without clearing the entire queue.
+   * Cancels any pending or outdated audio when auction advances.
+   */
+  public cancelPending(): void {
+    this.stopCurrentSpeech();
+  }
+
+  /**
+   * Stops currently playing speech and resets player tracking guards if needed.
    */
   private stopCurrentSpeech(): void {
     if (this.currentWatchdogTimer) {
@@ -474,11 +484,10 @@ class VoiceCommentaryService {
   }
 
   /**
-   * Stops all voice output and flushes the queue immediately.
+   * Stops all voice output immediately.
    */
   public stopAll(): void {
     this.stopCurrentSpeech();
-    this.speechQueue = [];
   }
 }
 
