@@ -145,6 +145,10 @@ export default function RoomPage() {
         setSessionId(user.id);
         setDisplayName(user.name);
 
+        if (data.socket_token) {
+          try { localStorage.setItem('ipl_session_token', data.socket_token); } catch {}
+        }
+
         const socket = getSocket(data.socket_token);
 
         socket.on('connect', () => {

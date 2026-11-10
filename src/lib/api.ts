@@ -11,18 +11,10 @@
 
 export function getApiUrl(): string {
   if (typeof window !== 'undefined') {
-    if (process.env.NEXT_PUBLIC_API_URL) {
-      return process.env.NEXT_PUBLIC_API_URL.replace(/\/$/, '');
-    }
-    // On production frontend (e.g., Netlify), use same-origin relative URLs for REST API endpoints
-    const isLocalhost =
-      window.location.hostname === 'localhost' ||
-      window.location.hostname === '127.0.0.1';
-
-    if (!isLocalhost) {
-      return ''; // Same-origin relative requests on Netlify prevent 404 and cross-domain cookie issues
-    }
-    return 'http://localhost:3001';
+    // In the browser, always use same-origin relative URLs for REST API endpoints.
+    // This completely eliminates cross-domain cookie rejection (Safari ITP, Chrome Privacy Sandbox),
+    // avoids CORS preflight latency, and prevents authentication flickering.
+    return '';
   }
 
   // Server-side / SSR default
@@ -55,6 +47,14 @@ export async function apiFetch<T = any>(
   const headers = new Headers(options.headers || {});
   if (!headers.has('Content-Type') && options.body && typeof options.body === 'string') {
     headers.set('Content-Type', 'application/json');
+  }
+
+  // Include session token in Authorization header as redundant defense against cookie restrictions
+  if (typeof window !== 'undefined' && !headers.has('Authorization')) {
+    const sessionToken = localStorage.getItem('ipl_session_token');
+    if (sessionToken) {
+      headers.set('Authorization', `Bearer ${sessionToken}`);
+    }
   }
 
   const fetchOptions: RequestInit = {

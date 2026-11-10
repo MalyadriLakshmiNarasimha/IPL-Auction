@@ -16,7 +16,7 @@ export function getSocketUrl(): string {
       window.location.hostname === '127.0.0.1';
 
     if (!isLocalhost) {
-      return 'https://ipl-auction-jqsd.onrender.com';
+      return 'https://ipl-auction-backend-495n.onrender.com';
     }
     return 'http://localhost:3001';
   }
@@ -24,7 +24,10 @@ export function getSocketUrl(): string {
 }
 
 export function getSocket(token?: string): Socket<ServerToClientEvents, ClientToServerEvents> {
-  const authToken = token || '';
+  let authToken = token || '';
+  if (!authToken && typeof window !== 'undefined') {
+    authToken = localStorage.getItem('ipl_session_token') || '';
+  }
 
   if (!socket) {
     const url = getSocketUrl();

@@ -51,24 +51,29 @@ describe('Production Deployment & CORS Verification Suite', () => {
   describe('1. Centralized CORS Policy', () => {
     it('recognizes all production and local allowed origins', () => {
       const allowed = getAllowedOrigins();
+      expect(allowed).toContain('https://ipl-auction-live-game.vercel.app');
+      expect(allowed).toContain('https://ipl-auction-backend-495n.onrender.com');
       expect(allowed).toContain('https://iplauctionlive.netlify.app');
       expect(allowed).toContain('http://localhost:3000');
       expect(allowed).toContain('http://localhost:3001');
 
+      expect(isAllowedOrigin('https://ipl-auction-live-game.vercel.app')).toBe(true);
+      expect(isAllowedOrigin('https://ipl-auction-backend-495n.onrender.com')).toBe(true);
       expect(isAllowedOrigin('https://iplauctionlive.netlify.app')).toBe(true);
       expect(isAllowedOrigin('http://localhost:3000')).toBe(true);
       expect(isAllowedOrigin('http://localhost:3001')).toBe(true);
       expect(isAllowedOrigin('https://attacker-domain.evil.com')).toBe(false);
+      expect(isAllowedOrigin('*')).toBe(false);
     });
 
-    it('returns exact Access-Control-Allow-Origin and credentials for Netlify origin', async () => {
+    it('returns exact Access-Control-Allow-Origin and credentials for Vercel production origin', async () => {
       const res = await new Promise<{ headers: http.IncomingHttpHeaders; status: number }>((resolve) => {
         const req = http.request(
           `${SERVER_URL}/health`,
           {
             method: 'GET',
             headers: {
-              Origin: 'https://iplauctionlive.netlify.app',
+              Origin: 'https://ipl-auction-live-game.vercel.app',
             },
           },
           (res) => {
@@ -79,18 +84,18 @@ describe('Production Deployment & CORS Verification Suite', () => {
       });
 
       expect(res.status).toBe(200);
-      expect(res.headers['access-control-allow-origin']).toBe('https://iplauctionlive.netlify.app');
+      expect(res.headers['access-control-allow-origin']).toBe('https://ipl-auction-live-game.vercel.app');
       expect(res.headers['access-control-allow-credentials']).toBe('true');
     });
 
-    it('succeeds for preflight OPTIONS from Netlify with allowed methods and headers', async () => {
+    it('succeeds for preflight OPTIONS from Vercel with allowed methods and headers', async () => {
       const res = await new Promise<{ headers: http.IncomingHttpHeaders; status: number }>((resolve) => {
         const req = http.request(
           `${SERVER_URL}/api/rooms`,
           {
             method: 'OPTIONS',
             headers: {
-              Origin: 'https://iplauctionlive.netlify.app',
+              Origin: 'https://ipl-auction-live-game.vercel.app',
               'Access-Control-Request-Method': 'POST',
               'Access-Control-Request-Headers': 'Content-Type, Authorization',
             },
@@ -103,7 +108,7 @@ describe('Production Deployment & CORS Verification Suite', () => {
       });
 
       expect(res.status).toBe(204);
-      expect(res.headers['access-control-allow-origin']).toBe('https://iplauctionlive.netlify.app');
+      expect(res.headers['access-control-allow-origin']).toBe('https://ipl-auction-live-game.vercel.app');
       expect(res.headers['access-control-allow-credentials']).toBe('true');
       expect(res.headers['access-control-allow-methods']).toContain('POST');
       expect(res.headers['access-control-allow-headers']).toContain('Content-Type');
@@ -245,6 +250,34 @@ describe('Production Deployment & CORS Verification Suite', () => {
         });
         socket.on('connect_error', (err) => {
           console.error('[TEST SOCKET CONNECT ERROR]:', err.message);
+          resolve(false);
+        });
+      });
+
+      expect(connected).toBe(true);
+    });
+
+    it('accepts Socket.IO connection with handshake auth token and Vercel origin', async () => {
+      const session = await createSession(testUserId);
+
+      const socket = ioClient(SERVER_URL, {
+        transports: ['websocket'],
+        forceNew: true,
+        auth: {
+          token: session.sessionToken,
+        },
+        extraHeaders: {
+          Origin: 'https://ipl-auction-live-game.vercel.app',
+        },
+      });
+
+      const connected = await new Promise<boolean>((resolve) => {
+        socket.on('connect', () => {
+          socket.disconnect();
+          resolve(true);
+        });
+        socket.on('connect_error', (err) => {
+          console.error('[TEST VERCEL SOCKET ERROR]:', err.message);
           resolve(false);
         });
       });

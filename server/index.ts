@@ -25,7 +25,7 @@ dotenv.config();
 
 if (process.env.NODE_ENV === 'production' || process.env.RENDER) {
   if (!process.env.CLIENT_ORIGIN) {
-    process.env.CLIENT_ORIGIN = 'https://iplauctionlive.netlify.app';
+    process.env.CLIENT_ORIGIN = 'https://ipl-auction-live-game.vercel.app';
   }
   if (!process.env.SESSION_SECRET && !process.env.JWT_SECRET) {
     process.env.SESSION_SECRET = 'ipl_auction_production_default_session_secret_2026_super_secure';
@@ -33,7 +33,7 @@ if (process.env.NODE_ENV === 'production' || process.env.RENDER) {
 }
 
 const PORT = parseInt(process.env.PORT || '3001', 10);
-const CLIENT_ORIGIN = process.env.CLIENT_ORIGIN || (process.env.NODE_ENV === 'production' ? 'https://iplauctionlive.netlify.app' : 'http://localhost:3000');
+const CLIENT_ORIGIN = process.env.CLIENT_ORIGIN || (process.env.NODE_ENV === 'production' ? 'https://ipl-auction-live-game.vercel.app' : 'http://localhost:3000');
 
 const server = http.createServer(async (req, res) => {
   // Centralized CORS policy enforcement

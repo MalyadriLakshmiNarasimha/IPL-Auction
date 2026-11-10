@@ -1,6 +1,8 @@
 import http from 'http';
 
 export const DEFAULT_ALLOWED_ORIGINS = [
+  'https://ipl-auction-live-game.vercel.app',
+  'https://ipl-auction-backend-495n.onrender.com',
   'https://iplauctionlive.netlify.app',
   'http://localhost:3000',
   'http://localhost:3001',

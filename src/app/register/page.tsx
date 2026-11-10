@@ -47,7 +47,7 @@ function RegisterForm() {
     setIsLoading(true);
 
     try {
-      const res = await apiFetch<{ user: { id: string; name: string; email: string } }>('/api/auth/register', {
+      const res = await apiFetch<{ user: { id: string; name: string; email: string }; socket_token?: string }>('/api/auth/register', {
         method: 'POST',
         body: JSON.stringify({
           name: name.trim(),
@@ -60,28 +60,14 @@ function RegisterForm() {
         throw new Error(res.error || 'Failed to register account.');
       }
 
-      // Store display name in local storage for convenience
-      if (res.data?.user?.name) {
+      // Update local storage and dispatch immediate auth event
+      if (res.data?.user) {
         localStorage.setItem('ipl_display_name', res.data.user.name);
-      }
-
-      // Cross-origin cookie sync to Render backend with credentials: "include"
-      const socketUrl = process.env.NEXT_PUBLIC_SOCKET_URL || 'https://ipl-auction-jqsd.onrender.com';
-      if (typeof window !== 'undefined' && socketUrl.startsWith('http') && !socketUrl.includes(window.location.host)) {
-        try {
-          await fetch(`${socketUrl.replace(/\/$/, '')}/api/auth/register`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            credentials: 'include',
-            body: JSON.stringify({
-              name: name.trim(),
-              email: email.trim().toLowerCase(),
-              password,
-            }),
-          });
-        } catch (syncErr) {
-          console.warn('[AUTH] Cross-origin cookie sync:', syncErr);
+        localStorage.setItem('ipl_auth_cache', JSON.stringify(res.data.user));
+        if (res.data.socket_token) {
+          localStorage.setItem('ipl_session_token', res.data.socket_token);
         }
+        window.dispatchEvent(new CustomEvent('ipl-auth-change', { detail: res.data.user }));
       }
 
       // Automatically authenticated and redirected

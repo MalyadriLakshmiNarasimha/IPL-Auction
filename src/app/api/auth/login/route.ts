@@ -56,7 +56,7 @@ export async function POST(req: NextRequest) {
     // 4. Create Session (prevents session fixation)
     const { sessionToken, expiresAt } = await createSession(user.id);
 
-    // 5. Response with HTTP-only cookie (token is not exposed in JSON payload)
+    // 5. Response with HTTP-only cookie & socket authorization token
     const response = NextResponse.json({
       success: true,
       user: {
@@ -64,6 +64,7 @@ export async function POST(req: NextRequest) {
         name: user.name,
         email: user.email,
       },
+      socket_token: sessionToken,
     });
 
     const cookieOpts = getCookieOptions();

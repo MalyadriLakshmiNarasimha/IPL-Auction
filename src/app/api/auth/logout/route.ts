@@ -3,7 +3,13 @@ import { destroySession, AUTH_COOKIE_NAME, getCookieOptions } from '@/lib/auth';
 
 export async function POST(req: NextRequest) {
   try {
-    const sessionToken = req.cookies.get(AUTH_COOKIE_NAME)?.value;
+    let sessionToken = req.cookies.get(AUTH_COOKIE_NAME)?.value;
+    if (!sessionToken) {
+      const authHeader = req.headers.get('authorization');
+      if (authHeader && authHeader.startsWith('Bearer ')) {
+        sessionToken = authHeader.substring(7);
+      }
+    }
 
     if (sessionToken) {
       await destroySession(sessionToken);

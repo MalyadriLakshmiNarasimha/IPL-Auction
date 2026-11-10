@@ -19,6 +19,9 @@ export default function JoinRoomPage() {
           router.replace('/login?redirect=/join');
         } else {
           setDisplayName(data.user.name);
+          if (data.socket_token) {
+            try { localStorage.setItem('ipl_session_token', data.socket_token); } catch {}
+          }
           setIsCheckingAuth(false);
         }
       })

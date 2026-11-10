@@ -11,7 +11,7 @@ function getRenderBackendUrl(): string {
     return process.env.NEXT_PUBLIC_API_URL.replace(/\/$/, '');
   }
   return process.env.NODE_ENV === 'production'
-    ? 'https://ipl-auction-jqsd.onrender.com'
+    ? 'https://ipl-auction-backend-495n.onrender.com'
     : 'http://localhost:3001';
 }
 

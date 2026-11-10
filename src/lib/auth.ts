@@ -100,7 +100,15 @@ export async function destroySession(token: string): Promise<void> {
   await db.session.delete({ where: { session_token: token } });
 }
 
-export function getCookieOptions(isProduction = process.env.NODE_ENV === 'production') {
+export function isProdEnv(): boolean {
+  return (
+    process.env.NODE_ENV === 'production' ||
+    process.env.VERCEL === '1' ||
+    Boolean(process.env.RENDER)
+  );
+}
+
+export function getCookieOptions(isProduction = isProdEnv()) {
   return {
     httpOnly: true,
     secure: isProduction,
@@ -112,10 +120,10 @@ export function getCookieOptions(isProduction = process.env.NODE_ENV === 'produc
 
 /**
  * Returns raw Set-Cookie header string for raw HTTP server responses.
- * In production: HttpOnly; Secure; SameSite=None; Path=/; Max-Age=...
+ * In production: HttpOnly; Secure; SameSite=None; Path=/; Max-Age=...; Partitioned
  * In development: HttpOnly; SameSite=Lax; Path=/; Max-Age=...
  */
-export function getSetCookieHeader(sessionToken: string, isProduction = process.env.NODE_ENV === 'production'): string {
+export function getSetCookieHeader(sessionToken: string, isProduction = isProdEnv()): string {
   const parts = [
     `${AUTH_COOKIE_NAME}=${sessionToken}`,
     'Path=/',
@@ -135,7 +143,7 @@ export function getSetCookieHeader(sessionToken: string, isProduction = process.
 /**
  * Returns raw Set-Cookie header string to clear/expire session cookie.
  */
-export function getClearCookieHeader(isProduction = process.env.NODE_ENV === 'production'): string {
+export function getClearCookieHeader(isProduction = isProdEnv()): string {
   const parts = [
     `${AUTH_COOKIE_NAME}=`,
     'Path=/',
