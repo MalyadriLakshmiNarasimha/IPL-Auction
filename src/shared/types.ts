@@ -218,6 +218,8 @@ export interface AuctionState {
   round_number: number; // 1 = Main, 2 = Accelerated / Unsold
   current_player_index: number;
   current_player: Player | null;
+  current_category?: string; // Authoritative active category: 'BATTERS' | 'BOWLERS' | 'ALL-ROUNDERS' | 'WICKET KEEPERS'
+  upcoming_players?: Player[];
   current_bid: number;
   current_bidder_id: string | null;
   timer_seconds: number;

@@ -36,7 +36,7 @@ export const DEFAULT_ROOM_SETTINGS: RoomSettings = {
   purse: 100_00_00_000, // ₹100 Crore
   squad_size: 15,
   timer_seconds: 15,
-  order_type: 'random',
+  order_type: 'role',
   accelerated_round: true,
   selected_player_ids: [],
 };

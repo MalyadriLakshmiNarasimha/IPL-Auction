@@ -18,6 +18,12 @@ import {
   WorkflowStage,
 } from '../src/shared/types';
 import { ALL_PLAYERS, getPlayerById } from '../src/shared/player-data';
+import {
+  generateCategoryWiseSequence,
+  fisherYatesShuffle,
+  getPlayerCategory,
+  PlayerAuctionCategory,
+} from '../src/shared/player-sequence';
 import { DEFAULT_ROOM_SETTINGS, MIN_RESERVE_PER_SLOT, formatCurrency, getMinAuctionParticipants, MAX_ROOM_PARTICIPANTS } from '../src/shared/constants';
 import { validateBid, validateAuctionStart } from '../src/shared/validation';
 import { validateTeamName, deriveTeamShortCode, normalizeTeamName } from '../src/shared/team-validation';
@@ -629,18 +635,16 @@ export class RoomManager {
 
   private sortPool(pool: Player[], orderType: OrderType) {
     if (orderType === 'role') {
-      const rolePriority: Record<string, number> = {
-        BAT: 1, Batter: 1, WK: 2, Wicketkeeper: 2, 'Wicket Keeper': 2,
-        AR: 3, 'All-Rounder': 3, 'All Rounder': 3, BOWL: 4, Bowler: 4,
-      };
-      pool.sort((a, b) => (rolePriority[a.role] || 9) - (rolePriority[b.role] || 9));
+      // Authoritative Category Sequence:
+      // 1. BATTERS -> 2. BOWLERS -> 3. ALL-ROUNDERS -> 4. WICKET KEEPERS
+      // Unbiased Fisher-Yates shuffle within each category across all franchises.
+      const sequenced = generateCategoryWiseSequence(pool);
+      pool.splice(0, pool.length, ...sequenced);
     } else if (orderType === 'base_price') {
       pool.sort((a, b) => b.base_price - a.base_price);
     } else {
-      for (let i = pool.length - 1; i > 0; i--) {
-        const j = Math.floor(Math.random() * (i + 1));
-        [pool[i], pool[j]] = [pool[j], pool[i]];
-      }
+      const shuffled = fisherYatesShuffle(pool);
+      pool.splice(0, pool.length, ...shuffled);
     }
   }
 
@@ -659,8 +663,12 @@ export class RoomManager {
       room.timer_handle = null;
     }
 
-    const activeParticipants = Array.from(room.participants.values()).filter(p => p.franchise !== null);
-    const allSquadsFull = activeParticipants.every(p => p.squad.length >= room.settings.squad_size);
+    const activeParticipants = Array.from(room.participants.values()).filter(
+      p => !p.is_spectator && (p.franchise !== null || Boolean(p.team_name))
+    );
+    const allSquadsFull =
+      activeParticipants.length > 0 &&
+      activeParticipants.every(p => p.squad.length >= room.settings.squad_size);
 
     if (allSquadsFull || room.pool.length === 0) {
       if (
@@ -689,8 +697,10 @@ export class RoomManager {
     }
 
     const nextPlayer = room.pool.shift()!;
+    const category = getPlayerCategory(nextPlayer);
     room.auction_state.current_player_index++;
     room.auction_state.current_player = nextPlayer;
+    room.auction_state.current_category = category;
     room.auction_state.current_bid = 0;
     room.auction_state.current_bidder_id = null;
     room.auction_state.bids = [];
@@ -717,9 +727,10 @@ export class RoomManager {
       room.announcement_timeout_handle = null;
     }
 
-    const announcementText = `Up next: ${nextPlayer.name}, ${nextPlayer.country} ${nextPlayer.role}. Base price: ${formatCurrency(nextPlayer.base_price)}.`;
+    const announcementText = `Up next in ${category}: ${nextPlayer.name}, ${nextPlayer.country} ${nextPlayer.role}. Base price: ${formatCurrency(nextPlayer.base_price)}.`;
     const wordCount = announcementText.split(/\s+/).length;
-    const announcementDurationMs = Math.max(4500, Math.min(8500, wordCount * 380 + 1200));
+    // Optimized for 1.10x speech rate: eliminates unnecessary delays
+    const announcementDurationMs = Math.max(3000, Math.min(5500, Math.round((wordCount / 2.7) * 1000) + 500));
 
     room.auction_state.announcement_text = announcementText;
     room.auction_state.announcement_duration_ms = announcementDurationMs;
@@ -1245,7 +1256,10 @@ export class RoomManager {
 
     if (newStage === 'main_auction') {
       room.auction_state.phase = 'bidding';
-      this.sortPool(room.pool, room.settings.order_type);
+      // Generate sequence only once; never re-randomize an ongoing auction sequence
+      if (room.auction_state.current_player_index < 0) {
+        this.sortPool(room.pool, room.settings.order_type);
+      }
       this.scheduleNextPlayer(room, 1000);
     } else if (newStage === 'unsold_auction') {
       room.auction_state.round_number = 2;
@@ -1751,8 +1765,14 @@ export class RoomManager {
 
   public getPublicState(room: RoomRecord): AuctionState {
     const eligibleCount = this.getEligibleBidders(room).length;
+    const currentCategory = room.auction_state.current_player
+      ? getPlayerCategory(room.auction_state.current_player)
+      : (room.pool.length > 0 ? getPlayerCategory(room.pool[0]) : undefined);
+
     return {
       ...room.auction_state,
+      current_category: currentCategory,
+      upcoming_players: room.pool.slice(0, 10),
       pass_count: room.auction_state.pass_count ?? room.current_player_passes?.size ?? 0,
       total_eligible_passers: room.auction_state.total_eligible_passers ?? eligibleCount,
       passed_participant_ids: room.auction_state.passed_participant_ids ?? Array.from(room.current_player_passes || []),
@@ -1767,6 +1787,7 @@ export class RoomManager {
       settings: room.settings,
       participants: Array.from(room.participants.values()),
       auction_state: this.getPublicState(room),
+      pool: room.pool,
       results: room.results,
       trades: room.completed_trades,
       pending_trade_offers: Array.from(room.pending_trades.values()),

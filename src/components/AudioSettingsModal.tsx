@@ -25,7 +25,7 @@ interface AudioSettingsModalProps {
 export const AudioSettingsModal: React.FC<AudioSettingsModalProps> = ({ isOpen, onClose }) => {
   const [isVoiceMuted, setIsVoiceMuted] = useState(false);
   const [volume, setVolume] = useState(90); // 0 - 100
-  const [speechRate, setSpeechRate] = useState(0.95);
+  const [speechRate, setSpeechRate] = useState(1.10);
   const [isSFXMuted, setIsSFXMuted] = useState(false);
   const [detectedVoice, setDetectedVoice] = useState('Detecting voice...');
   const [isTesting, setIsTesting] = useState(false);
@@ -208,9 +208,9 @@ export const AudioSettingsModal: React.FC<AudioSettingsModalProps> = ({ isOpen, 
 
             <div className="grid grid-cols-4 gap-2">
               {[
-                { label: '0.85x', rate: 0.85, title: 'Deliberate' },
-                { label: '0.95x', rate: 0.95, title: 'Natural (Recommended)' },
-                { label: '1.10x', rate: 1.1, title: 'Brisk' },
+                { label: '0.90x', rate: 0.9, title: 'Deliberate' },
+                { label: '1.00x', rate: 1.0, title: 'Standard' },
+                { label: '1.10x', rate: 1.1, title: 'Crisp (Recommended)' },
                 { label: '1.25x', rate: 1.25, title: 'Fast' },
               ].map(item => (
                 <button

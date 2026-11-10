@@ -18,6 +18,7 @@ export const AuctionCommentaryTicker: React.FC<AuctionCommentaryTickerProps> = (
   const [volume, setVolume] = useState(0.85);
   const [showVolumeSlider, setShowVolumeSlider] = useState(false);
   const sliderRef = useRef<HTMLDivElement>(null);
+  const lastSpokenEventId = useRef<string | null>(null);
 
   useEffect(() => {
     setIsMuted(voiceCommentary.getIsMuted());
@@ -25,9 +26,10 @@ export const AuctionCommentaryTicker: React.FC<AuctionCommentaryTickerProps> = (
   }, []);
 
   useEffect(() => {
-    if (latest) {
+    if (latest && latest.id !== lastSpokenEventId.current) {
+      lastSpokenEventId.current = latest.id;
       setPulse(true);
-      // Trigger authoritative voice commentary
+      // Trigger authoritative voice commentary (deduplicated & queued)
       voiceCommentary.speakEvent(latest);
       const timer = setTimeout(() => setPulse(false), 800);
       return () => clearTimeout(timer);

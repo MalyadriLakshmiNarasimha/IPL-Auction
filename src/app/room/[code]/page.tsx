@@ -576,8 +576,13 @@ export default function RoomPage() {
             </div>
 
             {auctionState?.phase !== 'lobby' && (
-              <span className="hidden md:inline-flex items-center px-2.5 py-0.5 rounded-full bg-flare/10 border border-flare/30 text-flare text-[11px] font-bold">
-                {auctionState?.round_number === 2 ? 'Accelerated' : 'Round 1'} · Player {(auctionState?.current_player_index ?? 0) + 1} of {auctionState?.total_pool_count ?? 274}
+              <span className="hidden md:inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-flare/10 border border-flare/30 text-flare text-[11px] font-bold">
+                <span>{auctionState?.round_number === 2 ? 'Accelerated' : 'Round 1'} · Player {(auctionState?.current_player_index ?? 0) + 1} of {auctionState?.total_pool_count ?? 274}</span>
+                {auctionState?.current_category && (
+                  <span className="px-1.5 py-0.5 rounded bg-flare/20 text-white font-extrabold uppercase tracking-wider text-[9px]">
+                    {auctionState.current_category}
+                  </span>
+                )}
               </span>
             )}
           </div>
@@ -923,8 +928,8 @@ export default function RoomPage() {
                     onChange={e => handleUpdateSettings({ order_type: e.target.value as any })}
                     className="w-full bg-night-raised border border-night-border rounded-lg p-2 text-floodlight font-semibold"
                   >
+                    <option value="role">By Role (Batters, Bowlers, All-Rounders, Wicket Keepers)</option>
                     <option value="random">Random (Surprise)</option>
-                    <option value="role">By Role (BAT, WK, AR, BOWL)</option>
                     <option value="base_price">By Base Price (High to Low)</option>
                   </select>
                 </div>

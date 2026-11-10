@@ -2,14 +2,23 @@
 
 import { CommentaryEvent } from '@/shared/types';
 
+export interface SpeechQueueItem {
+  id?: string;
+  text: string;
+  priority: 'spotlight' | 'event';
+  onComplete?: () => void;
+}
+
 class VoiceCommentaryService {
   private isVoiceMuted: boolean = false;
   private volume: number = 0.9; // 0.0 to 1.0
-  private speechRate: number = 0.95; // 0.8 to 1.3 - Calm, professional presenter cadence
-  private speechQueue: string[] = [];
+  private speechRate: number = 1.10; // Default 1.10x crisp broadcast rate
+  private speechQueue: SpeechQueueItem[] = [];
   private isSpeaking: boolean = false;
   private currentAudio: HTMLAudioElement | null = null;
+  private currentWatchdogTimer: any = null;
   private spokenEventIds: Set<string> = new Set();
+  private recentSpokenTexts: Map<string, number> = new Map();
   private selectedVoice: SpeechSynthesisVoice | null = null;
   private detectedVoiceName: string = 'Detecting Indian English Voice...';
   private isInitialized: boolean = false;
@@ -33,9 +42,13 @@ class VoiceCommentaryService {
       const storedRate = localStorage.getItem('ipl_voice_commentary_rate');
       if (storedRate !== null) {
         const parsedRate = parseFloat(storedRate);
-        if (!isNaN(parsedRate) && parsedRate >= 0.7 && parsedRate <= 1.5) {
+        if (!isNaN(parsedRate) && parsedRate >= 0.75 && parsedRate <= 1.5) {
           this.speechRate = parsedRate;
+        } else {
+          this.speechRate = 1.10;
         }
+      } else {
+        this.speechRate = 1.10;
       }
 
       this.initVoiceSelection();
@@ -165,7 +178,7 @@ class VoiceCommentaryService {
   }
 
   public setSpeechRate(rate: number): void {
-    const clamped = Math.max(0.75, Math.min(1.4, rate));
+    const clamped = Math.max(0.75, Math.min(1.5, rate));
     this.speechRate = clamped;
     if (this.currentAudio) {
       this.currentAudio.playbackRate = clamped;
@@ -215,8 +228,8 @@ class VoiceCommentaryService {
 
   /**
    * Speaks an authoritative player spotlight announcement.
-   * Priority: Centrally generated en-IN audio via /api/tts with SpeechSynthesis fallback.
-   * Authoritative sequence: calls onComplete() when audio finishes (or after 8s safety timeout).
+   * Priority: Spotlight announcements take immediate priority over background event chatter.
+   * Authoritative sequence: calls onComplete() when audio finishes (or after watchdog timeout).
    */
   public speakAnnouncement(text: string, onComplete?: () => void): void {
     if (this.isVoiceMuted || typeof window === 'undefined') {
@@ -224,128 +237,38 @@ class VoiceCommentaryService {
       return;
     }
 
-    this.stopAll();
-
     const spokenText = this.cleanTextForSpeech(text);
     if (!spokenText || spokenText.length < 3) {
       if (onComplete) onComplete();
       return;
     }
 
-    let called = false;
-    const finish = () => {
-      if (!called) {
-        called = true;
-        this.isSpeaking = false;
-        this.currentAudio = null;
-        if (onComplete) onComplete();
-      }
-    };
+    // Stop routine commentary chatter to spotlight the incoming player
+    this.stopCurrentSpeech();
 
-    // 8-second safety guarantee: never block auction indefinitely
-    const safetyTimer = setTimeout(finish, 8000);
-
-    // Try Tier 1: Centrally generated en-IN MP3 stream
-    if (this.preferCentralAudio) {
-      try {
-        const audioUrl = `/api/tts?text=${encodeURIComponent(spokenText)}`;
-        const audio = new Audio(audioUrl);
-        audio.volume = this.volume;
-        audio.playbackRate = this.speechRate;
-
-        audio.onended = () => {
-          clearTimeout(safetyTimer);
-          finish();
-        };
-
-        audio.onerror = () => {
-          // If central audio fails, seamlessly fallback to browser SpeechSynthesis
-          this.speakViaSpeechSynthesis(spokenText, () => {
-            clearTimeout(safetyTimer);
-            finish();
-          });
-        };
-
-        this.currentAudio = audio;
-        this.isSpeaking = true;
-
-        const playPromise = audio.play();
-        if (playPromise !== undefined) {
-          playPromise.catch(() => {
-            // Autoplay restriction or network block -> fallback to SpeechSynthesis
-            this.speakViaSpeechSynthesis(spokenText, () => {
-              clearTimeout(safetyTimer);
-              finish();
-            });
-          });
-        }
-        return;
-      } catch {
-        // Fallback directly
-      }
-    }
-
-    // Tier 2: Browser SpeechSynthesis with detected Indian female voice
-    this.speakViaSpeechSynthesis(spokenText, () => {
-      clearTimeout(safetyTimer);
-      finish();
+    // Place spotlight announcement at the front of the queue
+    this.speechQueue.unshift({
+      id: `announcement_${Date.now()}`,
+      text: spokenText,
+      priority: 'spotlight',
+      onComplete,
     });
-  }
 
-  /**
-   * Synthesizes speech using the browser SpeechSynthesis API.
-   */
-  private speakViaSpeechSynthesis(text: string, onDone?: () => void): void {
-    if (typeof window === 'undefined' || !('speechSynthesis' in window)) {
-      if (onDone) onDone();
-      return;
-    }
-
-    try {
-      window.speechSynthesis.cancel();
-
-      if (window.speechSynthesis.paused) {
-        window.speechSynthesis.resume();
-      }
-
-      const utterance = new SpeechSynthesisUtterance(text);
-      if (this.selectedVoice) {
-        utterance.voice = this.selectedVoice;
-      }
-      utterance.volume = this.volume;
-      utterance.rate = this.speechRate;
-      utterance.pitch = 1.02; // Slightly elevated pitch for natural female presenter cadence
-
-      let called = false;
-      const done = () => {
-        if (!called) {
-          called = true;
-          this.isSpeaking = false;
-          if (onDone) onDone();
-        }
-      };
-
-      utterance.onend = done;
-      utterance.onerror = done;
-
-      this.isSpeaking = true;
-      window.speechSynthesis.speak(utterance);
-    } catch {
-      this.isSpeaking = false;
-      if (onDone) onDone();
-    }
+    this.processQueue();
   }
 
   /**
    * Queues and speaks an authoritative commentary event (bids, sold, unsold, stage change).
+   * Automatically deduplicates repeated events and drops old queue items if fast bidding occurs.
    */
   public speakEvent(event: CommentaryEvent): void {
     if (this.isVoiceMuted || typeof window === 'undefined') {
       return;
     }
 
+    // Deduplicate by unique event ID
     if (this.spokenEventIds.has(event.id)) {
-      return; // Deduplicate
+      return;
     }
     this.spokenEventIds.add(event.id);
     if (this.spokenEventIds.size > 100) {
@@ -356,92 +279,159 @@ class VoiceCommentaryService {
     const spokenText = this.cleanTextForSpeech(event.text);
     if (!spokenText || spokenText.length < 3) return;
 
-    this.enqueue(spokenText);
-  }
-
-  private enqueue(text: string): void {
-    if (this.speechQueue.length >= 3) {
-      this.speechQueue.shift();
+    // Content-hash deduplication: prevent exact same text within 3 seconds
+    const now = Date.now();
+    const lastSpokenTime = this.recentSpokenTexts.get(spokenText);
+    if (lastSpokenTime && now - lastSpokenTime < 3000) {
+      return;
     }
-    this.speechQueue.push(text);
+    this.recentSpokenTexts.set(spokenText, now);
+    if (this.recentSpokenTexts.size > 50) {
+      const oldest = this.recentSpokenTexts.keys().next().value;
+      if (oldest) this.recentSpokenTexts.delete(oldest);
+    }
+
+    // Bounded queue: discard oldest non-spotlight commentary if queue grows past 4
+    if (this.speechQueue.length >= 4) {
+      const oldestIndex = this.speechQueue.findIndex(i => i.priority === 'event');
+      if (oldestIndex !== -1) {
+        this.speechQueue.splice(oldestIndex, 1);
+      }
+    }
+
+    this.speechQueue.push({
+      id: event.id,
+      text: spokenText,
+      priority: 'event',
+    });
+
     if (!this.isSpeaking) {
       this.processQueue();
     }
   }
 
+  /**
+   * Processes the speech queue sequentially without unnecessary delays between items.
+   */
   private processQueue(): void {
     if (this.isVoiceMuted || this.speechQueue.length === 0 || this.isSpeaking) {
       return;
     }
 
-    const nextText = this.speechQueue.shift();
-    if (!nextText) return;
+    const item = this.speechQueue.shift();
+    if (!item) return;
 
-    // Use central audio if available
+    this.isSpeaking = true;
+    let completed = false;
+
+    const onFinish = () => {
+      if (completed) return;
+      completed = true;
+
+      if (this.currentWatchdogTimer) {
+        clearTimeout(this.currentWatchdogTimer);
+        this.currentWatchdogTimer = null;
+      }
+
+      this.isSpeaking = false;
+      this.currentAudio = null;
+
+      if (item.onComplete) {
+        try {
+          item.onComplete();
+        } catch {}
+      }
+
+      // Start the next announcement immediately after the previous one finishes
+      queueMicrotask(() => {
+        this.processQueue();
+      });
+    };
+
+    // Watchdog timer: calculates safe max speech duration based on word count & 1.10x rate
+    const words = item.text.split(/\s+/).length;
+    const estimatedSeconds = Math.max(3, (words / (this.speechRate * 2.8)) + 1.2);
+    this.currentWatchdogTimer = setTimeout(onFinish, Math.round(estimatedSeconds * 1000));
+
+    // Tier 1: High quality central audio stream
     if (this.preferCentralAudio && typeof window !== 'undefined') {
       try {
-        const audioUrl = `/api/tts?text=${encodeURIComponent(nextText)}`;
+        const audioUrl = `/api/tts?text=${encodeURIComponent(item.text)}`;
         const audio = new Audio(audioUrl);
-        audio.volume = this.volume * 0.9;
+        audio.volume = item.priority === 'spotlight' ? this.volume : this.volume * 0.9;
         audio.playbackRate = this.speechRate;
 
         audio.onended = () => {
-          this.isSpeaking = false;
-          this.currentAudio = null;
-          setTimeout(() => this.processQueue(), 250);
+          audio.onended = null;
+          audio.onerror = null;
+          onFinish();
         };
 
         audio.onerror = () => {
-          this.speakCommentarySpeechSynthesis(nextText);
+          audio.onended = null;
+          audio.onerror = null;
+          this.currentAudio = null;
+          // Fallback to SpeechSynthesis
+          this.speakViaSpeechSynthesis(item.text, onFinish);
         };
 
         this.currentAudio = audio;
-        this.isSpeaking = true;
-        const p = audio.play();
-        if (p) {
-          p.catch(() => {
-            this.speakCommentarySpeechSynthesis(nextText);
+        const playPromise = audio.play();
+        if (playPromise) {
+          playPromise.catch(() => {
+            audio.onended = null;
+            audio.onerror = null;
+            this.currentAudio = null;
+            this.speakViaSpeechSynthesis(item.text, onFinish);
           });
         }
         return;
       } catch {
-        // Fall through
+        // Fall through to SpeechSynthesis
       }
     }
 
-    this.speakCommentarySpeechSynthesis(nextText);
+    // Tier 2: Browser SpeechSynthesis
+    this.speakViaSpeechSynthesis(item.text, onFinish);
   }
 
-  private speakCommentarySpeechSynthesis(text: string): void {
+  /**
+   * Synthesizes speech using the browser SpeechSynthesis API.
+   * Handles cancellation, paused synthesis, and audio rate accurately.
+   */
+  private speakViaSpeechSynthesis(text: string, onDone: () => void): void {
     if (typeof window === 'undefined' || !('speechSynthesis' in window)) {
-      this.isSpeaking = false;
+      onDone();
       return;
     }
 
     try {
+      if (window.speechSynthesis.paused) {
+        window.speechSynthesis.resume();
+      }
+
       const utterance = new SpeechSynthesisUtterance(text);
       if (this.selectedVoice) {
         utterance.voice = this.selectedVoice;
       }
-      utterance.volume = this.volume * 0.9;
-      utterance.rate = this.speechRate * 1.05;
+      utterance.volume = this.volume;
+      utterance.rate = this.speechRate;
       utterance.pitch = 1.02;
 
-      this.isSpeaking = true;
-
-      utterance.onend = () => {
-        this.isSpeaking = false;
-        setTimeout(() => this.processQueue(), 250);
+      let hasDone = false;
+      const finish = () => {
+        if (!hasDone) {
+          hasDone = true;
+          onDone();
+        }
       };
 
-      utterance.onerror = () => {
-        this.isSpeaking = false;
-        setTimeout(() => this.processQueue(), 150);
-      };
+      utterance.onend = finish;
+      utterance.onerror = finish;
 
       window.speechSynthesis.speak(utterance);
     } catch {
-      this.isSpeaking = false;
+      onDone();
     }
   }
 
@@ -455,9 +445,19 @@ class VoiceCommentaryService {
     this.speakAnnouncement(sampleText, onComplete);
   }
 
-  public stopAll(): void {
+  /**
+   * Stops currently playing speech without clearing the entire queue.
+   */
+  private stopCurrentSpeech(): void {
+    if (this.currentWatchdogTimer) {
+      clearTimeout(this.currentWatchdogTimer);
+      this.currentWatchdogTimer = null;
+    }
+
     if (this.currentAudio) {
       try {
+        this.currentAudio.onended = null;
+        this.currentAudio.onerror = null;
         this.currentAudio.pause();
         this.currentAudio.currentTime = 0;
       } catch {}
@@ -470,8 +470,15 @@ class VoiceCommentaryService {
       } catch {}
     }
 
-    this.speechQueue = [];
     this.isSpeaking = false;
+  }
+
+  /**
+   * Stops all voice output and flushes the queue immediately.
+   */
+  public stopAll(): void {
+    this.stopCurrentSpeech();
+    this.speechQueue = [];
   }
 }
 
