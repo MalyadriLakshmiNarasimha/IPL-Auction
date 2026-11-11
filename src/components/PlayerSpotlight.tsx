@@ -5,9 +5,9 @@ import { Player } from '@/shared/types';
 import { formatCurrency } from '@/shared/constants';
 import { CircularTimerRing } from './CircularTimerRing';
 import { PlayerPortrait } from './PlayerPortrait';
-import { Info, Sparkles, Flame, Trophy, Zap } from 'lucide-react';
+import { Info, Sparkles, Flame, Zap } from 'lucide-react';
 import { PlayerDossierModal } from './PlayerDossierModal';
-import { getIplCareerStats, getPlayerAchievements } from '@/shared/player-career-data';
+import { getIplCareerStats } from '@/shared/player-career-data';
 
 interface PlayerSpotlightProps {
   player: Player | null;
@@ -50,8 +50,7 @@ export const PlayerSpotlight: React.FC<PlayerSpotlightProps> = ({
     return '#FF7A1A';
   })();
 
-  const careerStats = player.ipl_career_stats || getIplCareerStats(player.name);
-  const achievements = player.achievements || getPlayerAchievements(player.name);
+  const careerStats = player.ipl_career_stats || getIplCareerStats(player);
 
   return (
     <>
@@ -180,7 +179,7 @@ export const PlayerSpotlight: React.FC<PlayerSpotlightProps> = ({
           </div>
         </div>
 
-        {/* Overall IPL Career Statistics & Career Achievements */}
+        {/* Overall IPL Career Statistics */}
         <div className="z-10 rounded-xl bg-night-surface/90 border border-night-border/70 p-2.5 sm:p-3 mt-0.5">
           <div className="flex items-center justify-between text-[10px] font-bold uppercase tracking-wider text-floodlight-muted mb-2">
             <span className="flex items-center gap-1.5 text-flare">
@@ -190,64 +189,46 @@ export const PlayerSpotlight: React.FC<PlayerSpotlightProps> = ({
             <span className="text-floodlight-subtle hidden sm:inline">Official Historical IPL Registry</span>
           </div>
 
-          <div className="flex flex-col lg:flex-row items-stretch gap-2 sm:gap-3">
-            {/* 4 Overall Career Statistics Cards */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5 sm:gap-2 text-center flex-shrink-0 lg:w-[58%]">
-              <div className="bg-night-raised/70 rounded-lg p-2 border border-night-border/40 flex flex-col justify-center">
+          {careerStats.has_ipl_career ? (
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5 sm:gap-2.5 text-center w-full">
+              <div className="bg-night-raised/70 rounded-lg p-2 sm:p-2.5 border border-night-border/40 flex flex-col justify-center">
                 <div className="text-[9px] sm:text-[10px] text-floodlight-muted uppercase font-bold">Matches</div>
                 <div className="font-display text-sm sm:text-base font-black text-floodlight">
-                  {careerStats.matches > 0 ? careerStats.matches : '—'}
+                  {careerStats.matches}
                 </div>
               </div>
 
-              <div className="bg-night-raised/70 rounded-lg p-2 border border-night-border/40 flex flex-col justify-center">
+              <div className="bg-night-raised/70 rounded-lg p-2 sm:p-2.5 border border-night-border/40 flex flex-col justify-center">
                 <div className="text-[9px] sm:text-[10px] text-floodlight-muted uppercase font-bold">Runs</div>
                 <div className="font-display text-sm sm:text-base font-black text-flare">
-                  {careerStats.matches > 0 ? careerStats.runs.toLocaleString('en-IN') : '—'}
+                  {careerStats.runs.toLocaleString('en-IN')}
                 </div>
               </div>
 
-              <div className="bg-night-raised/70 rounded-lg p-2 border border-night-border/40 flex flex-col justify-center">
+              <div className="bg-night-raised/70 rounded-lg p-2 sm:p-2.5 border border-night-border/40 flex flex-col justify-center">
                 <div className="text-[9px] sm:text-[10px] text-floodlight-muted uppercase font-bold">Strike Rate</div>
                 <div className="font-display text-sm sm:text-base font-black text-turf">
-                  {careerStats.matches > 0 && careerStats.strike_rate > 0 ? careerStats.strike_rate.toFixed(2) : '—'}
+                  {careerStats.strike_rate > 0 ? careerStats.strike_rate.toFixed(2) : '0.00'}
                 </div>
               </div>
 
-              <div className="bg-night-raised/70 rounded-lg p-2 border border-night-border/40 flex flex-col justify-center">
+              <div className="bg-night-raised/70 rounded-lg p-2 sm:p-2.5 border border-night-border/40 flex flex-col justify-center">
                 <div className="text-[9px] sm:text-[10px] text-floodlight-muted uppercase font-bold">Average</div>
                 <div className="font-display text-sm sm:text-base font-black text-floodlight">
-                  {careerStats.matches > 0 && careerStats.batting_average > 0 ? careerStats.batting_average.toFixed(2) : '—'}
+                  {careerStats.batting_average > 0 ? careerStats.batting_average.toFixed(2) : '0.00'}
                 </div>
               </div>
             </div>
-
-            {/* CAREER ACHIEVEMENTS in available space after Average */}
-            <div className="flex-1 bg-night-raised/60 rounded-lg p-2 sm:p-2.5 border border-night-border/50 flex flex-col justify-center min-w-0">
-              <div className="text-[9px] sm:text-[10px] text-flare uppercase font-extrabold tracking-wider mb-1 flex items-center gap-1">
-                <Trophy className="w-3 h-3 text-flare flex-shrink-0" />
-                <span>CAREER ACHIEVEMENTS</span>
+          ) : (
+            <div className="w-full bg-night-raised/60 rounded-lg p-3 sm:p-3.5 border border-night-border/50 text-center">
+              <div className="text-xs sm:text-sm font-bold text-flare">
+                Statistics unavailable (IPL Debutant)
               </div>
-
-              {achievements && achievements.length > 0 ? (
-                <div className="flex flex-col gap-1 overflow-hidden">
-                  {achievements.slice(0, 3).map((ach, idx) => (
-                    <div
-                      key={idx}
-                      className="text-[11px] sm:text-xs font-semibold text-floodlight truncate flex items-center gap-1"
-                      title={ach}
-                    >
-                      <span className="truncate">{ach}</span>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <div className="text-[10px] sm:text-[11px] text-floodlight-muted italic">
-                  No recorded IPL career achievements
-                </div>
-              )}
+              <p className="text-[10px] sm:text-[11px] text-floodlight-muted mt-0.5">
+                Uncapped / Yet to make IPL debut — Historical statistics not applicable
+              </p>
             </div>
-          </div>
+          )}
         </div>
       </div>
 

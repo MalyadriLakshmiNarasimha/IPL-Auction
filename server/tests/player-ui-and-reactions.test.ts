@@ -167,11 +167,11 @@ describe('Player UI Enhancements, IPL Career Statistics & Multiplayer Reactions'
       expect(dockContent).not.toContain('handleCustomBidSubmit');
     });
 
-    it('verifies StickyBidDock uses 3-column balanced grid for standard quick bids', () => {
+    it('verifies StickyBidDock arranges all four controls in a single horizontal row', () => {
       const dockPath = path.resolve(process.cwd(), 'src/components/StickyBidDock.tsx');
       const dockContent = fs.readFileSync(dockPath, 'utf-8');
-      expect(dockContent).toContain('grid grid-cols-3');
-      expect(dockContent).toContain('Pass / Withdraw');
+      expect(dockContent).toContain('grid grid-cols-4');
+      expect(dockContent).toContain('PASS / WITHDRAW');
       expect(BID_INCREMENTS.length).toBe(3);
     });
   });

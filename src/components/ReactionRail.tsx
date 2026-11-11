@@ -14,7 +14,7 @@ interface ReactionRailProps {
   onSendReaction: (emoji: Reaction['emoji']) => void;
 }
 
-const EMOJIS: Reaction['emoji'][] = ['🔥', '😂', '👏', '😮', '❤️', '💪', '🥵'];
+const EMOJIS: Reaction['emoji'][] = ['🔥', '😂', '👏', '😮', '❤️', '🥵'];
 
 export const ReactionRail: React.FC<ReactionRailProps> = ({
   reactions,

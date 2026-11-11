@@ -38,7 +38,6 @@ import { AudioSettingsModal } from '@/components/AudioSettingsModal';
 // Stage & Analytics Components
 import { PlayerSpotlight } from '@/components/PlayerSpotlight';
 import { PlayerDossierModal } from '@/components/PlayerDossierModal';
-import { AuctionCommentaryTicker } from '@/components/AuctionCommentaryTicker';
 import { UnsoldAuctionBoard } from '@/components/UnsoldAuctionBoard';
 import { TradingWindowView } from '@/components/TradingWindowView';
 import { SquadEvaluationView } from '@/components/SquadEvaluationView';
@@ -1207,9 +1206,6 @@ export default function RoomPage() {
               </div>
             )}
 
-            {/* Commentary Ticker */}
-            <AuctionCommentaryTicker commentary={commentaryEvents} />
-
             {/* Main Stage Grid */}
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 flex-1">
               {/* Left Column: Spotlight, SplitFlap & BidLadder */}
@@ -1280,7 +1276,7 @@ export default function RoomPage() {
             )}
 
             {/* Floating Emoji Reactions Vertical Rail */}
-            <div className="fixed right-2 sm:right-4 bottom-24 sm:bottom-28 z-40">
+            <div className="fixed right-2 sm:right-4 bottom-28 sm:bottom-32 z-40">
               <ReactionRail reactions={reactions} onSendReaction={handleSendReaction} />
             </div>
 

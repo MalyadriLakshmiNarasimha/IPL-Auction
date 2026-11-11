@@ -283,7 +283,7 @@ export interface Reaction {
   participant_id: string;
   display_name: string;
   franchise_color: string;
-  emoji: '🔥' | '😂' | '👏' | '😮' | '❤️' | '💪' | '🥵' | '😱' | '💰' | string;
+  emoji: '🔥' | '😂' | '👏' | '😮' | '❤️' | '🥵' | '😱' | '💰' | string;
   timestamp: number;
 }
 

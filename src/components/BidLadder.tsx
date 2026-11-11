@@ -9,8 +9,9 @@ interface BidLadderProps {
   bids: Bid[];
 }
 
-export const BidLadder: React.FC<BidLadderProps> = ({ bids }) => {
-  const recentBids = bids.slice(0, 5);
+export const BidLadder: React.FC<BidLadderProps> = ({ bids = [] }) => {
+  const safeBids = Array.isArray(bids) ? bids : [];
+  const recentBids = safeBids.slice(0, 5);
 
   if (recentBids.length === 0) {
     return (
@@ -24,7 +25,7 @@ export const BidLadder: React.FC<BidLadderProps> = ({ bids }) => {
     <div className="bg-night-raised rounded-card p-3 border border-night-border shadow-sm">
       <div className="text-[11px] font-bold uppercase tracking-wider text-floodlight-muted mb-2 flex items-center justify-between">
         <span>BID LADDER (RECENT)</span>
-        <span className="text-floodlight-subtle">{bids.length} total bids</span>
+        <span className="text-floodlight-subtle">{safeBids.length} total bids</span>
       </div>
 
       <div className="space-y-1.5">

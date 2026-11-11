@@ -39,10 +39,10 @@ export const StickyBidDock: React.FC<StickyBidDockProps> = ({
   };
 
   return (
-    <div className="sticky bottom-0 left-0 right-0 z-30 bg-[#0A0B0D]/95 backdrop-blur-md border-t border-night-border/80 px-3 py-2.5 sm:px-6 sm:py-3 shadow-2xl">
+    <div className="sticky bottom-0 left-0 right-0 z-30 bg-[#0A0B0D]/95 backdrop-blur-md border-t border-night-border/80 px-2 sm:px-6 py-2 sm:py-3 shadow-2xl">
       <div className="max-w-4xl mx-auto flex flex-col gap-2">
-        {/* Buttons Grid - 3 Balanced Quick Bid Increments */}
-        <div className="grid grid-cols-3 gap-2 sm:gap-4">
+        {/* Buttons Grid - 4 Controls in One Single Row: +₹25L, +₹50L, +₹1Cr, PASS / WITHDRAW */}
+        <div className="grid grid-cols-4 gap-1.5 sm:gap-3">
           {BID_INCREMENTS.map(({ label, amount }) => {
             const status = getBidButtonStatus(participant, auctionState, settings, amount);
             const isDisabled = !isBiddingActive || status.disabled || hasWithdrawn;
@@ -53,16 +53,16 @@ export const StickyBidDock: React.FC<StickyBidDockProps> = ({
                 disabled={isDisabled}
                 onClick={() => handleBidClick(amount)}
                 title={status.reason}
-                className={`relative group flex flex-col items-center justify-center min-h-[54px] sm:min-h-[62px] rounded-xl px-2 py-1 transition-all duration-150 select-none ${
+                className={`relative group flex flex-col items-center justify-center min-h-[50px] sm:min-h-[60px] rounded-xl px-1 sm:px-2 py-1 transition-all duration-150 select-none ${
                   isDisabled
                     ? 'bg-night-raised/50 border border-night-border/40 opacity-40 cursor-not-allowed'
                     : 'bg-flare hover:bg-flare-hover active:scale-[0.98] text-white font-bold shadow-flare'
                 }`}
               >
-                <span className="font-display text-lg sm:text-2xl font-black tracking-tight leading-tight">
+                <span className="font-display text-sm sm:text-xl font-black tracking-tight leading-tight whitespace-nowrap">
                   {label}
                 </span>
-                <span className="text-[10px] sm:text-[11px] font-semibold tabular-nums text-white/90 truncate max-w-full">
+                <span className="text-[9px] sm:text-[11px] font-semibold tabular-nums text-white/90 truncate max-w-full">
                   = {formatCurrency(status.targetAmount)}
                 </span>
 
@@ -74,9 +74,48 @@ export const StickyBidDock: React.FC<StickyBidDockProps> = ({
               </button>
             );
           })}
+
+          {/* 4th Control: PASS / WITHDRAW Button in Distinct Red Styling */}
+          {(() => {
+            const isWithdrawDisabled = !isBiddingActive || hasWithdrawn || isLeading;
+            const withdrawReason = hasWithdrawn
+              ? 'You have already passed on this player'
+              : isLeading
+              ? 'Cannot pass while highest bidder'
+              : !isBiddingActive
+              ? 'Bidding is not active'
+              : 'Pass / Withdraw from this player';
+
+            return (
+              <button
+                type="button"
+                disabled={isWithdrawDisabled}
+                onClick={handleWithdrawClick}
+                title={withdrawReason}
+                className={`relative group flex flex-col items-center justify-center min-h-[50px] sm:min-h-[60px] rounded-xl px-1 sm:px-2 py-1 transition-all duration-150 select-none ${
+                  isWithdrawDisabled
+                    ? 'bg-red-950/20 text-red-400/40 border border-red-900/40 opacity-40 cursor-not-allowed'
+                    : 'bg-hammer/25 hover:bg-hammer/40 text-red-400 border-2 border-hammer active:scale-[0.98] shadow-sm'
+                }`}
+              >
+                <span className="font-display text-xs sm:text-base font-black tracking-tight leading-tight uppercase whitespace-nowrap">
+                  {hasWithdrawn ? 'PASSED' : 'PASS / WITHDRAW'}
+                </span>
+                <span className="text-[9px] sm:text-[10px] font-bold uppercase tracking-wider text-red-300/80 truncate max-w-full">
+                  {hasWithdrawn ? 'WITHDRAWN' : 'DECLINE'}
+                </span>
+
+                {isWithdrawDisabled && withdrawReason && (
+                  <span className="hidden group-hover:block absolute -top-8 left-1/2 -translate-x-1/2 bg-black/90 text-[10px] text-white px-2 py-0.5 rounded whitespace-nowrap pointer-events-none z-20">
+                    {withdrawReason}
+                  </span>
+                )}
+              </button>
+            );
+          })()}
         </div>
 
-        {/* Bottom Status Row & Withdraw/Pass */}
+        {/* Bottom Status Row */}
         <div className="flex items-center justify-between gap-2 pt-0.5 text-xs">
           <div className="text-floodlight-muted truncate text-[11px] sm:text-xs">
             {hasWithdrawn ? (
@@ -104,20 +143,6 @@ export const StickyBidDock: React.FC<StickyBidDockProps> = ({
                 <span className="text-floodlight-muted">Passed</span>
               </div>
             )}
-
-            <button
-              type="button"
-              onClick={handleWithdrawClick}
-              disabled={!isBiddingActive || hasWithdrawn || isLeading}
-              title={isLeading ? 'Cannot pass while highest bidder' : 'Pass / Withdraw from this player'}
-              className={`min-h-[32px] sm:min-h-[34px] px-3.5 sm:px-4 rounded-full font-bold text-[11px] sm:text-xs uppercase tracking-wider transition-all flex-shrink-0 ${
-                !isBiddingActive || hasWithdrawn || isLeading
-                  ? 'opacity-30 cursor-not-allowed text-floodlight-muted border border-night-border'
-                  : 'bg-hammer/20 text-hammer hover:bg-hammer/30 border border-hammer'
-              }`}
-            >
-              {hasWithdrawn ? 'Passed' : 'Pass / Withdraw'}
-            </button>
           </div>
         </div>
       </div>
