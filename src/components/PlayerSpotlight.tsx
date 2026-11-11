@@ -7,6 +7,7 @@ import { CircularTimerRing } from './CircularTimerRing';
 import { PlayerPortrait } from './PlayerPortrait';
 import { Info, Sparkles, Flame, Zap } from 'lucide-react';
 import { PlayerDossierModal } from './PlayerDossierModal';
+import { PlayerStatsCarousel } from './PlayerStatsCarousel';
 import { getIplCareerStats } from '@/shared/player-career-data';
 
 interface PlayerSpotlightProps {
@@ -179,57 +180,8 @@ export const PlayerSpotlight: React.FC<PlayerSpotlightProps> = ({
           </div>
         </div>
 
-        {/* Overall IPL Career Statistics */}
-        <div className="z-10 rounded-xl bg-night-surface/90 border border-night-border/70 p-2.5 sm:p-3 mt-0.5">
-          <div className="flex items-center justify-between text-[10px] font-bold uppercase tracking-wider text-floodlight-muted mb-2">
-            <span className="flex items-center gap-1.5 text-flare">
-              <Flame className="w-3.5 h-3.5" />
-              OVERALL IPL CAREER STATISTICS
-            </span>
-            <span className="text-floodlight-subtle hidden sm:inline">Official Historical IPL Registry</span>
-          </div>
-
-          {careerStats.has_ipl_career ? (
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5 sm:gap-2.5 text-center w-full">
-              <div className="bg-night-raised/70 rounded-lg p-2 sm:p-2.5 border border-night-border/40 flex flex-col justify-center">
-                <div className="text-[9px] sm:text-[10px] text-floodlight-muted uppercase font-bold">Matches</div>
-                <div className="font-display text-sm sm:text-base font-black text-floodlight">
-                  {careerStats.matches}
-                </div>
-              </div>
-
-              <div className="bg-night-raised/70 rounded-lg p-2 sm:p-2.5 border border-night-border/40 flex flex-col justify-center">
-                <div className="text-[9px] sm:text-[10px] text-floodlight-muted uppercase font-bold">Runs</div>
-                <div className="font-display text-sm sm:text-base font-black text-flare">
-                  {careerStats.runs.toLocaleString('en-IN')}
-                </div>
-              </div>
-
-              <div className="bg-night-raised/70 rounded-lg p-2 sm:p-2.5 border border-night-border/40 flex flex-col justify-center">
-                <div className="text-[9px] sm:text-[10px] text-floodlight-muted uppercase font-bold">Strike Rate</div>
-                <div className="font-display text-sm sm:text-base font-black text-turf">
-                  {careerStats.strike_rate > 0 ? careerStats.strike_rate.toFixed(2) : '0.00'}
-                </div>
-              </div>
-
-              <div className="bg-night-raised/70 rounded-lg p-2 sm:p-2.5 border border-night-border/40 flex flex-col justify-center">
-                <div className="text-[9px] sm:text-[10px] text-floodlight-muted uppercase font-bold">Average</div>
-                <div className="font-display text-sm sm:text-base font-black text-floodlight">
-                  {careerStats.batting_average > 0 ? careerStats.batting_average.toFixed(2) : '0.00'}
-                </div>
-              </div>
-            </div>
-          ) : (
-            <div className="w-full bg-night-raised/60 rounded-lg p-3 sm:p-3.5 border border-night-border/50 text-center">
-              <div className="text-xs sm:text-sm font-bold text-flare">
-                Statistics unavailable (IPL Debutant)
-              </div>
-              <p className="text-[10px] sm:text-[11px] text-floodlight-muted mt-0.5">
-                Uncapped / Yet to make IPL debut — Historical statistics not applicable
-              </p>
-            </div>
-          )}
-        </div>
+        {/* Dual Player Statistics System with Automatic 3-Second Rotation */}
+        <PlayerStatsCarousel player={player} />
       </div>
 
       {isDossierOpen && (

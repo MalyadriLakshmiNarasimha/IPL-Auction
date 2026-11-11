@@ -5,6 +5,7 @@ import { Player } from '@/shared/types';
 import { formatCurrency } from '@/shared/constants';
 import { X, Flame, Activity, User } from 'lucide-react';
 import { PlayerPortrait } from './PlayerPortrait';
+import { PlayerStatsCarousel } from './PlayerStatsCarousel';
 import { getIplCareerStats } from '@/shared/player-career-data';
 
 interface PlayerDossierModalProps {
@@ -107,48 +108,8 @@ export const PlayerDossierModal: React.FC<PlayerDossierModalProps> = ({ player, 
             </div>
           </div>
 
-          {/* Overall IPL Career Statistics */}
-          <div className="rounded-xl bg-night p-4 border border-night-border space-y-3">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-night-border pb-2 gap-1">
-              <span className="font-bold text-sm text-floodlight flex items-center gap-1.5">
-                <Flame className="w-4 h-4 text-flare" />
-                OVERALL IPL CAREER STATISTICS
-              </span>
-              <span className="text-[10px] text-floodlight-subtle">
-                Source: Official Historical IPL Registry
-              </span>
-            </div>
-
-            {careerStats.has_ipl_career ? (
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 text-center">
-                <div className="p-2 rounded-lg bg-night-raised border border-night-border/40">
-                  <div className="text-[10px] uppercase font-bold text-floodlight-muted">Total Matches</div>
-                  <div className="font-display font-bold text-base text-floodlight">{careerStats.matches}</div>
-                </div>
-                <div className="p-2 rounded-lg bg-night-raised border border-night-border/40">
-                  <div className="text-[10px] uppercase font-bold text-floodlight-muted">Total Runs</div>
-                  <div className="font-display font-bold text-base text-flare">{careerStats.runs.toLocaleString('en-IN')}</div>
-                </div>
-                <div className="p-2 rounded-lg bg-night-raised border border-night-border/40">
-                  <div className="text-[10px] uppercase font-bold text-floodlight-muted">Overall Strike Rate</div>
-                  <div className="font-display font-bold text-base text-turf">{careerStats.strike_rate > 0 ? careerStats.strike_rate.toFixed(2) : '0.00'}</div>
-                </div>
-                <div className="p-2 rounded-lg bg-night-raised border border-night-border/40">
-                  <div className="text-[10px] uppercase font-bold text-floodlight-muted">Overall Batting Avg</div>
-                  <div className="font-display font-bold text-base text-floodlight">{careerStats.batting_average > 0 ? careerStats.batting_average.toFixed(2) : '0.00'}</div>
-                </div>
-              </div>
-            ) : (
-              <div className="p-4 rounded-lg bg-night-raised border border-night-border/40 text-center space-y-1">
-                <div className="font-bold text-sm text-flare">
-                  Statistics unavailable (IPL Debutant)
-                </div>
-                <div className="text-xs text-floodlight-muted">
-                  This player has not yet made an appearance in the Indian Premier League. Official historical statistics will register upon match debut.
-                </div>
-              </div>
-            )}
-          </div>
+          {/* Dual IPL Statistics (Career & 2026 Season) */}
+          <PlayerStatsCarousel player={player} autoRotateInterval={4000} />
 
           {/* Strategic Scouting Assessment */}
           <div className="rounded-xl bg-night-raised p-4 border border-night-border space-y-2">

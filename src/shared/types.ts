@@ -74,12 +74,50 @@ export interface PlayerDatabaseRecord {
   bowling_style: string | null;
 }
 
-export interface IplCareerStats {
+export interface PlayerPerformanceStats {
   matches: number;
+  has_stats: boolean;
+
+  // Batting
+  innings?: number;
+  runs?: number;
+  highest_score?: number | string; // e.g. 113 or '113*' (BEST for batters)
+  batting_average?: number;
+  strike_rate?: number;
+  hundreds?: number;
+  fifties?: number;
+  fours?: number;
+  sixes?: number;
+  not_outs?: number;
+
+  // Bowling
+  bowling_innings?: number;
+  overs?: number | string;
+  wickets?: number;
+  best_bowling?: string; // BEST (e.g. '5/10', '4/24')
+  economy_rate?: number;
+  bowling_average?: number;
+  bowling_strike_rate?: number;
+  four_wickets?: number;
+  five_wickets?: number;
+  maidens?: number;
+
+  // Wicketkeeping / Fielding
+  catches?: number;
+  stumpings?: number;
+  dismissals?: number;
+}
+
+export interface IplCareerStats extends PlayerPerformanceStats {
   runs: number;
   strike_rate: number;
   batting_average: number;
   has_ipl_career: boolean;
+}
+
+export interface IplSeasonStats extends PlayerPerformanceStats {
+  season: '2026';
+  has_season_stats: boolean;
 }
 
 export interface Player {
@@ -102,6 +140,7 @@ export interface Player {
   photo_source?: string;
   stats_2026: PlayerStats2026;
   ipl_career_stats?: IplCareerStats;
+  season_2026_stats?: IplSeasonStats;
   achievements?: string[];
   player_points: number;
 
