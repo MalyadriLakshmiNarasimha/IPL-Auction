@@ -74,6 +74,14 @@ export interface PlayerDatabaseRecord {
   bowling_style: string | null;
 }
 
+export interface IplCareerStats {
+  matches: number;
+  runs: number;
+  strike_rate: number;
+  batting_average: number;
+  has_ipl_career: boolean;
+}
+
 export interface Player {
   id: string;
   name: string;
@@ -93,6 +101,8 @@ export interface Player {
   has_photo?: boolean; // true if authentic headshot photograph exists, false if vector monogram fallback
   photo_source?: string;
   stats_2026: PlayerStats2026;
+  ipl_career_stats?: IplCareerStats;
+  achievements?: string[];
   player_points: number;
 
   // Scraped centralized database fields
@@ -273,7 +283,7 @@ export interface Reaction {
   participant_id: string;
   display_name: string;
   franchise_color: string;
-  emoji: '🔥' | '😂' | '👏' | '😮' | '❤️' | '💪' | '😱' | '💰' | string;
+  emoji: '🔥' | '😂' | '👏' | '😮' | '❤️' | '💪' | '🥵' | '😱' | '💰' | string;
   timestamp: number;
 }
 

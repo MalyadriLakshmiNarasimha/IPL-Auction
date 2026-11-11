@@ -5,8 +5,9 @@ import { Player } from '@/shared/types';
 import { formatCurrency } from '@/shared/constants';
 import { CircularTimerRing } from './CircularTimerRing';
 import { PlayerPortrait } from './PlayerPortrait';
-import { Info, Sparkles, Flame, Zap, ShieldCheck } from 'lucide-react';
+import { Info, Sparkles, Flame, Trophy, Zap } from 'lucide-react';
 import { PlayerDossierModal } from './PlayerDossierModal';
+import { getIplCareerStats, getPlayerAchievements } from '@/shared/player-career-data';
 
 interface PlayerSpotlightProps {
   player: Player | null;
@@ -49,14 +50,8 @@ export const PlayerSpotlight: React.FC<PlayerSpotlightProps> = ({
     return '#FF7A1A';
   })();
 
-  const stats = player.stats_2026;
-  const isBatOrWK =
-    player.role === 'BAT' ||
-    player.role === 'Batter' ||
-    player.role === 'WK' ||
-    player.role === 'Wicketkeeper';
-  const isBowl = player.role === 'BOWL' || player.role === 'Bowler';
-  const isAR = player.role === 'AR' || player.role === 'All-Rounder';
+  const careerStats = player.ipl_career_stats || getIplCareerStats(player.name);
+  const achievements = player.achievements || getPlayerAchievements(player.name);
 
   return (
     <>
@@ -87,16 +82,6 @@ export const PlayerSpotlight: React.FC<PlayerSpotlightProps> = ({
                 #{player.jersey_number}
               </span>
             )}
-            <span
-              className={`text-[9px] px-2 py-0.5 rounded-full border font-bold uppercase flex items-center gap-1 ${
-                player.has_photo
-                  ? 'bg-turf/15 text-turf border-turf/30'
-                  : 'bg-night-surface text-floodlight-muted border-night-border'
-              }`}
-            >
-              <ShieldCheck className="w-3 h-3" />
-              {player.has_photo ? 'Official Photo' : 'Card Placeholder'}
-            </span>
           </div>
 
           <button
@@ -120,7 +105,7 @@ export const PlayerSpotlight: React.FC<PlayerSpotlightProps> = ({
               player={player}
               aspectRatio="4/5"
               priority={true}
-              showBadge={true}
+              showBadge={false}
             />
           </div>
 
@@ -195,59 +180,75 @@ export const PlayerSpotlight: React.FC<PlayerSpotlightProps> = ({
           </div>
         </div>
 
-        {/* Verified Cricket Performance Statistics */}
-        {stats && (
-          <div className="z-10 rounded-xl bg-night-surface/90 border border-night-border/70 p-2.5 sm:p-3 mt-0.5">
-            <div className="flex items-center justify-between text-[10px] font-bold uppercase tracking-wider text-floodlight-muted mb-2">
-              <span className="flex items-center gap-1 text-flare">
-                <Flame className="w-3.5 h-3.5" />
-                {stats.stat_label || (stats.verification_status === 'verified' ? 'Verified IPL Official Career' : 'IPL Performance')}
-              </span>
-              <span className="text-floodlight-subtle hidden sm:inline">{stats.source}</span>
-            </div>
+        {/* Overall IPL Career Statistics & Career Achievements */}
+        <div className="z-10 rounded-xl bg-night-surface/90 border border-night-border/70 p-2.5 sm:p-3 mt-0.5">
+          <div className="flex items-center justify-between text-[10px] font-bold uppercase tracking-wider text-floodlight-muted mb-2">
+            <span className="flex items-center gap-1.5 text-flare">
+              <Flame className="w-3.5 h-3.5" />
+              OVERALL IPL CAREER STATISTICS
+            </span>
+            <span className="text-floodlight-subtle hidden sm:inline">Official Historical IPL Registry</span>
+          </div>
 
-            <div className="grid grid-cols-3 sm:grid-cols-6 gap-1.5 sm:gap-2 text-center">
-              <div className="bg-night-raised/70 rounded-lg p-1.5 border border-night-border/40">
+          <div className="flex flex-col lg:flex-row items-stretch gap-2 sm:gap-3">
+            {/* 4 Overall Career Statistics Cards */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5 sm:gap-2 text-center flex-shrink-0 lg:w-[58%]">
+              <div className="bg-night-raised/70 rounded-lg p-2 border border-night-border/40 flex flex-col justify-center">
                 <div className="text-[9px] sm:text-[10px] text-floodlight-muted uppercase font-bold">Matches</div>
-                <div className="font-display text-sm sm:text-base font-black text-floodlight">{stats.matches}</div>
+                <div className="font-display text-sm sm:text-base font-black text-floodlight">
+                  {careerStats.matches > 0 ? careerStats.matches : '—'}
+                </div>
               </div>
 
-              {(isBatOrWK || isAR) && (
-                <>
-                  <div className="bg-night-raised/70 rounded-lg p-1.5 border border-night-border/40">
-                    <div className="text-[9px] sm:text-[10px] text-floodlight-muted uppercase font-bold">Runs</div>
-                    <div className="font-display text-sm sm:text-base font-black text-flare">{stats.runs || 0}</div>
-                  </div>
-                  <div className="bg-night-raised/70 rounded-lg p-1.5 border border-night-border/40">
-                    <div className="text-[9px] sm:text-[10px] text-floodlight-muted uppercase font-bold">Strike Rate</div>
-                    <div className="font-display text-sm sm:text-base font-black text-turf">{stats.strike_rate || 0}</div>
-                  </div>
-                  <div className="bg-night-raised/70 rounded-lg p-1.5 border border-night-border/40">
-                    <div className="text-[9px] sm:text-[10px] text-floodlight-muted uppercase font-bold">Average</div>
-                    <div className="font-display text-sm sm:text-base font-black text-floodlight">{stats.batting_average || 0}</div>
-                  </div>
-                </>
-              )}
+              <div className="bg-night-raised/70 rounded-lg p-2 border border-night-border/40 flex flex-col justify-center">
+                <div className="text-[9px] sm:text-[10px] text-floodlight-muted uppercase font-bold">Runs</div>
+                <div className="font-display text-sm sm:text-base font-black text-flare">
+                  {careerStats.matches > 0 ? careerStats.runs.toLocaleString('en-IN') : '—'}
+                </div>
+              </div>
 
-              {(isBowl || isAR) && (
-                <>
-                  <div className="bg-night-raised/70 rounded-lg p-1.5 border border-night-border/40">
-                    <div className="text-[9px] sm:text-[10px] text-floodlight-muted uppercase font-bold">Wickets</div>
-                    <div className="font-display text-sm sm:text-base font-black text-turf">{stats.wickets || 0}</div>
-                  </div>
-                  <div className="bg-night-raised/70 rounded-lg p-1.5 border border-night-border/40">
-                    <div className="text-[9px] sm:text-[10px] text-floodlight-muted uppercase font-bold">Economy</div>
-                    <div className="font-display text-sm sm:text-base font-black text-flare">{stats.economy_rate || 0}</div>
-                  </div>
-                  <div className="bg-night-raised/70 rounded-lg p-1.5 border border-night-border/40">
-                    <div className="text-[9px] sm:text-[10px] text-floodlight-muted uppercase font-bold">Best Bowl</div>
-                    <div className="font-display text-sm sm:text-base font-black text-floodlight">{stats.best_bowling || '0/0'}</div>
-                  </div>
-                </>
+              <div className="bg-night-raised/70 rounded-lg p-2 border border-night-border/40 flex flex-col justify-center">
+                <div className="text-[9px] sm:text-[10px] text-floodlight-muted uppercase font-bold">Strike Rate</div>
+                <div className="font-display text-sm sm:text-base font-black text-turf">
+                  {careerStats.matches > 0 && careerStats.strike_rate > 0 ? careerStats.strike_rate.toFixed(2) : '—'}
+                </div>
+              </div>
+
+              <div className="bg-night-raised/70 rounded-lg p-2 border border-night-border/40 flex flex-col justify-center">
+                <div className="text-[9px] sm:text-[10px] text-floodlight-muted uppercase font-bold">Average</div>
+                <div className="font-display text-sm sm:text-base font-black text-floodlight">
+                  {careerStats.matches > 0 && careerStats.batting_average > 0 ? careerStats.batting_average.toFixed(2) : '—'}
+                </div>
+              </div>
+            </div>
+
+            {/* CAREER ACHIEVEMENTS in available space after Average */}
+            <div className="flex-1 bg-night-raised/60 rounded-lg p-2 sm:p-2.5 border border-night-border/50 flex flex-col justify-center min-w-0">
+              <div className="text-[9px] sm:text-[10px] text-flare uppercase font-extrabold tracking-wider mb-1 flex items-center gap-1">
+                <Trophy className="w-3 h-3 text-flare flex-shrink-0" />
+                <span>CAREER ACHIEVEMENTS</span>
+              </div>
+
+              {achievements && achievements.length > 0 ? (
+                <div className="flex flex-col gap-1 overflow-hidden">
+                  {achievements.slice(0, 3).map((ach, idx) => (
+                    <div
+                      key={idx}
+                      className="text-[11px] sm:text-xs font-semibold text-floodlight truncate flex items-center gap-1"
+                      title={ach}
+                    >
+                      <span className="truncate">{ach}</span>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="text-[10px] sm:text-[11px] text-floodlight-muted italic">
+                  No recorded IPL career achievements
+                </div>
               )}
             </div>
           </div>
-        )}
+        </div>
       </div>
 
       {isDossierOpen && (

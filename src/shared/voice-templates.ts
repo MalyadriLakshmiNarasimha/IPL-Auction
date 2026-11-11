@@ -95,3 +95,4 @@ export function buildSoldAnnouncement(
   // Example: "Sold! Hardik Pandya goes to Mumbai Indians for fourteen crore fifty lakh rupees!"
   return `Sold! ${playerName} goes to ${team} for ${priceSpoken}!`;
 }
+

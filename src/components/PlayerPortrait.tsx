@@ -3,7 +3,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { Player } from '@/shared/types';
-import { ShieldCheck, Zap } from 'lucide-react';
+import { Zap } from 'lucide-react';
 import playerImagesMap from '@/shared/player-images.json';
 
 export interface PlayerPortraitProps {
@@ -148,16 +148,6 @@ export const PlayerPortrait: React.FC<PlayerPortraitProps> = ({
               isLoaded ? 'opacity-100' : 'opacity-0'
             }`}
           />
-
-          {/* Top-Right Compact Verified Badge — Positioned outside the facial area */}
-          {showBadge && (
-            <div className="absolute top-2 right-2 z-10 pointer-events-none">
-              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-[#0B0D12]/90 backdrop-blur-md border border-emerald-500/40 text-[8.5px] font-extrabold text-emerald-400 tracking-wider uppercase shadow-lg">
-                <ShieldCheck className="w-2.5 h-2.5 text-emerald-400" />
-                Verified
-              </span>
-            </div>
-          )}
         </div>
       ) : (
         /* Professional IPL-Themed Card Placeholder */

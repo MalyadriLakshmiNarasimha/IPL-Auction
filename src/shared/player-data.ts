@@ -10,6 +10,7 @@ import {
   PlayerImageEntry,
   ImageVerificationStatus,
 } from './types';
+import { getIplCareerStats, getPlayerAchievements } from './player-career-data';
 
 export const RAW_PLAYER_DATABASE: PlayerDatabaseRecord[] = rawPlayersData as PlayerDatabaseRecord[];
 
@@ -519,6 +520,8 @@ function adaptDatabaseRecord(raw: PlayerDatabaseRecord): Player {
     has_photo,
     photo_source,
     stats_2026: stats,
+    ipl_career_stats: getIplCareerStats(raw.player_name),
+    achievements: getPlayerAchievements(raw.player_name),
     player_points: points,
   };
 }
