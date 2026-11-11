@@ -185,16 +185,25 @@ export default function RoomPage() {
         socket.on('bid_success', data => {
           setAuctionState(data.auction_state);
           soundFX.playBid();
+          // Cancel active closing announcement immediately if a new bid arrives
+          voiceCommentary.cancelClosingAnnouncement();
           const el = document.getElementById('accessibility-announcer');
           if (el) {
             el.innerText = `New bid: ${data.bid.franchise_short_code} bid ${formatCurrency(data.bid.amount)}`;
           }
         });
 
+        socket.on('auction_closing_warning', data => {
+          const teamCode = data.highest_bidder_short_code || data.highest_bidder_team || null;
+          voiceCommentary.speakClosingAnnouncement(teamCode, data.current_bid);
+        });
+
         socket.on('player_sold', data => {
           setAuctionState(data.auction_state);
           soundFX.playGavel();
           soundFX.playSold();
+          // Stop any playing closing speech before announcing sale
+          voiceCommentary.cancelClosingAnnouncement();
           const winningTeam = data.winner.team_name || data.winner.franchise?.name || 'the winning franchise';
           if (lastSoldPlayerId.current !== data.player.id) {
             lastSoldPlayerId.current = data.player.id;
@@ -210,7 +219,8 @@ export default function RoomPage() {
           setAuctionState(data.auction_state);
           soundFX.playGavel();
           soundFX.playUnsold();
-          // Never announce SOLD for unsold players
+          // Stop any pending speech; never announce SOLD for unsold players
+          voiceCommentary.cancelClosingAnnouncement();
         });
 
         socket.on('next_player', data => {
@@ -335,6 +345,7 @@ export default function RoomPage() {
       const socket = getSocket();
       socket.off('state_sync');
       socket.off('bid_success');
+      socket.off('auction_closing_warning');
       socket.off('player_sold');
       socket.off('player_unsold');
       socket.off('next_player');
@@ -491,6 +502,41 @@ export default function RoomPage() {
       }
     }
   }, [auctionState?.phase, auctionState?.current_player, roomCode, sessionId]);
+
+  // Voice Modulation B: Final 5-Second Closing Announcement Watcher (Client-side synchronized trigger)
+  useEffect(() => {
+    if (auctionState?.phase !== 'bidding' || auctionState.is_paused || !auctionState.timer_ends_at) {
+      return;
+    }
+
+    const interval = setInterval(() => {
+      const now = Date.now();
+      const remainingMs = auctionState.timer_ends_at - now;
+      const remainingSec = Math.ceil(remainingMs / 1000);
+
+      // When countdown reaches exactly 5 seconds
+      if (remainingSec === 5 && remainingMs > 3500) {
+        const bidderId = auctionState.current_bidder_id;
+        const bidder = bidderId ? participants.find(p => p.id === bidderId) : null;
+        const teamCode =
+          bidder?.team_short_code ||
+          bidder?.franchise?.short_code ||
+          bidder?.team_name ||
+          bidder?.franchise?.name ||
+          null;
+        voiceCommentary.speakClosingAnnouncement(teamCode, auctionState.current_bid);
+      }
+    }, 200);
+
+    return () => clearInterval(interval);
+  }, [
+    auctionState?.phase,
+    auctionState?.is_paused,
+    auctionState?.timer_ends_at,
+    auctionState?.current_bid,
+    auctionState?.current_bidder_id,
+    participants,
+  ]);
 
   const otherTeamNames = useMemo(() => {
     return participants
@@ -890,6 +936,7 @@ export default function RoomPage() {
                     <option value={90_00_00_000}>₹90.00 Cr</option>
                     <option value={100_00_00_000}>₹100.00 Cr</option>
                     <option value={120_00_00_000}>₹120.00 Cr</option>
+                    <option value={150_00_00_000}>₹150.00 Cr</option>
                   </select>
                 </div>
 

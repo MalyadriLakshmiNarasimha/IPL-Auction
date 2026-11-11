@@ -70,6 +70,7 @@ export interface RoomRecord {
   is_processing_bid: boolean;
   current_player_passes: Set<string>;
   is_processing_unsold: boolean;
+  closing_warning_bid_key?: string | null;
 
   // New Workflow State Additions
   stage: WorkflowStage;
@@ -210,6 +211,7 @@ export class RoomManager {
       is_processing_bid: false,
       current_player_passes: new Set(),
       is_processing_unsold: false,
+      closing_warning_bid_key: null,
       stage: 'lobby',
       pending_trades: new Map(),
       completed_trades: [],
@@ -722,6 +724,7 @@ export class RoomManager {
     room.auction_state.phase = 'announcing';
     room.auction_state.timer_ends_at = 0; // Timer does NOT run during announcement!
     room.client_announcement_completions = new Set();
+    room.closing_warning_bid_key = null;
 
     if (room.announcement_timeout_handle) {
       clearTimeout(room.announcement_timeout_handle);
@@ -831,6 +834,27 @@ export class RoomManager {
         server_time: now,
       });
 
+      // Final 5-second closing warning broadcast
+      if (
+        room.auction_state.phase === 'bidding' &&
+        !room.auction_state.is_paused &&
+        remainingSec === 5
+      ) {
+        const bidderId = room.auction_state.current_bidder_id;
+        const bidder = bidderId ? room.participants.get(bidderId) : null;
+        const currentBidKey = `${room.auction_state.current_player?.id || ''}_${room.auction_state.current_bid}_${bidderId || 'nobid'}`;
+
+        if (room.closing_warning_bid_key !== currentBidKey) {
+          room.closing_warning_bid_key = currentBidKey;
+          this.io.to(room.room_code).emit('auction_closing_warning', {
+            timer_remaining: 5,
+            highest_bidder_team: bidder?.team_name || bidder?.franchise?.name || null,
+            highest_bidder_short_code: bidder?.team_short_code || bidder?.franchise?.short_code || null,
+            current_bid: room.auction_state.current_bid,
+          });
+        }
+      }
+
       if (remainingMs <= 0) {
         clearInterval(room.timer_handle!);
         room.timer_handle = null;
@@ -905,6 +929,7 @@ export class RoomManager {
 
       const durationMs = room.settings.timer_seconds * 1000;
       room.auction_state.timer_ends_at = Date.now() + durationMs;
+      room.closing_warning_bid_key = null;
 
       // Commentary generation
       const participantCode = participant.team_short_code || participant.franchise?.short_code || 'Bidder';

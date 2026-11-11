@@ -78,6 +78,21 @@ export function buildPlayerIntroduction(player: Player): string {
 }
 
 /**
+ * Generates the authoritative Final 5-Second Closing Announcement text.
+ * Triggered when the auction countdown reaches 5 seconds.
+ *
+ * Example:
+ * "GT currently holds the highest bid. Going once, going twice..."
+ */
+export function buildClosingAnnouncement(highestBidderTeamOrCode?: string | null): string {
+  const team = (highestBidderTeamOrCode || '').trim();
+  if (team) {
+    return `${team} currently holds the highest bid. Going once, going twice...`;
+  }
+  return `No bids yet. Going once, going twice...`;
+}
+
+/**
  * Generates the authoritative Sold Announcement text.
  * Triggered only after the authoritative server confirms the sale.
  *

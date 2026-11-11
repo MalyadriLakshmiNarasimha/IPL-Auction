@@ -13,6 +13,7 @@
  */
 
 import crypto from 'crypto';
+import { VoiceModulationStyle } from '../shared/types';
 
 export type TtsProviderType = 'azure' | 'elevenlabs' | 'google' | 'fallback' | 'auto';
 
@@ -36,10 +37,10 @@ interface CachedAudio {
 const audioCache = new Map<string, CachedAudio>();
 const MAX_CACHE_ENTRIES = 300;
 
-function computeTtsHash(text: string, provider: string, voice: string): string {
+function computeTtsHash(text: string, provider: string, voice: string, style: VoiceModulationStyle = 'intro'): string {
   return crypto
     .createHash('sha256')
-    .update(`${provider}:${voice}:${text.trim().toLowerCase()}`)
+    .update(`${provider}:${voice}:${style}:${text.trim().toLowerCase()}`)
     .digest('hex');
 }
 
@@ -55,8 +56,9 @@ function escapeXml(unsafe: string): string {
 /**
  * 1. Microsoft Azure Neural TTS
  * Voice: en-IN-NeerjaNeural (Default Indian English female neural voice)
+ * Distinct SSML modulation for Introduction vs Closing vs Sold
  */
-async function synthesizeWithAzure(text: string): Promise<Buffer | null> {
+async function synthesizeWithAzure(text: string, style: VoiceModulationStyle = 'intro'): Promise<Buffer | null> {
   const key = process.env.AZURE_SPEECH_KEY;
   const region = process.env.AZURE_SPEECH_REGION || 'centralindia';
   const voice = process.env.AZURE_SPEECH_VOICE || 'en-IN-NeerjaNeural';
@@ -64,11 +66,22 @@ async function synthesizeWithAzure(text: string): Promise<Buffer | null> {
   if (!key) return null;
 
   const url = `https://${region}.tts.speech.microsoft.com/cognitiveservices/v1`;
+
+  // Modulation styles:
+  // - 'closing': excited auctioneer style, higher pitch (+10%), punchy rate (+12%)
+  // - 'sold': authoritative triumphant confirmation (+10% rate, +6% pitch)
+  // - 'intro': professional calm informative broadcast (+10% rate, 0% pitch)
+  const prosodyRate = style === 'closing' ? '+12%' : '+10%';
+  const prosodyPitch = style === 'closing' ? '+10%' : style === 'sold' ? '+6%' : '0%';
+  const content = style === 'closing'
+    ? `<emphasis level='strong'>${escapeXml(text)}</emphasis>`
+    : escapeXml(text);
+
   const ssml = `
-    <speak version='1.0' xmlns='http://www.w3.org/2001/10/synthesis' xml:lang='en-IN'>
+    <speak version='1.0' xmlns='http://www.w3.org/2001/10/synthesis' xmlns:mstts='https://www.w3.org/2001/mstts' xml:lang='en-IN'>
       <voice name='${voice}'>
-        <prosody rate='+10%'>
-          ${escapeXml(text)}
+        <prosody rate='${prosodyRate}' pitch='${prosodyPitch}'>
+          ${content}
         </prosody>
       </voice>
     </speak>
@@ -100,8 +113,9 @@ async function synthesizeWithAzure(text: string): Promise<Buffer | null> {
 /**
  * 2. ElevenLabs Text-to-Speech
  * High-expressiveness Indian female voice
+ * Configures stability & style parameters to deliver energetic auctioneer cadence
  */
-async function synthesizeWithElevenLabs(text: string): Promise<Buffer | null> {
+async function synthesizeWithElevenLabs(text: string, style: VoiceModulationStyle = 'intro'): Promise<Buffer | null> {
   const key = process.env.ELEVENLABS_API_KEY;
   // Default natural Indian female voice ID or configured voice ID
   const voiceId = process.env.ELEVENLABS_VOICE_ID || 'XB0fDUnXU5powFXDhCwa';
@@ -109,6 +123,17 @@ async function synthesizeWithElevenLabs(text: string): Promise<Buffer | null> {
   if (!key) return null;
 
   const url = `https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`;
+
+  // Voice modulation parameters:
+  // - 'closing': lower stability (0.40) & higher style (0.60) for suspenseful, energetic auctioneer cadence
+  // - 'sold': triumphant decisive delivery (0.50 stability, 0.45 style)
+  // - 'intro': calm, confident, professional stability (0.75 stability, 0.15 style)
+  const voiceSettings =
+    style === 'closing'
+      ? { stability: 0.40, similarity_boost: 0.80, style: 0.60, use_speaker_boost: true }
+      : style === 'sold'
+      ? { stability: 0.50, similarity_boost: 0.80, style: 0.45, use_speaker_boost: true }
+      : { stability: 0.75, similarity_boost: 0.85, style: 0.15, use_speaker_boost: true };
 
   try {
     const res = await fetch(url, {
@@ -121,12 +146,7 @@ async function synthesizeWithElevenLabs(text: string): Promise<Buffer | null> {
       body: JSON.stringify({
         text,
         model_id: 'eleven_multilingual_v2',
-        voice_settings: {
-          stability: 0.65,
-          similarity_boost: 0.85,
-          style: 0.2,
-          use_speaker_boost: true,
-        },
+        voice_settings: voiceSettings,
       }),
       signal: AbortSignal.timeout(6000),
     });
@@ -145,13 +165,16 @@ async function synthesizeWithElevenLabs(text: string): Promise<Buffer | null> {
  * 3. Google Cloud Text-to-Speech
  * Voice: en-IN-Neural2-A (Female)
  */
-async function synthesizeWithGoogleCloud(text: string): Promise<Buffer | null> {
+async function synthesizeWithGoogleCloud(text: string, style: VoiceModulationStyle = 'intro'): Promise<Buffer | null> {
   const key = process.env.GOOGLE_TTS_API_KEY;
   const voice = process.env.GOOGLE_TTS_VOICE || 'en-IN-Neural2-A';
 
   if (!key) return null;
 
   const url = `https://texttospeech.googleapis.com/v1/text:synthesize?key=${key}`;
+
+  const speakingRate = style === 'closing' ? 1.12 : 1.10;
+  const pitch = style === 'closing' ? 2.5 : style === 'sold' ? 1.5 : 0.0;
 
   try {
     const res = await fetch(url, {
@@ -168,7 +191,8 @@ async function synthesizeWithGoogleCloud(text: string): Promise<Buffer | null> {
         },
         audioConfig: {
           audioEncoding: 'MP3',
-          speakingRate: 1.1,
+          speakingRate,
+          pitch,
         },
       }),
       signal: AbortSignal.timeout(5000),
@@ -229,7 +253,10 @@ export function getConfiguredProvider(): TtsProviderType {
  * Synthesizes text into high-fidelity Indian female broadcast speech.
  * Automatically respects cache and provides fallback if external API is unreachable.
  */
-export async function synthesizeIndianFemaleVoice(text: string): Promise<TtsSynthesisResult | null> {
+export async function synthesizeIndianFemaleVoice(
+  text: string,
+  style: VoiceModulationStyle = 'intro'
+): Promise<TtsSynthesisResult | null> {
   const cleanText = text.trim();
   if (!cleanText) return null;
 
@@ -238,14 +265,14 @@ export async function synthesizeIndianFemaleVoice(text: string): Promise<TtsSynt
   // Determine active provider order
   const providersToAttempt: Array<{
     name: string;
-    synthesize: (t: string) => Promise<Buffer | null>;
+    synthesize: (t: string, s?: VoiceModulationStyle) => Promise<Buffer | null>;
     voice: string;
   }> = [];
 
   if (configuredProvider === 'azure' || (configuredProvider === 'auto' && process.env.AZURE_SPEECH_KEY)) {
     providersToAttempt.push({
       name: 'azure',
-      synthesize: synthesizeWithAzure,
+      synthesize: (t) => synthesizeWithAzure(t, style),
       voice: process.env.AZURE_SPEECH_VOICE || 'en-IN-NeerjaNeural',
     });
   }
@@ -256,7 +283,7 @@ export async function synthesizeIndianFemaleVoice(text: string): Promise<TtsSynt
   ) {
     providersToAttempt.push({
       name: 'elevenlabs',
-      synthesize: synthesizeWithElevenLabs,
+      synthesize: (t) => synthesizeWithElevenLabs(t, style),
       voice: process.env.ELEVENLABS_VOICE_ID || 'XB0fDUnXU5powFXDhCwa',
     });
   }
@@ -267,7 +294,7 @@ export async function synthesizeIndianFemaleVoice(text: string): Promise<TtsSynt
   ) {
     providersToAttempt.push({
       name: 'google',
-      synthesize: synthesizeWithGoogleCloud,
+      synthesize: (t) => synthesizeWithGoogleCloud(t, style),
       voice: process.env.GOOGLE_TTS_VOICE || 'en-IN-Neural2-A',
     });
   }
@@ -275,13 +302,13 @@ export async function synthesizeIndianFemaleVoice(text: string): Promise<TtsSynt
   // Always include fallback as safety net
   providersToAttempt.push({
     name: 'fallback',
-    synthesize: synthesizeWithFallback,
+    synthesize: (t) => synthesizeWithFallback(t),
     voice: 'en-IN-NeuralFallback',
   });
 
-  // Check cache against the top preferred provider
+  // Check cache against the top preferred provider and style
   const primary = providersToAttempt[0];
-  const cacheKey = computeTtsHash(cleanText, primary.name, primary.voice);
+  const cacheKey = computeTtsHash(cleanText, primary.name, primary.voice, style);
 
   if (audioCache.has(cacheKey)) {
     const cached = audioCache.get(cacheKey)!;
@@ -296,7 +323,7 @@ export async function synthesizeIndianFemaleVoice(text: string): Promise<TtsSynt
 
   // Execute synthesis attempt
   for (const p of providersToAttempt) {
-    const buf = await p.synthesize(cleanText);
+    const buf = await p.synthesize(cleanText, style);
     if (buf && buf.length > 0) {
       const result: CachedAudio = {
         buffer: buf,

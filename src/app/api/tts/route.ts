@@ -1,9 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { synthesizeIndianFemaleVoice } from '@/lib/server-tts';
+import { VoiceModulationStyle } from '@/shared/types';
 
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   const text = searchParams.get('text');
+  const rawStyle = searchParams.get('style');
+  const style: VoiceModulationStyle =
+    rawStyle === 'closing' ? 'closing' : rawStyle === 'sold' ? 'sold' : 'intro';
 
   if (!text || text.trim().length === 0) {
     return NextResponse.json({ error: 'Text query parameter is required.' }, { status: 400 });
@@ -17,7 +21,7 @@ export async function GET(req: NextRequest) {
   }
 
   try {
-    const result = await synthesizeIndianFemaleVoice(text);
+    const result = await synthesizeIndianFemaleVoice(text, style);
 
     if (!result) {
       // Signals frontend client to fall back to browser SpeechSynthesis with Indian female voice
@@ -55,12 +59,14 @@ export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
     const text = body?.text;
+    const style = body?.style;
     if (!text || typeof text !== 'string') {
       return NextResponse.json({ error: 'Valid text string is required in request body.' }, { status: 400 });
     }
 
     const dummyUrl = new URL(req.url);
     dummyUrl.searchParams.set('text', text);
+    if (style) dummyUrl.searchParams.set('style', style);
     return GET(new NextRequest(dummyUrl.toString(), { headers: req.headers }));
   } catch {
     return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });

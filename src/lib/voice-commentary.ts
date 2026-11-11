@@ -1,9 +1,10 @@
 'use client';
 
-import { Player, CommentaryEvent } from '../shared/types';
+import { Player, CommentaryEvent, VoiceModulationStyle } from '../shared/types';
 import { formatInrForSpeech } from '../shared/currency-speech';
 import {
   buildPlayerIntroduction,
+  buildClosingAnnouncement,
   buildSoldAnnouncement,
   expandFranchiseName,
 } from '../shared/voice-templates';
@@ -36,6 +37,8 @@ class VoiceCommentaryService {
   private preferCentralAudio: boolean = true;
   private lastSpokenPlayerId: string | null = null;
   private lastSoldPlayerId: string | null = null;
+  private currentAnnouncementType: VoiceModulationStyle | null = null;
+  private lastClosingBidKey: string | null = null;
 
   constructor() {
     if (typeof window !== 'undefined') {
@@ -238,8 +241,9 @@ class VoiceCommentaryService {
   }
 
   /**
-   * VOICE EVENT 1: Player Introduction
+   * VOICE MODULATION A: Player Introduction
    * Triggered exactly once when a player becomes active.
+   * Style: Professional, informative, calm, confident delivery (1.10x rate, 1.0 pitch).
    * Example: "Up next, we have India's talented all-rounder, Hardik Pandya. His base price is two crore rupees."
    */
   public speakPlayerIntroduction(player: Player, onComplete?: () => void): void {
@@ -254,19 +258,65 @@ class VoiceCommentaryService {
       return;
     }
     this.lastSpokenPlayerId = player.id;
+    this.lastClosingBidKey = null; // Reset closing announcement state for new player
 
     if (this.isVoiceMuted || typeof window === 'undefined') {
       if (onComplete) onComplete();
       return;
     }
 
+    this.currentAnnouncementType = 'intro';
     const introText = buildPlayerIntroduction(player);
-    this.executeSingleSpeech(introText, onComplete);
+    this.executeSingleSpeech(introText, 'intro', onComplete);
   }
 
   /**
-   * VOICE EVENT 2: Sold Announcement
-   * Triggered only after authoritative server confirms sale.
+   * VOICE MODULATION B: Final 5-Second Closing Announcement
+   * Triggered when official auction countdown reaches 5 seconds.
+   * Style: Exciting auctioneer-style expression, suspenseful pacing, energetic delivery.
+   * Example: "GT currently holds the highest bid. Going once, going twice..."
+   *
+   * If a new bid is placed after this starts (e.g. at 3s), cancelClosingAnnouncement()
+   * immediately halts this speech and resets state.
+   */
+  public speakClosingAnnouncement(
+    highestBidderTeamOrCode?: string | null,
+    currentBidAmount?: number,
+    onComplete?: () => void
+  ): void {
+    if (this.isVoiceMuted || typeof window === 'undefined') {
+      if (onComplete) onComplete();
+      return;
+    }
+
+    const dedupeKey = `${this.lastSpokenPlayerId || 'cur'}:${highestBidderTeamOrCode || 'nobid'}:${currentBidAmount || 0}`;
+    if (this.lastClosingBidKey === dedupeKey) {
+      // Already running or executed for this exact bid sequence
+      return;
+    }
+    this.lastClosingBidKey = dedupeKey;
+    this.currentAnnouncementType = 'closing';
+
+    const closingText = buildClosingAnnouncement(highestBidderTeamOrCode);
+    this.executeSingleSpeech(closingText, 'closing', onComplete);
+  }
+
+  /**
+   * Cancels active closing announcement immediately when a new bid arrives or state changes.
+   * Halts any audio / Web Speech Synthesis instantly without leaving stale queues.
+   */
+  public cancelClosingAnnouncement(): void {
+    if (this.currentAnnouncementType === 'closing') {
+      this.stopCurrentSpeech();
+      this.currentAnnouncementType = null;
+      this.lastClosingBidKey = null; // Allows re-trigger when new countdown reaches 5s
+    }
+  }
+
+  /**
+   * RESOLUTION OF MODULATION B: Sold Announcement
+   * Triggered ONLY after authoritative server confirms player is sold.
+   * Style: Decisive, triumphant, authoritative confirmation.
    * Example: "Sold! Hardik Pandya goes to Mumbai Indians for fourteen crore fifty lakh rupees!"
    */
   public speakSoldAnnouncement(
@@ -276,6 +326,9 @@ class VoiceCommentaryService {
     playerId?: string,
     onComplete?: () => void
   ): void {
+    // Immediately stop any active closing announcement
+    this.stopCurrentSpeech();
+
     // Guard: Prevent duplicate sold announcement for same player sale
     if (playerId) {
       if (this.lastSoldPlayerId === playerId) {
@@ -290,8 +343,9 @@ class VoiceCommentaryService {
       return;
     }
 
+    this.currentAnnouncementType = 'sold';
     const soldText = buildSoldAnnouncement(playerName, winningTeam, finalPrice);
-    this.executeSingleSpeech(soldText, onComplete);
+    this.executeSingleSpeech(soldText, 'sold', onComplete);
   }
 
   /**
@@ -309,7 +363,7 @@ class VoiceCommentaryService {
       return;
     }
 
-    this.executeSingleSpeech(cleaned, onComplete);
+    this.executeSingleSpeech(cleaned, 'intro', onComplete);
   }
 
   /**
@@ -322,10 +376,14 @@ class VoiceCommentaryService {
   }
 
   /**
-   * Executes a single, non-overlapping voice announcement.
+   * Executes a single, non-overlapping voice announcement with the specified modulation style.
    * Never overlaps with previous or outdated audio.
    */
-  private executeSingleSpeech(text: string, onDone?: () => void): void {
+  private executeSingleSpeech(
+    text: string,
+    style: VoiceModulationStyle = 'intro',
+    onDone?: () => void
+  ): void {
     // 1. Immediately halt any currently playing audio/speech
     this.stopCurrentSpeech();
 
@@ -343,6 +401,7 @@ class VoiceCommentaryService {
 
       this.isSpeaking = false;
       this.currentAudio = null;
+      this.currentAnnouncementType = null;
 
       if (onDone) {
         try {
@@ -353,16 +412,17 @@ class VoiceCommentaryService {
 
     // Watchdog timer: calculates safe max speech duration based on word count & 1.10x rate
     const words = text.split(/\s+/).length;
-    const estimatedSeconds = Math.max(2.5, words / (this.speechRate * 2.6) + 1.2);
+    const effectiveRate = style === 'closing' ? this.speechRate * 1.05 : this.speechRate;
+    const estimatedSeconds = Math.max(2.0, words / (effectiveRate * 2.6) + 1.0);
     this.currentWatchdogTimer = setTimeout(finish, Math.round(estimatedSeconds * 1000));
 
     // Tier 1: High quality central server-side audio (Azure Neerja / ElevenLabs / Google Neural2)
     if (this.preferCentralAudio && typeof window !== 'undefined') {
       try {
-        const audioUrl = `/api/tts?text=${encodeURIComponent(text)}`;
+        const audioUrl = `/api/tts?text=${encodeURIComponent(text)}&style=${encodeURIComponent(style)}`;
         const audio = new Audio(audioUrl);
         audio.volume = this.volume;
-        audio.playbackRate = this.speechRate;
+        audio.playbackRate = effectiveRate;
 
         audio.onended = () => {
           audio.onended = null;
@@ -375,7 +435,7 @@ class VoiceCommentaryService {
           audio.onerror = null;
           this.currentAudio = null;
           // Fallback to SpeechSynthesis
-          this.speakViaSpeechSynthesis(text, finish);
+          this.speakViaSpeechSynthesis(text, style, finish);
         };
 
         this.currentAudio = audio;
@@ -385,7 +445,7 @@ class VoiceCommentaryService {
             audio.onended = null;
             audio.onerror = null;
             this.currentAudio = null;
-            this.speakViaSpeechSynthesis(text, finish);
+            this.speakViaSpeechSynthesis(text, style, finish);
           });
         }
         return;
@@ -395,14 +455,21 @@ class VoiceCommentaryService {
     }
 
     // Tier 2: Browser SpeechSynthesis
-    this.speakViaSpeechSynthesis(text, finish);
+    this.speakViaSpeechSynthesis(text, style, finish);
   }
 
   /**
    * Synthesizes speech using the browser SpeechSynthesis API.
-   * Uses high-priority Indian female voice with exact 1.10x speed.
+   * Applies distinct pitch and rate modulation according to announcement style:
+   * - 'intro': Calm, informative (1.10x rate, 1.00 pitch)
+   * - 'closing': Exciting auctioneer delivery (1.12x rate, 1.15 pitch)
+   * - 'sold': Decisive, triumphant (1.10x rate, 1.08 pitch)
    */
-  private speakViaSpeechSynthesis(text: string, onDone: () => void): void {
+  private speakViaSpeechSynthesis(
+    text: string,
+    style: VoiceModulationStyle = 'intro',
+    onDone: () => void
+  ): void {
     if (typeof window === 'undefined' || !('speechSynthesis' in window)) {
       onDone();
       return;
@@ -418,8 +485,17 @@ class VoiceCommentaryService {
         utterance.voice = this.selectedVoice;
       }
       utterance.volume = this.volume;
-      utterance.rate = this.speechRate;
-      utterance.pitch = 1.0;
+
+      if (style === 'closing') {
+        utterance.rate = Math.min(1.25, Number((this.speechRate * 1.02).toFixed(2)));
+        utterance.pitch = 1.15; // Energetic, suspenseful auctioneer tone
+      } else if (style === 'sold') {
+        utterance.rate = this.speechRate;
+        utterance.pitch = 1.08; // Triumphant tone
+      } else {
+        utterance.rate = this.speechRate;
+        utterance.pitch = 1.0; // Professional calm tone
+      }
 
       let hasDone = false;
       const finish = () => {
@@ -445,7 +521,7 @@ class VoiceCommentaryService {
     sampleText: string = "Up next, we have India's talented all-rounder, Hardik Pandya. His base price is two crore rupees.",
     onComplete?: () => void
   ): void {
-    this.executeSingleSpeech(sampleText, onComplete);
+    this.executeSingleSpeech(sampleText, 'intro', onComplete);
   }
 
   /**
