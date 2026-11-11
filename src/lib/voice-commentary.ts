@@ -156,7 +156,9 @@ class VoiceCommentaryService {
   public setMuted(muted: boolean): void {
     this.isVoiceMuted = muted;
     if (typeof window !== 'undefined') {
-      localStorage.setItem('ipl_voice_commentary_muted', muted ? 'true' : 'false');
+      try {
+        window.localStorage?.setItem('ipl_voice_commentary_muted', muted ? 'true' : 'false');
+      } catch {}
       if (muted) {
         this.stopAll();
       }
@@ -179,7 +181,9 @@ class VoiceCommentaryService {
       this.currentAudio.volume = clamped;
     }
     if (typeof window !== 'undefined') {
-      localStorage.setItem('ipl_voice_commentary_volume', clamped.toString());
+      try {
+        window.localStorage?.setItem('ipl_voice_commentary_volume', clamped.toString());
+      } catch {}
     }
   }
 
@@ -194,7 +198,9 @@ class VoiceCommentaryService {
       this.currentAudio.playbackRate = clamped;
     }
     if (typeof window !== 'undefined') {
-      localStorage.setItem('ipl_voice_commentary_rate', clamped.toString());
+      try {
+        window.localStorage?.setItem('ipl_voice_commentary_rate', clamped.toString());
+      } catch {}
     }
   }
 

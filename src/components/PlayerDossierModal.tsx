@@ -109,7 +109,7 @@ export const PlayerDossierModal: React.FC<PlayerDossierModalProps> = ({ player, 
           </div>
 
           {/* Dual IPL Statistics (Career & 2026 Season) */}
-          <PlayerStatsCarousel player={player} autoRotateInterval={4000} />
+          <PlayerStatsCarousel player={player} autoRotateInterval={5000} />
 
           {/* Strategic Scouting Assessment */}
           <div className="rounded-xl bg-night-raised p-4 border border-night-border space-y-2">

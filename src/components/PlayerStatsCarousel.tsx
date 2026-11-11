@@ -2,8 +2,8 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Player, IplCareerStats, IplSeasonStats, PlayerPerformanceStats } from '@/shared/types';
-import { getIplCareerStats, getIplSeasonStats } from '@/shared/player-career-data';
+import { Player, IplCareerStats, IplSeasonStats, PlayerPerformanceStats } from '../shared/types';
+import { getIplCareerStats, getIplSeasonStats } from '../shared/player-career-data';
 import { Flame, Calendar, Award } from 'lucide-react';
 
 export type StatView = 'career' | 'season_2026';
@@ -11,7 +11,7 @@ export type StatView = 'career' | 'season_2026';
 interface PlayerStatsCarouselProps {
   player: Player;
   initialView?: StatView;
-  autoRotateInterval?: number; // ms, default 3000
+  autoRotateInterval?: number; // ms, default 5000
   className?: string;
 }
 
@@ -26,7 +26,7 @@ function getRoleCategory(role?: string): 'Batter' | 'Bowler' | 'All-Rounder' | '
 export const PlayerStatsCarousel: React.FC<PlayerStatsCarouselProps> = ({
   player,
   initialView = 'career',
-  autoRotateInterval = 3000,
+  autoRotateInterval = 5000,
   className = '',
 }) => {
   const [activeView, setActiveView] = useState<StatView>(initialView);
@@ -54,7 +54,7 @@ export const PlayerStatsCarousel: React.FC<PlayerStatsCarouselProps> = ({
     return () => document.removeEventListener('visibilitychange', handleVisibility);
   }, []);
 
-  // 3-second automatic rotation loop
+  // 5-second automatic rotation loop
   useEffect(() => {
     if (isTabHidden || autoRotateInterval <= 0) return;
 
@@ -73,7 +73,7 @@ export const PlayerStatsCarousel: React.FC<PlayerStatsCarouselProps> = ({
     if (view === activeView) return;
     setDirection(view === 'season_2026' ? 1 : -1);
     setActiveView(view);
-    setManualCycle((c) => c + 1); // Resets the 3-second timer and resumes auto-rotation
+    setManualCycle((c) => c + 1); // Resets the 5-second timer and resumes auto-rotation
   };
 
   const isCareer = activeView === 'career';

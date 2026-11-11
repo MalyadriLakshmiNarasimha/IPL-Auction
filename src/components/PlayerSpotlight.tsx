@@ -180,7 +180,7 @@ export const PlayerSpotlight: React.FC<PlayerSpotlightProps> = ({
           </div>
         </div>
 
-        {/* Dual Player Statistics System with Automatic 3-Second Rotation */}
+        {/* Dual Player Statistics System with Automatic 5-Second Rotation */}
         <PlayerStatsCarousel player={player} />
       </div>
 

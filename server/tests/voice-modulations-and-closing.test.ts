@@ -30,13 +30,42 @@ function createMockIo() {
 
 describe('IPL AUCTION — Two Voice Modulations & Final 5-Second Closing Announcement', () => {
   beforeEach(() => {
+    const mockStorage = {
+      getItem: vi.fn().mockReturnValue(null),
+      setItem: vi.fn(),
+      removeItem: vi.fn(),
+    };
+    (globalThis as any).localStorage = mockStorage;
+    (globalThis as any).window = {
+      speechSynthesis: {
+        speak: vi.fn(),
+        cancel: vi.fn(),
+        getVoices: vi.fn().mockReturnValue([]),
+      },
+      localStorage: mockStorage,
+    };
+    (globalThis as any).Audio = vi.fn().mockImplementation(() => ({
+      play: vi.fn().mockResolvedValue(undefined),
+      pause: vi.fn(),
+      load: vi.fn(),
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+    }));
+
     voiceCommentary.setMuted(false);
     voiceCommentary.setVolume(0.9);
     voiceCommentary.setSpeechRate(1.1);
+    (voiceCommentary as any).lastSpokenPlayerId = null;
+    (voiceCommentary as any).lastSoldPlayerId = null;
+    (voiceCommentary as any).lastClosingBidKey = null;
+    (voiceCommentary as any).currentAnnouncementType = null;
   });
 
   afterEach(() => {
     voiceCommentary.stopAll();
+    delete (globalThis as any).window;
+    delete (globalThis as any).Audio;
+    delete (globalThis as any).localStorage;
   });
 
   describe('1. Voice Modulation A: Player Introduction', () => {
@@ -201,6 +230,7 @@ describe('IPL AUCTION — Two Voice Modulations & Final 5-Second Closing Announc
 
   describe('5. Multiplayer Server-Authoritative 5-Second Warning Broadcast', () => {
     it('broadcasts auction_closing_warning at exactly 5 seconds in server timer loop', () => {
+      vi.useFakeTimers();
       const mockIo = createMockIo();
       const rm = new RoomManager(mockIo as any);
       const room = rm.createRoom('CLSTST', 'Closing Test Room', 'host-1', 'Host Manager');
@@ -216,6 +246,7 @@ describe('IPL AUCTION — Two Voice Modulations & Final 5-Second Closing Announc
 
       // Start timer loop and trigger interval tick
       (rm as any).startTimerLoop(room);
+      vi.advanceTimersByTime(250);
 
       // Check emitted events within next tick
       const warnings = mockIo.getEvents().filter(e => e.event === 'auction_closing_warning');
@@ -227,6 +258,7 @@ describe('IPL AUCTION — Two Voice Modulations & Final 5-Second Closing Announc
 
       // Clean up timer
       if (room.timer_handle) clearInterval(room.timer_handle);
+      vi.useRealTimers();
     });
 
     it('resets closing warning state when a new bid is placed so next 5s warning triggers with updated bidder', () => {
@@ -256,14 +288,16 @@ describe('IPL AUCTION — Two Voice Modulations & Final 5-Second Closing Announc
       room.participants.set('guest-2', guest as any);
 
       room.auction_state.phase = 'bidding';
+      room.auction_state.timer_ends_at = Date.now() + 10000;
       room.auction_state.current_player = {
         id: 'p-001',
         name: 'Dewald Brevis',
-        base_price: 20_00_000,
+        base_price: 20_00_00_000,
         role: 'Batter',
         country: 'South Africa',
       } as any;
       room.auction_state.current_bid = 5_00_00_000;
+      room.auction_state.current_bidder_id = 'host-1';
 
       // Guest places higher bid
       rm.placeBid('RSTTST', 'guest-2', 50_00_000);
