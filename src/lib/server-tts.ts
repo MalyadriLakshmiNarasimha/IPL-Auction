@@ -69,11 +69,11 @@ async function synthesizeWithAzure(text: string, style: VoiceModulationStyle = '
 
   // Modulation styles:
   // - 'closing': excited auctioneer style, higher pitch (+10%), punchy rate (+12%)
-  // - 'sold': authoritative triumphant confirmation (+10% rate, +6% pitch)
+  // - 'sold' / 'unsold': authoritative, suspenseful confirmation (+10% rate, +6% pitch, strong emphasis)
   // - 'intro': professional calm informative broadcast (+10% rate, 0% pitch)
   const prosodyRate = style === 'closing' ? '+12%' : '+10%';
-  const prosodyPitch = style === 'closing' ? '+10%' : style === 'sold' ? '+6%' : '0%';
-  const content = style === 'closing'
+  const prosodyPitch = style === 'closing' ? '+10%' : (style === 'sold' || style === 'unsold') ? '+6%' : '0%';
+  const content = (style === 'closing' || style === 'unsold')
     ? `<emphasis level='strong'>${escapeXml(text)}</emphasis>`
     : escapeXml(text);
 
@@ -126,12 +126,12 @@ async function synthesizeWithElevenLabs(text: string, style: VoiceModulationStyl
 
   // Voice modulation parameters:
   // - 'closing': lower stability (0.40) & higher style (0.60) for suspenseful, energetic auctioneer cadence
-  // - 'sold': triumphant decisive delivery (0.50 stability, 0.45 style)
+  // - 'sold' / 'unsold': authoritative, suspenseful delivery (0.50 stability, 0.45 style)
   // - 'intro': calm, confident, professional stability (0.75 stability, 0.15 style)
   const voiceSettings =
     style === 'closing'
       ? { stability: 0.40, similarity_boost: 0.80, style: 0.60, use_speaker_boost: true }
-      : style === 'sold'
+      : style === 'sold' || style === 'unsold'
       ? { stability: 0.50, similarity_boost: 0.80, style: 0.45, use_speaker_boost: true }
       : { stability: 0.75, similarity_boost: 0.85, style: 0.15, use_speaker_boost: true };
 
@@ -174,7 +174,7 @@ async function synthesizeWithGoogleCloud(text: string, style: VoiceModulationSty
   const url = `https://texttospeech.googleapis.com/v1/text:synthesize?key=${key}`;
 
   const speakingRate = style === 'closing' ? 1.12 : 1.10;
-  const pitch = style === 'closing' ? 2.5 : style === 'sold' ? 1.5 : 0.0;
+  const pitch = style === 'closing' ? 2.5 : (style === 'sold' || style === 'unsold') ? 1.5 : 0.0;
 
   try {
     const res = await fetch(url, {

@@ -7,7 +7,7 @@ export async function GET(req: NextRequest) {
   const text = searchParams.get('text');
   const rawStyle = searchParams.get('style');
   const style: VoiceModulationStyle =
-    rawStyle === 'closing' ? 'closing' : rawStyle === 'sold' ? 'sold' : 'intro';
+    rawStyle === 'closing' ? 'closing' : rawStyle === 'sold' ? 'sold' : rawStyle === 'unsold' ? 'unsold' : 'intro';
 
   if (!text || text.trim().length === 0) {
     return NextResponse.json({ error: 'Text query parameter is required.' }, { status: 400 });

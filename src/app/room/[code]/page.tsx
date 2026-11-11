@@ -111,6 +111,7 @@ export default function RoomPage() {
   const [isSavedBanner, setIsSavedBanner] = useState(false);
   const lastAnnouncedPlayerId = React.useRef<string | null>(null);
   const lastSoldPlayerId = React.useRef<string | null>(null);
+  const lastUnsoldPlayerId = React.useRef<string | null>(null);
 
   // Local user participant
   const currentUser = useMemo(() => {
@@ -195,7 +196,8 @@ export default function RoomPage() {
 
         socket.on('auction_closing_warning', data => {
           const teamCode = data.highest_bidder_short_code || data.highest_bidder_team || null;
-          voiceCommentary.speakClosingAnnouncement(teamCode, data.current_bid);
+          const playerName = data.player_name || null;
+          voiceCommentary.speakClosingAnnouncement(teamCode, data.current_bid, playerName);
         });
 
         socket.on('player_sold', data => {
@@ -219,8 +221,16 @@ export default function RoomPage() {
           setAuctionState(data.auction_state);
           soundFX.playGavel();
           soundFX.playUnsold();
-          // Stop any pending speech; never announce SOLD for unsold players
+          // Stop any pending closing speech; announce UNSOLD officially confirmed by server
           voiceCommentary.cancelClosingAnnouncement();
+          if (data.player && lastUnsoldPlayerId.current !== data.player.id) {
+            lastUnsoldPlayerId.current = data.player.id;
+            voiceCommentary.speakUnsoldAnnouncement(data.player.name, data.player.id);
+          }
+          const el = document.getElementById('accessibility-announcer');
+          if (el && data.player) {
+            el.innerText = `${data.player.name} remains unsold.`;
+          }
         });
 
         socket.on('next_player', data => {
@@ -524,7 +534,8 @@ export default function RoomPage() {
           bidder?.team_name ||
           bidder?.franchise?.name ||
           null;
-        voiceCommentary.speakClosingAnnouncement(teamCode, auctionState.current_bid);
+        const playerName = auctionState.current_player?.name || null;
+        voiceCommentary.speakClosingAnnouncement(teamCode, auctionState.current_bid, playerName);
       }
     }, 200);
 
@@ -535,6 +546,7 @@ export default function RoomPage() {
     auctionState?.timer_ends_at,
     auctionState?.current_bid,
     auctionState?.current_bidder_id,
+    auctionState?.current_player?.name,
     participants,
   ]);
 

@@ -3,6 +3,7 @@ import {
   buildPlayerIntroduction,
   buildClosingAnnouncement,
   buildSoldAnnouncement,
+  buildUnsoldAnnouncement,
   expandFranchiseName,
 } from '../../src/shared/voice-templates';
 import { voiceCommentary } from '../../src/lib/voice-commentary';
@@ -57,6 +58,7 @@ describe('IPL AUCTION — Two Voice Modulations & Final 5-Second Closing Announc
     voiceCommentary.setSpeechRate(1.1);
     (voiceCommentary as any).lastSpokenPlayerId = null;
     (voiceCommentary as any).lastSoldPlayerId = null;
+    (voiceCommentary as any).lastUnsoldPlayerId = null;
     (voiceCommentary as any).lastClosingBidKey = null;
     (voiceCommentary as any).currentAnnouncementType = null;
   });
@@ -91,7 +93,7 @@ describe('IPL AUCTION — Two Voice Modulations & Final 5-Second Closing Announc
     });
 
     it('plays only once per player and prevents duplicate triggers on rerender or bid', () => {
-      const executeSpy = vi.spyOn(voiceCommentary as any, 'executeSingleSpeech').mockImplementation(() => {});
+      const executeSpy = vi.spyOn(voiceCommentary as any, 'executeSingleSpeech').mockImplementation(() => { });
 
       voiceCommentary.speakPlayerIntroduction(mockVirat);
       expect(executeSpy).toHaveBeenCalledTimes(1);
@@ -126,7 +128,7 @@ describe('IPL AUCTION — Two Voice Modulations & Final 5-Second Closing Announc
     });
 
     it('uses exciting auctioneer voice modulation with higher pitch and energetic delivery', () => {
-      const executeSpy = vi.spyOn(voiceCommentary as any, 'executeSingleSpeech').mockImplementation(() => {});
+      const executeSpy = vi.spyOn(voiceCommentary as any, 'executeSingleSpeech').mockImplementation(() => { });
 
       voiceCommentary.speakClosingAnnouncement('GT', 10_00_00_000);
       expect(executeSpy).toHaveBeenCalledWith(
@@ -139,7 +141,7 @@ describe('IPL AUCTION — Two Voice Modulations & Final 5-Second Closing Announc
     });
 
     it('deduplicates 5-second announcement for the same bid sequence', () => {
-      const executeSpy = vi.spyOn(voiceCommentary as any, 'executeSingleSpeech').mockImplementation(() => {});
+      const executeSpy = vi.spyOn(voiceCommentary as any, 'executeSingleSpeech').mockImplementation(() => { });
 
       voiceCommentary.speakClosingAnnouncement('GT', 10_00_00_000);
       expect(executeSpy).toHaveBeenCalledTimes(1);
@@ -154,8 +156,8 @@ describe('IPL AUCTION — Two Voice Modulations & Final 5-Second Closing Announc
 
   describe('3. Dynamic Highest-Bidder Handling & Outdated Speech Cancellation', () => {
     it('cancels outdated GT announcement immediately when MI places higher bid', () => {
-      const stopSpeechSpy = vi.spyOn(voiceCommentary as any, 'stopCurrentSpeech').mockImplementation(() => {});
-      const executeSpy = vi.spyOn(voiceCommentary as any, 'executeSingleSpeech').mockImplementation(() => {});
+      const stopSpeechSpy = vi.spyOn(voiceCommentary as any, 'stopCurrentSpeech').mockImplementation(() => { });
+      const executeSpy = vi.spyOn(voiceCommentary as any, 'executeSingleSpeech').mockImplementation(() => { });
 
       // At 5 seconds: GT closing announcement starts
       voiceCommentary.speakClosingAnnouncement('GT', 10_00_00_000);
@@ -194,8 +196,8 @@ describe('IPL AUCTION — Two Voice Modulations & Final 5-Second Closing Announc
     });
 
     it('stops active closing announcement before playing SOLD announcement', () => {
-      const stopSpeechSpy = vi.spyOn(voiceCommentary as any, 'stopCurrentSpeech').mockImplementation(() => {});
-      const executeSpy = vi.spyOn(voiceCommentary as any, 'executeSingleSpeech').mockImplementation(() => {});
+      const stopSpeechSpy = vi.spyOn(voiceCommentary as any, 'stopCurrentSpeech').mockImplementation(() => { });
+      const executeSpy = vi.spyOn(voiceCommentary as any, 'executeSingleSpeech').mockImplementation(() => { });
 
       // Simulate closing speech in progress
       voiceCommentary.speakClosingAnnouncement('GT', 10_00_00_000);
@@ -216,7 +218,7 @@ describe('IPL AUCTION — Two Voice Modulations & Final 5-Second Closing Announc
     });
 
     it('drops duplicate sold announcements for the same player sale', () => {
-      const executeSpy = vi.spyOn(voiceCommentary as any, 'executeSingleSpeech').mockImplementation(() => {});
+      const executeSpy = vi.spyOn(voiceCommentary as any, 'executeSingleSpeech').mockImplementation(() => { });
 
       voiceCommentary.speakSoldAnnouncement('Virat Kohli', 'GT', 20_00_00_000, 'p-224');
       expect(executeSpy).toHaveBeenCalledTimes(1);
@@ -334,6 +336,119 @@ describe('IPL AUCTION — Two Voice Modulations & Final 5-Second Closing Announc
 
       const host = room.participants.get('host-1');
       expect(host?.purse_remaining).toBe(150_00_00_000);
+    });
+  });
+
+  describe('8. Voice Modulation 2: Unsold Player Announcement', () => {
+    it('generates 5-second closing text with player name when no bids received', () => {
+      const closingUnsold = buildClosingAnnouncement(null, 'Hardik Pandya');
+      expect(closingUnsold).toBe('No bids received for Hardik Pandya... Going once, going twice...');
+
+      const closingEmpty = buildClosingAnnouncement('', 'Virat Kohli');
+      expect(closingEmpty).toBe('No bids received for Virat Kohli... Going once, going twice...');
+
+      const closingFallback = buildClosingAnnouncement(null, null);
+      expect(closingFallback).toBe('No bids yet. Going once, going twice...');
+    });
+
+    it('generates authoritative unsold announcement text matching format', () => {
+      const unsoldHardik = buildUnsoldAnnouncement('Hardik Pandya');
+      expect(unsoldHardik).toBe('UNSOLD! Hardik Pandya remains unsold.');
+
+      const unsoldVirat = buildUnsoldAnnouncement('Virat Kohli');
+      expect(unsoldVirat).toBe('UNSOLD! Virat Kohli remains unsold.');
+    });
+
+    it('triggers speakUnsoldAnnouncement with suspenseful unsold modulation style', () => {
+      const executeSpy = vi.spyOn(voiceCommentary as any, 'executeSingleSpeech').mockImplementation(() => {});
+
+      voiceCommentary.speakUnsoldAnnouncement('Hardik Pandya', 'p-164');
+      expect(executeSpy).toHaveBeenCalledWith(
+        'UNSOLD! Hardik Pandya remains unsold.',
+        'unsold',
+        undefined
+      );
+
+      executeSpy.mockRestore();
+    });
+
+    it('cancels unsold closing announcement when a bid arrives during countdown and switches to sold scenario', () => {
+      const stopSpeechSpy = vi.spyOn(voiceCommentary as any, 'stopCurrentSpeech').mockImplementation(() => {});
+      const executeSpy = vi.spyOn(voiceCommentary as any, 'executeSingleSpeech').mockImplementation(() => {});
+
+      // 5s: No bids closing warning starts for Hardik
+      voiceCommentary.speakClosingAnnouncement(null, 0, 'Hardik Pandya');
+      expect((voiceCommentary as any).currentAnnouncementType).toBe('closing');
+
+      // 3s: Bid arrives -> cancelClosingAnnouncement called immediately
+      voiceCommentary.cancelClosingAnnouncement();
+      expect(stopSpeechSpy).toHaveBeenCalled();
+      expect((voiceCommentary as any).currentAnnouncementType).toBeNull();
+
+      // Countdown runs down again with MI holding bid
+      voiceCommentary.speakClosingAnnouncement('MI', 2_00_00_000);
+      expect(executeSpy).toHaveBeenLastCalledWith(
+        'MI currently holds the highest bid. Going once, going twice...',
+        'closing',
+        undefined
+      );
+
+      // Server confirms sale -> sold announcement played (NOT unsold)
+      voiceCommentary.speakSoldAnnouncement('Hardik Pandya', 'MI', 2_00_00_000, 'p-164');
+      expect(executeSpy).toHaveBeenLastCalledWith(
+        'Sold! Hardik Pandya goes to Mumbai Indians for two crore rupees!',
+        'sold',
+        undefined
+      );
+
+      stopSpeechSpy.mockRestore();
+      executeSpy.mockRestore();
+    });
+
+    it('drops duplicate unsold announcements for the same player', () => {
+      const executeSpy = vi.spyOn(voiceCommentary as any, 'executeSingleSpeech').mockImplementation(() => {});
+
+      voiceCommentary.speakUnsoldAnnouncement('Hardik Pandya', 'p-164');
+      expect(executeSpy).toHaveBeenCalledTimes(1);
+
+      // Duplicate invocation for identical player is ignored
+      voiceCommentary.speakUnsoldAnnouncement('Hardik Pandya', 'p-164');
+      expect(executeSpy).toHaveBeenCalledTimes(1);
+
+      executeSpy.mockRestore();
+    });
+
+    it('broadcasts player_name in auction_closing_warning when no bids exist', () => {
+      vi.useFakeTimers();
+      const mockIo = createMockIo();
+      const rm = new RoomManager(mockIo as any);
+      const room = rm.createRoom('UNSTST', 'Unsold Warning Test', 'host-1', 'Host Manager');
+
+      room.auction_state.phase = 'bidding';
+      room.auction_state.timer_ends_at = Date.now() + 5000;
+      room.auction_state.current_bid = 0;
+      room.auction_state.current_bidder_id = null;
+      room.auction_state.current_player = {
+        id: 'p-001',
+        name: 'Dewald Brevis',
+        base_price: 20_00_000,
+        role: 'Batter',
+        country: 'South Africa',
+      } as any;
+
+      (rm as any).startTimerLoop(room);
+      vi.advanceTimersByTime(250);
+
+      const warnings = mockIo.getEvents().filter(e => e.event === 'auction_closing_warning');
+      expect(warnings.length).toBeGreaterThanOrEqual(1);
+      const payload = warnings[0].data;
+      expect(payload.timer_remaining).toBe(5);
+      expect(payload.highest_bidder_short_code).toBeNull();
+      expect(payload.current_bid).toBe(0);
+      expect(payload.player_name).toBe('Dewald Brevis');
+
+      if (room.timer_handle) clearInterval(room.timer_handle);
+      vi.useRealTimers();
     });
   });
 });

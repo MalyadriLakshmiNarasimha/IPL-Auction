@@ -120,7 +120,7 @@ export interface IplSeasonStats extends PlayerPerformanceStats {
   has_season_stats: boolean;
 }
 
-export type VoiceModulationStyle = 'intro' | 'closing' | 'sold';
+export type VoiceModulationStyle = 'intro' | 'closing' | 'sold' | 'unsold';
 
 export interface Player {
   id: string;
@@ -602,6 +602,7 @@ export interface ServerToClientEvents {
     highest_bidder_team?: string | null;
     highest_bidder_short_code?: string | null;
     current_bid: number;
+    player_name?: string | null;
   }) => void;
   new_chat: (message: ChatMessage) => void;
   new_reaction: (reaction: Reaction) => void;

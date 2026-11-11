@@ -81,15 +81,37 @@ export function buildPlayerIntroduction(player: Player): string {
  * Generates the authoritative Final 5-Second Closing Announcement text.
  * Triggered when the auction countdown reaches 5 seconds.
  *
- * Example:
+ * Example (with bid):
  * "GT currently holds the highest bid. Going once, going twice..."
+ *
+ * Example (no bids):
+ * "No bids received for Hardik Pandya... Going once, going twice..."
  */
-export function buildClosingAnnouncement(highestBidderTeamOrCode?: string | null): string {
+export function buildClosingAnnouncement(
+  highestBidderTeamOrCode?: string | null,
+  playerName?: string | null
+): string {
   const team = (highestBidderTeamOrCode || '').trim();
   if (team) {
     return `${team} currently holds the highest bid. Going once, going twice...`;
   }
+  const player = (playerName || '').trim();
+  if (player) {
+    return `No bids received for ${player}... Going once, going twice...`;
+  }
   return `No bids yet. Going once, going twice...`;
+}
+
+/**
+ * Generates the authoritative Unsold Announcement text.
+ * Triggered only after the authoritative server confirms the player is unsold.
+ *
+ * Example:
+ * "UNSOLD! Hardik Pandya remains unsold."
+ */
+export function buildUnsoldAnnouncement(playerName: string): string {
+  const name = (playerName || 'This player').trim();
+  return `UNSOLD! ${name} remains unsold.`;
 }
 
 /**

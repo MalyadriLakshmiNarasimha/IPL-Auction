@@ -6,6 +6,7 @@ import {
   buildPlayerIntroduction,
   buildClosingAnnouncement,
   buildSoldAnnouncement,
+  buildUnsoldAnnouncement,
   expandFranchiseName,
 } from '../shared/voice-templates';
 
@@ -37,6 +38,7 @@ class VoiceCommentaryService {
   private preferCentralAudio: boolean = true;
   private lastSpokenPlayerId: string | null = null;
   private lastSoldPlayerId: string | null = null;
+  private lastUnsoldPlayerId: string | null = null;
   private currentAnnouncementType: VoiceModulationStyle | null = null;
   private lastClosingBidKey: string | null = null;
 
@@ -265,6 +267,7 @@ class VoiceCommentaryService {
     }
     this.lastSpokenPlayerId = player.id;
     this.lastClosingBidKey = null; // Reset closing announcement state for new player
+    this.lastUnsoldPlayerId = null; // Reset unsold state for new player
 
     if (this.isVoiceMuted || typeof window === 'undefined') {
       if (onComplete) onComplete();
@@ -280,7 +283,12 @@ class VoiceCommentaryService {
    * VOICE MODULATION B: Final 5-Second Closing Announcement
    * Triggered when official auction countdown reaches 5 seconds.
    * Style: Exciting auctioneer-style expression, suspenseful pacing, energetic delivery.
-   * Example: "GT currently holds the highest bid. Going once, going twice..."
+   *
+   * Example (with bid):
+   * "GT currently holds the highest bid. Going once, going twice..."
+   *
+   * Example (no bids):
+   * "No bids received for Hardik Pandya... Going once, going twice..."
    *
    * If a new bid is placed after this starts (e.g. at 3s), cancelClosingAnnouncement()
    * immediately halts this speech and resets state.
@@ -288,6 +296,7 @@ class VoiceCommentaryService {
   public speakClosingAnnouncement(
     highestBidderTeamOrCode?: string | null,
     currentBidAmount?: number,
+    playerName?: string | null,
     onComplete?: () => void
   ): void {
     if (this.isVoiceMuted || typeof window === 'undefined') {
@@ -303,7 +312,7 @@ class VoiceCommentaryService {
     this.lastClosingBidKey = dedupeKey;
     this.currentAnnouncementType = 'closing';
 
-    const closingText = buildClosingAnnouncement(highestBidderTeamOrCode);
+    const closingText = buildClosingAnnouncement(highestBidderTeamOrCode, playerName);
     this.executeSingleSpeech(closingText, 'closing', onComplete);
   }
 
@@ -320,7 +329,7 @@ class VoiceCommentaryService {
   }
 
   /**
-   * RESOLUTION OF MODULATION B: Sold Announcement
+   * RESOLUTION OF MODULATION B (SOLD): Sold Announcement
    * Triggered ONLY after authoritative server confirms player is sold.
    * Style: Decisive, triumphant, authoritative confirmation.
    * Example: "Sold! Hardik Pandya goes to Mumbai Indians for fourteen crore fifty lakh rupees!"
@@ -352,6 +361,39 @@ class VoiceCommentaryService {
     this.currentAnnouncementType = 'sold';
     const soldText = buildSoldAnnouncement(playerName, winningTeam, finalPrice);
     this.executeSingleSpeech(soldText, 'sold', onComplete);
+  }
+
+  /**
+   * RESOLUTION OF MODULATION B (UNSOLD): Unsold Announcement
+   * Triggered ONLY after authoritative server confirms player is unsold.
+   * Style: Authoritative, suspenseful delivery.
+   * Example: "UNSOLD! Hardik Pandya remains unsold."
+   */
+  public speakUnsoldAnnouncement(
+    playerName: string,
+    playerId?: string,
+    onComplete?: () => void
+  ): void {
+    // Immediately stop any active closing announcement
+    this.stopCurrentSpeech();
+
+    // Guard: Prevent duplicate unsold announcement for same player
+    if (playerId) {
+      if (this.lastUnsoldPlayerId === playerId) {
+        // Already announced: drop duplicate call
+        return;
+      }
+      this.lastUnsoldPlayerId = playerId;
+    }
+
+    if (this.isVoiceMuted || typeof window === 'undefined') {
+      if (onComplete) onComplete();
+      return;
+    }
+
+    this.currentAnnouncementType = 'unsold';
+    const unsoldText = buildUnsoldAnnouncement(playerName);
+    this.executeSingleSpeech(unsoldText, 'unsold', onComplete);
   }
 
   /**
@@ -498,6 +540,9 @@ class VoiceCommentaryService {
       } else if (style === 'sold') {
         utterance.rate = this.speechRate;
         utterance.pitch = 1.08; // Triumphant tone
+      } else if (style === 'unsold') {
+        utterance.rate = this.speechRate;
+        utterance.pitch = 1.10; // Authoritative, suspenseful tone
       } else {
         utterance.rate = this.speechRate;
         utterance.pitch = 1.0; // Professional calm tone

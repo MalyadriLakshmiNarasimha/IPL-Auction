@@ -851,6 +851,7 @@ export class RoomManager {
             highest_bidder_team: bidder?.team_name || bidder?.franchise?.name || null,
             highest_bidder_short_code: bidder?.team_short_code || bidder?.franchise?.short_code || null,
             current_bid: room.auction_state.current_bid,
+            player_name: room.auction_state.current_player?.name || null,
           });
         }
       }
