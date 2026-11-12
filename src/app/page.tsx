@@ -3,6 +3,7 @@
 import React from 'react';
 import Link from 'next/link';
 import { MiniAuctionDemo } from '@/components/MiniAuctionDemo';
+import { ResumeAuctionModal } from '@/components/ResumeAuctionModal';
 import {
   ArrowRight, Users, Zap, ShieldCheck, Trophy, Smartphone,
   Gavel, Wallet, BarChart3, Sparkles, Radio,
@@ -17,6 +18,7 @@ const features = [
 export default function LandingPage() {
   return (
     <div className="pb-20">
+      <ResumeAuctionModal />
       <section className="max-w-7xl mx-auto px-4 pt-10 sm:pt-16 lg:pt-20">
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-10 lg:gap-12 items-center">
           <div className="lg:col-span-6 text-center lg:text-left space-y-6">

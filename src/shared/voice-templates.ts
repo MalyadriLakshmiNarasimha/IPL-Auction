@@ -42,7 +42,7 @@ export function expandFranchiseName(nameOrCode?: string | null): string {
 
 /**
  * Normalizes player cricket role for natural broadcast speech.
- * e.g. "AR" -> "all-rounder", "WK" -> "wicketkeeper-batter", "BAT" -> "batter", "BOWL" -> "bowler"
+ * e.g. "AR" -> "all-rounder", "WK" -> "wicketkeeper", "BAT" -> "batter", "BOWL" -> "bowler"
  */
 export function formatRoleDescription(role: string): string {
   const lower = (role || '').toLowerCase().trim();
@@ -62,19 +62,84 @@ export function formatRoleDescription(role: string): string {
 }
 
 /**
- * Generates the authoritative Player Introduction text.
+ * Detailed role description taking bowling style into account.
+ * Bowlers with fast/pace/medium styles are identified as "fast bowler".
+ * Bowlers with spin/orthodox/break/googly styles are identified as "spin bowler".
+ */
+export function formatDetailedRoleDescription(role: string, bowlingStyle?: string | null): string {
+  const normalized = formatRoleDescription(role);
+  if (normalized === 'bowler') {
+    const style = (bowlingStyle || '').toLowerCase();
+    if (style.includes('spin') || style.includes('break') || style.includes('orthodox') || style.includes('googly')) {
+      return 'spin bowler';
+    }
+    if (style.includes('fast') || style.includes('pace') || style.includes('medium')) {
+      return 'fast bowler';
+    }
+    return 'bowler';
+  }
+  return normalized;
+}
+
+export interface NationalityGrammar {
+  article: string;
+  demonym: string;
+  isSpecialIndia?: boolean;
+}
+
+/**
+ * Grammatically accurate demonym and article mappings for all 10 tournament nationalities.
+ */
+export const NATIONALITY_GRAMMAR_MAP: Record<string, NationalityGrammar> = {
+  India: { article: '', demonym: "India's talented", isSpecialIndia: true },
+  England: { article: 'an', demonym: 'English' },
+  Australia: { article: 'an', demonym: 'Australian' },
+  'New Zealand': { article: 'a', demonym: 'New Zealand' },
+  'South Africa': { article: 'a', demonym: 'South African' },
+  'West Indies': { article: 'a', demonym: 'West Indian' },
+  Afghanistan: { article: 'an', demonym: 'Afghan' },
+  'Sri Lanka': { article: 'a', demonym: 'Sri Lankan' },
+  Bangladesh: { article: 'a', demonym: 'Bangladeshi' },
+  Zimbabwe: { article: 'a', demonym: 'Zimbabwean' },
+};
+
+/**
+ * Resolves the grammatically correct nationality prefix with article.
+ * e.g. "India" -> "India's talented"
+ *      "England" -> "an English"
+ *      "New Zealand" -> "a New Zealand"
+ *      "South Africa" -> "a South African"
+ */
+export function getNationalityPrefix(countryOrNationality?: string | null): string {
+  const country = (countryOrNationality || 'India').trim();
+  const config = NATIONALITY_GRAMMAR_MAP[country];
+  if (config) {
+    if (config.isSpecialIndia) {
+      return config.demonym;
+    }
+    return `${config.article} ${config.demonym}`.trim();
+  }
+  const startsWithVowel = /^[aeiou]/i.test(country);
+  return `${startsWithVowel ? 'an' : 'a'} ${country}`;
+}
+
+/**
+ * Generates the authoritative Player Introduction text dynamically based on nationality and role.
  * Triggered exactly once when a player becomes active on the auction block.
  *
- * Example:
- * "Up next, we have India's talented all-rounder, Hardik Pandya. His base price is two crore rupees."
+ * Examples:
+ * - India: "Up next, we have India's talented batter, Rahul Tripathi. His base price is twenty lakh rupees."
+ * - England: "Up next, we have an English fast bowler, Jofra Archer. His base price is two crore rupees."
+ * - New Zealand: "Up next, we have a New Zealand all-rounder, Mitchell Santner. His base price is two crore rupees."
+ * - South Africa: "Up next, we have a South African wicketkeeper, Heinrich Klaasen. His base price is two crore rupees."
  */
 export function buildPlayerIntroduction(player: Player): string {
-  const nationality = (player.country || 'India').trim();
-  const role = formatRoleDescription(player.role);
+  const nationality = (player.country || player.nationality || 'India').trim();
+  const prefix = getNationalityPrefix(nationality);
+  const role = formatDetailedRoleDescription(player.role, player.bowling_style);
   const basePriceSpoken = formatInrForSpeech(player.base_price, { capitalizeFirst: false });
 
-  // Example: "Up next, we have India's talented all-rounder, Hardik Pandya. His base price is two crore rupees."
-  return `Up next, we have ${nationality}'s talented ${role}, ${player.name}. His base price is ${basePriceSpoken}.`;
+  return `Up next, we have ${prefix} ${role}, ${player.name}. His base price is ${basePriceSpoken}.`;
 }
 
 /**

@@ -202,14 +202,17 @@ export default function RoomPage() {
 
         socket.on('player_sold', data => {
           setAuctionState(data.auction_state);
+          // 1. Play gavel hammer sound exactly once
           soundFX.playGavel();
-          soundFX.playSold();
-          // Stop any playing closing speech before announcing sale
+          // 2. Stop any playing closing speech
           voiceCommentary.cancelClosingAnnouncement();
           const winningTeam = data.winner.team_name || data.winner.franchise?.name || 'the winning franchise';
           if (lastSoldPlayerId.current !== data.player.id) {
             lastSoldPlayerId.current = data.player.id;
-            voiceCommentary.speakSoldAnnouncement(data.player.name, winningTeam, data.price, data.player.id);
+            // 3. Play sold announcement immediately after hammer strike completes
+            setTimeout(() => {
+              voiceCommentary.speakSoldAnnouncement(data.player.name, winningTeam, data.price, data.player.id);
+            }, 350);
           }
           const el = document.getElementById('accessibility-announcer');
           if (el) {
@@ -219,13 +222,16 @@ export default function RoomPage() {
 
         socket.on('player_unsold', data => {
           setAuctionState(data.auction_state);
+          // 1. Play gavel hammer sound exactly once
           soundFX.playGavel();
-          soundFX.playUnsold();
-          // Stop any pending closing speech; announce UNSOLD officially confirmed by server
+          // 2. Stop any pending closing speech; announce UNSOLD officially confirmed by server
           voiceCommentary.cancelClosingAnnouncement();
           if (data.player && lastUnsoldPlayerId.current !== data.player.id) {
             lastUnsoldPlayerId.current = data.player.id;
-            voiceCommentary.speakUnsoldAnnouncement(data.player.name, data.player.id);
+            // 3. Play unsold announcement immediately after hammer strike completes
+            setTimeout(() => {
+              voiceCommentary.speakUnsoldAnnouncement(data.player.name, data.player.id);
+            }, 350);
           }
           const el = document.getElementById('accessibility-announcer');
           if (el && data.player) {

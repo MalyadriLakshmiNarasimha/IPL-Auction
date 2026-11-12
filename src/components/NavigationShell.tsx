@@ -35,6 +35,7 @@ export const NavigationShell: React.FC<{ children: React.ReactNode }> = ({ child
                 <Link href="/" className="hover:text-flare transition-colors">Home</Link>
                 <Link href="/create" className="hover:text-flare transition-colors">Create room</Link>
                 <Link href="/join" className="hover:text-flare transition-colors">Join room</Link>
+                <Link href="/history" className="hover:text-flare transition-colors">History</Link>
               </nav>
               <SoundToggle />
               <ThemeToggle />

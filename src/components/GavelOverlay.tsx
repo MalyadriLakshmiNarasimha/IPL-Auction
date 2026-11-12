@@ -29,9 +29,8 @@ export const GavelOverlay: React.FC<GavelOverlayProps> = ({
   const winnerCode = winner?.team_short_code || winner?.franchise?.short_code || 'TM';
 
   useEffect(() => {
-    // 1. Play Gavel Sound
-    soundManager.playGavel();
-
+    // Note: The authoritative hammer strike is triggered exactly once via soundFX.playGavel()
+    // immediately upon server confirmation in page.tsx before this overlay mounts.
     if (phase === 'sold') {
       setTimeout(() => {
         soundManager.playSoldFanfare();

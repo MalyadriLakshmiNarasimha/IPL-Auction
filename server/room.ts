@@ -1123,7 +1123,8 @@ export class RoomManager {
 
       this.saveRoomSnapshot(room.room_code, 'player_sold').catch(() => {});
 
-      this.scheduleNextPlayer(room, 3500);
+      // Allow 5000ms for gavel hammer strike and sold voice announcement to complete before next player
+      this.scheduleNextPlayer(room, 5000);
     } else {
       room.auction_state.phase = 'unsold';
       room.auction_state.unsold_count++;
@@ -1142,7 +1143,8 @@ export class RoomManager {
 
       this.saveRoomSnapshot(room.room_code, 'player_unsold').catch(() => {});
 
-      this.scheduleNextPlayer(room, 2500);
+      // Allow 4500ms for gavel hammer strike and unsold voice announcement to complete before next player
+      this.scheduleNextPlayer(room, 4500);
     }
   }
 

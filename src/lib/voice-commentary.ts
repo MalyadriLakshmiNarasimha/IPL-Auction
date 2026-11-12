@@ -276,7 +276,10 @@ class VoiceCommentaryService {
 
     this.currentAnnouncementType = 'intro';
     const introText = buildPlayerIntroduction(player);
-    this.executeSingleSpeech(introText, 'intro', onComplete);
+    this.executeSingleSpeech(introText, 'intro', onComplete, {
+      nationality: player.country || player.nationality,
+      role: player.role,
+    });
   }
 
   /**
@@ -430,7 +433,8 @@ class VoiceCommentaryService {
   private executeSingleSpeech(
     text: string,
     style: VoiceModulationStyle = 'intro',
-    onDone?: () => void
+    onDone?: () => void,
+    context?: { nationality?: string; role?: string }
   ): void {
     // 1. Immediately halt any currently playing audio/speech
     this.stopCurrentSpeech();
@@ -467,7 +471,13 @@ class VoiceCommentaryService {
     // Tier 1: High quality central server-side audio (Azure Neerja / ElevenLabs / Google Neural2)
     if (this.preferCentralAudio && typeof window !== 'undefined') {
       try {
-        const audioUrl = `/api/tts?text=${encodeURIComponent(text)}&style=${encodeURIComponent(style)}`;
+        let audioUrl = `/api/tts?text=${encodeURIComponent(text)}&style=${encodeURIComponent(style)}`;
+        if (context?.nationality) {
+          audioUrl += `&nationality=${encodeURIComponent(context.nationality)}`;
+        }
+        if (context?.role) {
+          audioUrl += `&role=${encodeURIComponent(context.role)}`;
+        }
         const audio = new Audio(audioUrl);
         audio.volume = this.volume;
         audio.playbackRate = effectiveRate;
@@ -483,7 +493,7 @@ class VoiceCommentaryService {
           audio.onerror = null;
           this.currentAudio = null;
           // Fallback to SpeechSynthesis
-          this.speakViaSpeechSynthesis(text, style, finish);
+          this.speakViaSpeechSynthesis(text, style, finish, context);
         };
 
         this.currentAudio = audio;
@@ -493,7 +503,7 @@ class VoiceCommentaryService {
             audio.onended = null;
             audio.onerror = null;
             this.currentAudio = null;
-            this.speakViaSpeechSynthesis(text, style, finish);
+            this.speakViaSpeechSynthesis(text, style, finish, context);
           });
         }
         return;
@@ -503,20 +513,21 @@ class VoiceCommentaryService {
     }
 
     // Tier 2: Browser SpeechSynthesis
-    this.speakViaSpeechSynthesis(text, style, finish);
+    this.speakViaSpeechSynthesis(text, style, finish, context);
   }
 
   /**
    * Synthesizes speech using the browser SpeechSynthesis API.
    * Applies distinct pitch and rate modulation according to announcement style:
-   * - 'intro': Calm, informative (1.10x rate, 1.00 pitch)
+   * - 'intro': Calm, informative (1.10x rate, 1.00 pitch) with role/nationality nuances
    * - 'closing': Exciting auctioneer delivery (1.12x rate, 1.15 pitch)
    * - 'sold': Decisive, triumphant (1.10x rate, 1.08 pitch)
    */
   private speakViaSpeechSynthesis(
     text: string,
     style: VoiceModulationStyle = 'intro',
-    onDone: () => void
+    onDone: () => void,
+    context?: { nationality?: string; role?: string }
   ): void {
     if (typeof window === 'undefined' || !('speechSynthesis' in window)) {
       onDone();
@@ -544,8 +555,20 @@ class VoiceCommentaryService {
         utterance.rate = this.speechRate;
         utterance.pitch = 1.10; // Authoritative, suspenseful tone
       } else {
-        utterance.rate = this.speechRate;
-        utterance.pitch = 1.0; // Professional calm tone
+        // Introduction style: professional calm tone with subtle role nuances
+        let rolePitch = 1.0;
+        let roleRate = this.speechRate;
+        if (context?.role) {
+          const roleLower = context.role.toLowerCase();
+          if (roleLower.includes('fast') || (roleLower.includes('bowl') && !roleLower.includes('spin'))) {
+            roleRate = Math.min(1.2, this.speechRate * 1.02);
+            rolePitch = 1.02;
+          } else if (roleLower.includes('wicket')) {
+            rolePitch = 1.02;
+          }
+        }
+        utterance.rate = roleRate;
+        utterance.pitch = rolePitch;
       }
 
       let hasDone = false;

@@ -6,6 +6,8 @@ export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   const text = searchParams.get('text');
   const rawStyle = searchParams.get('style');
+  const nationality = searchParams.get('nationality') || undefined;
+  const role = searchParams.get('role') || undefined;
   const style: VoiceModulationStyle =
     rawStyle === 'closing' ? 'closing' : rawStyle === 'sold' ? 'sold' : rawStyle === 'unsold' ? 'unsold' : 'intro';
 
@@ -21,7 +23,8 @@ export async function GET(req: NextRequest) {
   }
 
   try {
-    const result = await synthesizeIndianFemaleVoice(text, style);
+    const context = (nationality || role) ? { nationality, role } : undefined;
+    const result = await synthesizeIndianFemaleVoice(text, style, context);
 
     if (!result) {
       // Signals frontend client to fall back to browser SpeechSynthesis with Indian female voice

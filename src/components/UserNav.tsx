@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { apiFetch } from '@/lib/api';
 import { disconnectSocket } from '@/lib/socket';
-import { LogOut, LogIn, UserPlus, ChevronDown } from 'lucide-react';
+import { LogOut, LogIn, UserPlus, ChevronDown, History } from 'lucide-react';
 
 interface AuthUser {
   id: string;
@@ -207,6 +207,17 @@ export const UserNav: React.FC = () => {
           <div className="p-2 border-b border-night-border">
             <div className="font-bold text-floodlight truncate">{user.name}</div>
             <div className="text-[10px] text-floodlight-muted truncate">{user.email}</div>
+          </div>
+
+          <div className="py-1 border-b border-night-border">
+            <Link
+              href="/history"
+              onClick={() => setIsOpen(false)}
+              className="w-full flex items-center gap-2 px-2.5 py-2 rounded-lg text-floodlight hover:bg-night-raised hover:text-flare transition-colors font-medium text-left"
+            >
+              <History className="w-3.5 h-3.5 text-flare" />
+              <span>Auction History</span>
+            </Link>
           </div>
 
           <div className="pt-1">

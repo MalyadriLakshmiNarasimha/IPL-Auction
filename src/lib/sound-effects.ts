@@ -103,38 +103,52 @@ class SoundFX {
     }
   }
 
-  // Wooden Gavel Hammer Thud
+  // Wooden Gavel Hammer Impact (realistic wooden auctioneer gavel strike)
   public playGavel() {
     if (!this.enabled) return;
     try {
       this.initCtx();
       if (!this.ctx) return;
       const t = this.ctx.currentTime;
-      // Strike body
-      const osc = this.ctx.createOscillator();
-      const gain = this.ctx.createGain();
-      osc.type = 'triangle';
-      osc.frequency.setValueAtTime(160, t);
-      osc.frequency.exponentialRampToValueAtTime(45, t + 0.25);
-      gain.gain.setValueAtTime(0.4, t);
-      gain.gain.exponentialRampToValueAtTime(0.001, t + 0.35);
-      osc.connect(gain);
-      gain.connect(this.ctx.destination);
-      osc.start(t);
-      osc.stop(t + 0.35);
 
-      // Wood click resonance
-      const click = this.ctx.createOscillator();
-      const clickGain = this.ctx.createGain();
-      click.type = 'square';
-      click.frequency.setValueAtTime(520, t);
-      click.frequency.exponentialRampToValueAtTime(80, t + 0.08);
-      clickGain.gain.setValueAtTime(0.2, t);
-      clickGain.gain.exponentialRampToValueAtTime(0.001, t + 0.08);
-      click.connect(clickGain);
-      clickGain.connect(this.ctx.destination);
-      click.start(t);
-      click.stop(t + 0.08);
+      // 1. Primary wooden body thud
+      const bodyOsc = this.ctx.createOscillator();
+      const bodyGain = this.ctx.createGain();
+      bodyOsc.type = 'triangle';
+      bodyOsc.frequency.setValueAtTime(175, t);
+      bodyOsc.frequency.exponentialRampToValueAtTime(42, t + 0.22);
+      bodyGain.gain.setValueAtTime(0.55, t);
+      bodyGain.gain.exponentialRampToValueAtTime(0.001, t + 0.28);
+      bodyOsc.connect(bodyGain);
+      bodyGain.connect(this.ctx.destination);
+      bodyOsc.start(t);
+      bodyOsc.stop(t + 0.30);
+
+      // 2. High-frequency wood-on-wood impact crack
+      const crackOsc = this.ctx.createOscillator();
+      const crackGain = this.ctx.createGain();
+      crackOsc.type = 'square';
+      crackOsc.frequency.setValueAtTime(650, t);
+      crackOsc.frequency.exponentialRampToValueAtTime(90, t + 0.05);
+      crackGain.gain.setValueAtTime(0.3, t);
+      crackGain.gain.exponentialRampToValueAtTime(0.001, t + 0.06);
+      crackOsc.connect(crackGain);
+      crackGain.connect(this.ctx.destination);
+      crackOsc.start(t);
+      crackOsc.stop(t + 0.07);
+
+      // 3. Acoustic soundboard resonance
+      const resOsc = this.ctx.createOscillator();
+      const resGain = this.ctx.createGain();
+      resOsc.type = 'sine';
+      resOsc.frequency.setValueAtTime(260, t + 0.01);
+      resOsc.frequency.exponentialRampToValueAtTime(110, t + 0.18);
+      resGain.gain.setValueAtTime(0.18, t + 0.01);
+      resGain.gain.exponentialRampToValueAtTime(0.001, t + 0.20);
+      resOsc.connect(resGain);
+      resGain.connect(this.ctx.destination);
+      resOsc.start(t + 0.01);
+      resOsc.stop(t + 0.22);
     } catch {
       // AudioContext policy suppression fallback
     }
