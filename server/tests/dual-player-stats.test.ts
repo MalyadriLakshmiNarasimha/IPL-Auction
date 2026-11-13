@@ -622,4 +622,107 @@ describe('IPL Auction 2027 — Dual Player Statistics System', () => {
       expect(biddingPayload.player.ipl_career_stats?.runs).toBe(326);
     });
   });
+
+  describe('12. Multi-Source IPL Data Collection & Cross-Verification (Phase 2A)', () => {
+    it('verifies all 274 players have minimum 3 independent sources checked with provenance metadata', () => {
+      expect(ALL_PLAYERS.length).toBe(274);
+
+      for (const player of ALL_PLAYERS) {
+        const career = HISTORICAL_IPL_CAREER_BY_ID[player.id];
+        const season = HISTORICAL_IPL_2026_BY_ID[player.id];
+
+        expect(career).toBeDefined();
+        expect(season).toBeDefined();
+
+        expect(career.sources_checked).toBeGreaterThanOrEqual(3);
+        expect(season.sources_checked).toBeGreaterThanOrEqual(3);
+
+        expect(career.source_urls).toBeDefined();
+        expect(career.source_urls!.length).toBeGreaterThanOrEqual(3);
+        expect(season.source_urls).toBeDefined();
+        expect(season.source_urls!.length).toBeGreaterThanOrEqual(3);
+
+        expect(career.cross_verification).toBeDefined();
+        expect(career.cross_verification!.source_1).toBeDefined();
+        expect(career.cross_verification!.source_2).toBeDefined();
+        expect(career.cross_verification!.source_3).toBeDefined();
+        expect(career.cross_verification!.agreement_level).toBeDefined();
+
+        expect(season.cross_verification).toBeDefined();
+        expect(season.cross_verification!.source_1).toBeDefined();
+        expect(season.cross_verification!.source_2).toBeDefined();
+        expect(season.cross_verification!.source_3).toBeDefined();
+        expect(season.cross_verification!.agreement_level).toBeDefined();
+      }
+    });
+
+    it('verifies Donovan Ferreira (p-194) multi-source concordance across IPL, Franchise & Secondary sources', () => {
+      const career = HISTORICAL_IPL_CAREER_BY_ID['p-194'];
+      const season = HISTORICAL_IPL_2026_BY_ID['p-194'];
+
+      expect(career.matches).toBe(18);
+      expect(career.runs).toBe(326);
+      expect(career.fifties).toBe(2);
+      expect(career.wickets).toBe(1);
+
+      expect(season.matches).toBe(15);
+      expect(season.innings).toBe(13);
+      expect(season.not_outs).toBe(4);
+      expect(season.runs).toBe(317);
+      expect(season.highest_score).toBe('69');
+      expect(season.batting_average).toBe(35.22);
+      expect(season.strike_rate).toBe(179.1);
+      expect(season.fifties).toBe(2);
+      expect(season.hundreds).toBe(0);
+      expect(season.fours).toBe(25);
+      expect(season.sixes).toBe(23);
+      expect(season.wickets).toBe(1);
+      expect(season.best_bowling).toBe('1/18');
+
+      expect(season.cross_verification?.agreement_level).toBe('UNANIMOUS');
+      expect(season.source_urls).toContain('https://www.iplt20.com/stats/2026');
+      expect(season.source_urls).toContain('https://www.rajasthanroyals.com/rr-players/donovan-ferreira-ipl-profile-23487');
+    });
+
+    it('verifies generated Phase 2A reports exist and are populated', () => {
+      const fs = require('fs');
+      const path = require('path');
+
+      const csvPath = path.join(process.cwd(), 'IPL_MULTI_SOURCE_STATISTICS_COMPARISON.csv');
+      const mdCompPath = path.join(process.cwd(), 'IPL_MULTI_SOURCE_STATISTICS_COMPARISON.md');
+      const discPath = path.join(process.cwd(), 'IPL_STATISTICS_DISCREPANCY_REPORT.md');
+      const updatePath = path.join(process.cwd(), 'IPL_STATISTICS_DATASET_UPDATE_REPORT.md');
+
+      expect(fs.existsSync(csvPath)).toBe(true);
+      expect(fs.existsSync(mdCompPath)).toBe(true);
+      expect(fs.existsSync(discPath)).toBe(true);
+      expect(fs.existsSync(updatePath)).toBe(true);
+
+      const csvContent = fs.readFileSync(csvPath, 'utf8');
+      const lines = csvContent.split('\n');
+      expect(lines.length).toBeGreaterThan(10000);
+
+      const discContent = fs.readFileSync(discPath, 'utf8');
+      expect(discContent).toContain('Donovan Ferreira');
+      expect(discContent).toContain('Cameron Green');
+      expect(discContent).toContain('KL Rahul');
+    });
+
+    it('verifies API endpoint /api/players/[id]/stats returns multi-source provenance metadata', async () => {
+      const req = new NextRequest('http://localhost:3000/api/players/p-194/stats');
+      const res = await getPlayerStatsRoute(req, { params: { id: 'p-194' } });
+
+      expect(res.status).toBe(200);
+      const json = await res.json();
+
+      expect(json.career.sources_checked).toBe(3);
+      expect(json.career.source_urls.length).toBeGreaterThanOrEqual(3);
+      expect(json.career.cross_verification).toBeDefined();
+      expect(json.career.cross_verification.agreement_level).toBe('UNANIMOUS');
+
+      expect(json.season_2026.sources_checked).toBe(3);
+      expect(json.season_2026.source_urls.length).toBeGreaterThanOrEqual(3);
+      expect(json.season_2026.cross_verification.agreement_level).toBe('UNANIMOUS');
+    });
+  });
 });

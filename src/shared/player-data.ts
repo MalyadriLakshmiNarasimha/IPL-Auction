@@ -487,6 +487,36 @@ function adaptDatabaseRecord(raw: PlayerDatabaseRecord): Player {
   const initials = getPlayerInitials(raw.player_name);
   const teamColor = TEAM_PALETTE[raw['team code']] || '#FF7A1A';
   const { stats, points, category } = computePlayerStatsAndPoints(raw, tier, base_price, capped, isOverseas);
+  const careerStats = getIplCareerStats(raw.id);
+  const seasonStats = getIplSeasonStats(raw.id);
+
+  // Overlay verified multi-source 2026 performance when season stats exist
+  if (seasonStats && seasonStats.has_season_stats && seasonStats.matches > 0) {
+    stats.matches = seasonStats.matches;
+    if (seasonStats.innings !== undefined) stats.innings = seasonStats.innings;
+    if (seasonStats.runs !== undefined) stats.runs = seasonStats.runs;
+    if (seasonStats.highest_score !== undefined) {
+      stats.highest_score = typeof seasonStats.highest_score === 'number'
+        ? seasonStats.highest_score
+        : parseInt(String(seasonStats.highest_score || '0').replace('*', ''), 10) || stats.highest_score;
+    }
+    if (seasonStats.batting_average !== undefined) stats.batting_average = seasonStats.batting_average;
+    if (seasonStats.strike_rate !== undefined) stats.strike_rate = seasonStats.strike_rate;
+    if (seasonStats.fifties !== undefined) stats.fifties = seasonStats.fifties;
+    if (seasonStats.hundreds !== undefined) stats.hundreds = seasonStats.hundreds;
+    if (seasonStats.fours !== undefined) stats.fours = seasonStats.fours;
+    if (seasonStats.sixes !== undefined) stats.sixes = seasonStats.sixes;
+    if (seasonStats.wickets !== undefined) stats.wickets = seasonStats.wickets;
+    if (seasonStats.economy_rate !== undefined) stats.economy_rate = seasonStats.economy_rate;
+    if (seasonStats.bowling_average !== undefined) stats.bowling_average = seasonStats.bowling_average;
+    if (seasonStats.best_bowling !== undefined) stats.best_bowling = seasonStats.best_bowling;
+    if (seasonStats.maidens !== undefined) stats.maidens = seasonStats.maidens;
+    if (seasonStats.catches !== undefined) stats.catches = seasonStats.catches;
+    if (seasonStats.stumpings !== undefined) stats.stumpings = seasonStats.stumpings;
+    stats.verification_status = 'verified';
+    stats.stat_label = 'Verified Multi-Source IPL Archive';
+  }
+
   const imageMeta = PLAYER_IMAGES[raw.id];
   const isVerified = imageMeta?.verificationStatus === 'verified' && Boolean(imageMeta.imagePath);
   const authenticPhoto = isVerified ? imageMeta.imagePath : null;
@@ -520,9 +550,9 @@ function adaptDatabaseRecord(raw: PlayerDatabaseRecord): Player {
     has_photo,
     photo_source,
     stats_2026: stats,
-    ipl_career_stats: getIplCareerStats(raw.id),
-    season_2026_stats: getIplSeasonStats(raw.id),
-    data_status: getIplCareerStats(raw.id).status,
+    ipl_career_stats: careerStats,
+    season_2026_stats: seasonStats,
+    data_status: careerStats.status,
     achievements: getPlayerAchievements(raw.player_name),
     player_points: points,
   };

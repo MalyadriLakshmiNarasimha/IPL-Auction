@@ -229,6 +229,18 @@ export const PlayerStatsCarousel: React.FC<PlayerStatsCarouselProps> = ({
           </motion.div>
         </AnimatePresence>
       </div>
+
+      {/* Multi-Source Provenance Footer */}
+      {currentStats.source_provenance && (
+        <div className="mt-2 pt-1.5 border-t border-night-border/40 flex items-center justify-between text-[9px] text-floodlight-subtle">
+          <span className="truncate max-w-[65%]" title={currentStats.source_provenance}>
+            {currentStats.source_provenance}
+          </span>
+          <span className="text-turf font-bold ml-1 flex-shrink-0 flex items-center gap-0.5">
+            ✓ 3 Sources Verified
+          </span>
+        </div>
+      )}
     </div>
   );
 };

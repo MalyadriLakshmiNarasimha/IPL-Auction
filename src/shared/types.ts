@@ -121,6 +121,19 @@ export interface PlayerPerformanceStats {
   catches?: number;
   stumpings?: number;
   dismissals?: number;
+
+  // Multi-Source Provenance & Verification Metadata (Phase 2A)
+  source_urls?: string[];
+  sources_checked?: number;
+  source_player_ids?: Record<string, string>;
+  seasons_covered?: string;
+  unresolved_discrepancies?: string[];
+  cross_verification?: {
+    source_1: { name: string; url: string; status: string };
+    source_2: { name: string; url: string; status: string };
+    source_3: { name: string; url: string; status: string };
+    agreement_level: 'UNANIMOUS' | 'MAJORITY_RESOLVED' | 'OFFICIAL_SCORECARD_RESOLVED' | 'SINGLE_SOURCE';
+  };
 }
 
 export interface IplCareerStats extends PlayerPerformanceStats {
