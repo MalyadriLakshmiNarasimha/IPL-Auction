@@ -15,7 +15,7 @@ interface PlayerDossierModalProps {
 
 export const PlayerDossierModal: React.FC<PlayerDossierModalProps> = ({ player, onClose }) => {
   const stats = player.stats_2026;
-  const careerStats = player.ipl_career_stats || getIplCareerStats(player);
+  const careerStats = getIplCareerStats(player) || player.ipl_career_stats;
 
   const roleColor = (() => {
     const r = (player.role || '').toUpperCase();

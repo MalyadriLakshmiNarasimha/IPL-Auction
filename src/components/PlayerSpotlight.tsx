@@ -51,7 +51,7 @@ export const PlayerSpotlight: React.FC<PlayerSpotlightProps> = ({
     return '#FF7A1A';
   })();
 
-  const careerStats = player.ipl_career_stats || getIplCareerStats(player);
+  const careerStats = getIplCareerStats(player) || player.ipl_career_stats;
 
   return (
     <>

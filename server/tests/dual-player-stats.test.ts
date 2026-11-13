@@ -725,4 +725,149 @@ describe('IPL Auction 2027 — Dual Player Statistics System', () => {
       expect(json.season_2026.cross_verification.agreement_level).toBe('UNANIMOUS');
     });
   });
+
+  describe('13. Mandatory P0 Regression Cases: Mukul Choudhary, Jacob Bethell & Shreyas Iyer', () => {
+    it('proves Mukul Choudhary (p-115) is NOT an IPL Debutant and carries verified 2026 record (170 runs)', () => {
+      const p = ALL_PLAYERS.find(x => x.id === 'p-115');
+      expect(p).toBeDefined();
+      expect(p!.name).toBe('Mukul Choudhary');
+      expect(p!.team).toBe('Lucknow Super Giants');
+
+      const career = getIplCareerStats('p-115');
+      const season = getIplSeasonStats('p-115');
+
+      // Mandatory assertion: Must NOT display "IPL Debutant"
+      expect(career.status).not.toBe('GENUINE_IPL_DEBUTANT');
+      expect(career.status).toBe('VERIFIED');
+      expect(career.matches).toBe(10);
+      expect(career.runs).toBe(170);
+      expect(career.highest_score).toBe('54*');
+      expect(career.fifties).toBe(1);
+
+      // 2026 season record
+      expect(season.status).not.toBe('GENUINE_IPL_DEBUTANT');
+      expect(season.status).toBe('VERIFIED');
+      expect(season.matches).toBe(10);
+      expect(season.runs).toBe(170);
+      expect(season.highest_score).toBe('54*');
+      expect(season.fifties).toBe(1);
+
+      // Name and alias resolution
+      expect(resolvePlayerId('Mukul Choudhary')).toBe('p-115');
+      expect(resolvePlayerId('M. Choudhary')).toBe('p-115');
+    });
+
+    it('proves Jacob Bethell (p-220) is NOT an IPL Debutant and carries distinct career (163) and 2026 (96) records', () => {
+      const p = ALL_PLAYERS.find(x => x.id === 'p-220');
+      expect(p).toBeDefined();
+      expect(p!.name).toBe('Jacob Bethell');
+      expect(p!.team).toBe('Royal Challengers Bengaluru');
+
+      const career = getIplCareerStats('p-220');
+      const season = getIplSeasonStats('p-220');
+
+      // Mandatory assertion: Must NOT display "IPL Debutant"
+      expect(career.status).not.toBe('GENUINE_IPL_DEBUTANT');
+      expect(career.status).toBe('VERIFIED');
+      expect(career.matches).toBe(9);
+      expect(career.runs).toBe(163);
+      expect(career.highest_score).toBe('55');
+      expect(career.fifties).toBe(1);
+
+      // Separate 2026 season record
+      expect(season.status).not.toBe('GENUINE_IPL_DEBUTANT');
+      expect(season.status).toBe('VERIFIED');
+      expect(season.matches).toBe(7);
+      expect(season.runs).toBe(96);
+      expect(season.highest_score).toBe('27');
+
+      // Separate and unmixed: Career > Season
+      expect(career.runs).toBeGreaterThan(season.runs!);
+      expect(career.matches).toBeGreaterThan(season.matches);
+
+      // Name and alias resolution
+      expect(resolvePlayerId('Jacob Bethell')).toBe('p-220');
+      expect(resolvePlayerId('J. Bethell')).toBe('p-220');
+    });
+
+    it('proves Shreyas Iyer (p-172) carries full 2026 season record (14 M, 498 R) and NOT truncated 6 M, 139 R', () => {
+      const p = ALL_PLAYERS.find(x => x.id === 'p-172');
+      expect(p).toBeDefined();
+      expect(p!.name).toBe('Shreyas Iyer');
+      expect(p!.team).toBe('Punjab Kings');
+
+      const season = getIplSeasonStats('p-172');
+      const career = getIplCareerStats('p-172');
+
+      // Mandatory assertion: Must NOT display 6 matches and 139 runs
+      expect(season.matches).not.toBe(6);
+      expect(season.runs).not.toBe(139);
+
+      // Verified 2026 season metrics
+      expect(season.matches).toBe(14);
+      expect(season.runs).toBe(498);
+      expect(season.highest_score).toBe('101*');
+      expect(season.batting_average).toBe(55.33);
+      expect(season.strike_rate).toBe(168.81);
+      expect(season.fifties).toBe(5);
+      expect(season.hundreds).toBe(1);
+
+      // Verified career metrics
+      expect(career.matches).toBe(129);
+      expect(career.runs).toBe(3625);
+      expect(career.hundreds).toBe(5);
+      expect(career.fifties).toBe(24);
+
+      // Name and alias resolution
+      expect(resolvePlayerId('Shreyas Iyer')).toBe('p-172');
+      expect(resolvePlayerId('S. Iyer')).toBe('p-172');
+    });
+
+    it('proves Ryan Rickelton, Josh Inglis, Priyansh Arya and Cooper Connolly have verified records', () => {
+      // Ryan Rickelton (p-167)
+      const ryan = getIplCareerStats('p-167');
+      expect(ryan.matches).toBe(26);
+      expect(ryan.runs).toBe(836);
+      expect(ryan.status).toBe('VERIFIED');
+
+      // Josh Inglis (p-136)
+      const inglis = getIplCareerStats('p-136');
+      expect(inglis.matches).toBe(16);
+      expect(inglis.runs).toBe(544);
+      expect(inglis.status).toBe('VERIFIED');
+
+      // Priyansh Arya (p-168)
+      const arya = getIplCareerStats('p-168');
+      expect(arya.matches).toBe(31);
+      expect(arya.runs).toBe(839);
+      expect(arya.status).toBe('VERIFIED');
+
+      // Cooper Connolly (p-170)
+      const cooper = getIplCareerStats('p-170');
+      expect(cooper.matches).toBe(14);
+      expect(cooper.runs).toBe(491);
+      expect(cooper.status).toBe('VERIFIED');
+    });
+
+    it('verifies all required deliverable documentation reports exist', () => {
+      const fs = require('fs');
+      const path = require('path');
+
+      const auditPath = path.join(process.cwd(), 'IPL_STATISTICS_DATA_AUDIT_REPORT.md');
+      const sourcePath = path.join(process.cwd(), 'IPL_STATISTICS_SOURCE_VERIFICATION.md');
+      const mappingPath = path.join(process.cwd(), 'IPL_STATISTICS_MAPPING_ERRORS.md');
+      const regressionPath = path.join(process.cwd(), 'IPL_STATISTICS_REGRESSION_TEST_REPORT.md');
+
+      expect(fs.existsSync(auditPath)).toBe(true);
+      expect(fs.existsSync(sourcePath)).toBe(true);
+      expect(fs.existsSync(mappingPath)).toBe(true);
+      expect(fs.existsSync(regressionPath)).toBe(true);
+
+      const mappingContent = fs.readFileSync(mappingPath, 'utf8');
+      expect(mappingContent).toContain('0 Mapping Errors');
+      expect(mappingContent).toContain('Mukul Choudhary');
+      expect(mappingContent).toContain('Jacob Bethell');
+      expect(mappingContent).toContain('Shreyas Iyer');
+    });
+  });
 });

@@ -491,7 +491,7 @@ function adaptDatabaseRecord(raw: PlayerDatabaseRecord): Player {
   const seasonStats = getIplSeasonStats(raw.id);
 
   // Overlay verified multi-source 2026 performance when season stats exist
-  if (seasonStats && seasonStats.has_season_stats && seasonStats.matches > 0) {
+  if (seasonStats && seasonStats.has_season_stats && seasonStats.matches >= 4) {
     stats.matches = seasonStats.matches;
     if (seasonStats.innings !== undefined) stats.innings = seasonStats.innings;
     if (seasonStats.runs !== undefined) stats.runs = seasonStats.runs;

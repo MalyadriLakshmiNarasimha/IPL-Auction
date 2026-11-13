@@ -38,9 +38,9 @@ export const PlayerStatsCarousel: React.FC<PlayerStatsCarouselProps> = ({
   const [manualCycle, setManualCycle] = useState<number>(0);
   const [isTabHidden, setIsTabHidden] = useState<boolean>(false);
 
-  // Retrieve authoritative datasets
-  const careerStats: IplCareerStats = player?.ipl_career_stats || getIplCareerStats(player);
-  const seasonStats: IplSeasonStats = player?.season_2026_stats || getIplSeasonStats(player);
+  // Retrieve authoritative datasets directly from registry to guarantee freshness and prevent stale client payload pollution
+  const careerStats: IplCareerStats = getIplCareerStats(player) || player?.ipl_career_stats;
+  const seasonStats: IplSeasonStats = getIplSeasonStats(player) || player?.season_2026_stats;
 
   // Reset to Career view whenever a new player is loaded
   useEffect(() => {
