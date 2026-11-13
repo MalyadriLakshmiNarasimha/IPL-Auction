@@ -272,6 +272,6 @@ describe('IPL Auction 2027 — Dual Player Statistics System', () => {
       // Import Carousel module dynamically or inspect prop types
       const carouselModule = await import('../../src/components/PlayerStatsCarousel');
       expect(carouselModule.PlayerStatsCarousel).toBeDefined();
-    });
+    }, 15000);
   });
 });

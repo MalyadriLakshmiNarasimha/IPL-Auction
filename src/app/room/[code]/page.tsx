@@ -240,12 +240,29 @@ export default function RoomPage() {
         });
 
         socket.on('next_player', data => {
-          setAuctionState(data.auction_state);
+          if (data?.auction_state) {
+            setAuctionState(data.auction_state);
+          } else if (data?.player) {
+            setAuctionState(prev => (prev ? { ...prev, current_player: data.player, phase: 'announcing' } : prev));
+          }
           voiceCommentary.cancelPending();
         });
 
         socket.on('bidding_started', data => {
-          setAuctionState(data.auction_state);
+          if (data?.auction_state) {
+            setAuctionState(data.auction_state);
+          } else if (data?.player) {
+            setAuctionState(prev =>
+              prev
+                ? {
+                    ...prev,
+                    current_player: data.player,
+                    phase: 'bidding',
+                    timer_ends_at: data.timer_ends_at || prev.timer_ends_at,
+                  }
+                : prev
+            );
+          }
         });
 
         socket.on('pass_updated', data => {
@@ -1239,10 +1256,26 @@ export default function RoomPage() {
       )}
 
       {/* ============================================================ */}
+      {/* 6.5 STARTING AUCTION TRANSITION VIEW                         */}
+      {/* ============================================================ */}
+      {auctionState.phase === 'starting' && (
+        <div className="flex-1 flex flex-col items-center justify-center min-h-[60vh] text-center p-6 space-y-4">
+          <div className="w-16 h-16 rounded-full border-4 border-flare border-t-transparent animate-spin mx-auto shadow-flare" />
+          <h2 className="font-display text-3xl sm:text-5xl font-black text-flare tracking-wider animate-pulse">
+            AUCTION STARTING...
+          </h2>
+          <p className="text-sm font-semibold text-floodlight-muted">
+            Shuffling marquee player pool and preparing spotlight broadcast
+          </p>
+        </div>
+      )}
+
+      {/* ============================================================ */}
       {/* 7. LIVE AUCTION SCOREBOARD VIEW                             */}
       {/* ============================================================ */}
       {(currentStage === 'main_auction' || currentStage === 'lobby') &&
         auctionState.phase !== 'lobby' &&
+        auctionState.phase !== 'starting' &&
         auctionState.phase !== 'completed' && (
           <div className="flex-1 flex flex-col justify-between max-w-7xl mx-auto w-full px-3 sm:px-6 pt-2 pb-2 space-y-3">
             {/* Spectator Alert */}

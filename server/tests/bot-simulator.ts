@@ -119,7 +119,17 @@ async function runBotSimulation() {
     botParticipants.forEach((bot, index) => {
       bot.socket.on('next_player', (data: { player: Player; auction_state: AuctionState }) => {
         latestAuctionState = data.auction_state;
-        // All 20 bots immediately hammer a bid simultaneously on player arrival!
+        // Signal announcement completed so server swiftly begins bidding
+        bot.socket.emit('announcement_completed', {
+          room_code: roomCode,
+          session_id: bot.id,
+          player_id: data.player.id,
+        });
+      });
+
+      bot.socket.on('bidding_started', (data: { player: Player; auction_state: AuctionState }) => {
+        latestAuctionState = data.auction_state;
+        // All 20 bots immediately hammer a bid simultaneously when bidding starts!
         const increments = [2500000, 5000000, 10000000];
         const chosenIncrement = increments[index % 3];
 

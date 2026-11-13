@@ -17,7 +17,7 @@ import {
   checkAuthRateLimit,
   resetAuthRateLimit,
 } from '../src/lib/auth';
-import { db, checkMySqlConnection } from '../src/lib/db';
+import { db, prisma, checkMySqlConnection } from '../src/lib/db';
 import { parseCookie } from 'cookie';
 import dotenv from 'dotenv';
 
@@ -287,8 +287,23 @@ const server = http.createServer(async (req, res) => {
         hostName
       );
 
-      // Persist room in database
+      // Persist room in database (upsert bot user if running automated bot simulator)
       try {
+        if (isBotTest) {
+          try {
+            await (prisma as any).user.upsert({
+              where: { id: hostId },
+              update: { name: hostName },
+              create: {
+                id: hostId,
+                email: `${hostId}@test.local`,
+                name: hostName,
+                password_hash: '$2a$10$abcdefghijklmnopqrstuvwxyz0123456789ABCDEFGHIJKLMN',
+              },
+            });
+          } catch {}
+        }
+
         await db.room.create({
           data: {
             room_code: code,
@@ -448,6 +463,10 @@ io.on('connection', socket => {
   socket.join(userId);
 
   socket.on('room_join', async data => {
+    if (!data || !data.room_code || typeof data.room_code !== 'string') {
+      socket.emit('error_message', { message: 'Invalid or missing room code.' });
+      return;
+    }
     const { room_code } = data;
     boundRoomCode = room_code.toUpperCase();
 
@@ -482,6 +501,7 @@ io.on('connection', socket => {
   });
 
   socket.on('set_team_name', data => {
+    if (!data?.room_code) return;
     const room = roomManager.getRoom(data.room_code);
     if (!room || !room.participants.has(userId)) return;
 
@@ -492,6 +512,7 @@ io.on('connection', socket => {
   });
 
   socket.on('announcement_completed', data => {
+    if (!data?.room_code) return;
     const room = roomManager.getRoom(data.room_code);
     if (!room || !room.participants.has(userId)) return;
 
@@ -499,6 +520,7 @@ io.on('connection', socket => {
   });
 
   socket.on('franchise_pick', data => {
+    if (!data?.room_code) return;
     const room = roomManager.getRoom(data.room_code);
     if (!room || !room.participants.has(userId)) return;
 
@@ -509,6 +531,7 @@ io.on('connection', socket => {
   });
 
   socket.on('settings_update', data => {
+    if (!data?.room_code) return;
     const room = roomManager.getRoom(data.room_code);
     if (!room || room.host_session_id !== userId) return;
 
@@ -516,6 +539,7 @@ io.on('connection', socket => {
   });
 
   socket.on('start_auction', data => {
+    if (!data?.room_code) return;
     const room = roomManager.getRoom(data.room_code);
     if (!room || room.host_session_id !== userId) return;
 
@@ -523,6 +547,7 @@ io.on('connection', socket => {
   });
 
   socket.on('place_bid', data => {
+    if (!data?.room_code) return;
     const room = roomManager.getRoom(data.room_code);
     if (!room || !room.participants.has(userId)) return;
 
@@ -536,6 +561,7 @@ io.on('connection', socket => {
   });
 
   socket.on('withdraw_bid', data => {
+    if (!data?.room_code) return;
     const room = roomManager.getRoom(data.room_code);
     if (!room || !room.participants.has(userId)) return;
 
@@ -543,6 +569,7 @@ io.on('connection', socket => {
   });
 
   socket.on('pass_player', data => {
+    if (!data?.room_code) return;
     const room = roomManager.getRoom(data.room_code);
     if (!room || !room.participants.has(userId)) return;
 
@@ -550,6 +577,7 @@ io.on('connection', socket => {
   });
 
   socket.on('host_pause', data => {
+    if (!data?.room_code) return;
     const room = roomManager.getRoom(data.room_code);
     if (!room || room.host_session_id !== userId) return;
 
@@ -557,6 +585,7 @@ io.on('connection', socket => {
   });
 
   socket.on('host_resume', data => {
+    if (!data?.room_code) return;
     const room = roomManager.getRoom(data.room_code);
     if (!room || room.host_session_id !== userId) return;
 
@@ -564,6 +593,7 @@ io.on('connection', socket => {
   });
 
   socket.on('host_skip', data => {
+    if (!data?.room_code) return;
     const room = roomManager.getRoom(data.room_code);
     if (!room || room.host_session_id !== userId) return;
 
@@ -571,6 +601,7 @@ io.on('connection', socket => {
   });
 
   socket.on('host_end_auction', data => {
+    if (!data?.room_code) return;
     const room = roomManager.getRoom(data.room_code);
     if (!room || room.host_session_id !== userId) return;
 
@@ -578,6 +609,7 @@ io.on('connection', socket => {
   });
 
   socket.on('host_kick', data => {
+    if (!data?.room_code) return;
     const room = roomManager.getRoom(data.room_code);
     if (!room || room.host_session_id !== userId) return;
 
@@ -585,6 +617,7 @@ io.on('connection', socket => {
   });
 
   socket.on('host_transfer', data => {
+    if (!data?.room_code) return;
     const room = roomManager.getRoom(data.room_code);
     if (!room || room.host_session_id !== userId) return;
 
@@ -592,6 +625,7 @@ io.on('connection', socket => {
   });
 
   socket.on('request_sync', data => {
+    if (!data?.room_code) return;
     const room = roomManager.getRoom(data.room_code);
     if (room && room.participants.has(userId)) {
       roomManager.broadcastState(room);
@@ -600,6 +634,7 @@ io.on('connection', socket => {
 
   // Stage Transitions
   socket.on('stage_change', data => {
+    if (!data?.room_code) return;
     const room = roomManager.getRoom(data.room_code);
     if (!room || room.host_session_id !== userId) return;
 
@@ -608,6 +643,7 @@ io.on('connection', socket => {
 
   // Spectator Toggle
   socket.on('toggle_spectator', data => {
+    if (!data?.room_code) return;
     const room = roomManager.getRoom(data.room_code);
     if (!room || !room.participants.has(userId)) return;
 
@@ -616,6 +652,7 @@ io.on('connection', socket => {
 
   // Unsold Pool Configuration
   socket.on('unsold_pool_configure', data => {
+    if (!data?.room_code) return;
     const room = roomManager.getRoom(data.room_code);
     if (!room || room.host_session_id !== userId) return;
 
@@ -624,6 +661,7 @@ io.on('connection', socket => {
 
   // Player Trading Window Events
   socket.on('trade_propose', data => {
+    if (!data?.room_code) return;
     const room = roomManager.getRoom(data.room_code);
     if (!room || !room.participants.has(userId)) return;
 
@@ -641,6 +679,7 @@ io.on('connection', socket => {
   });
 
   socket.on('trade_respond', data => {
+    if (!data?.room_code) return;
     const room = roomManager.getRoom(data.room_code);
     if (!room || !room.participants.has(userId)) return;
 
@@ -658,6 +697,7 @@ io.on('connection', socket => {
   });
 
   socket.on('trade_cancel', data => {
+    if (!data?.room_code) return;
     const room = roomManager.getRoom(data.room_code);
     if (!room || !room.participants.has(userId)) return;
 
@@ -666,6 +706,7 @@ io.on('connection', socket => {
 
   // Playing XI Selection Events
   socket.on('playing_xi_save_draft', data => {
+    if (!data?.room_code) return;
     const room = roomManager.getRoom(data.room_code);
     if (!room || !room.participants.has(userId)) return;
 
@@ -673,6 +714,7 @@ io.on('connection', socket => {
   });
 
   socket.on('playing_xi_submit', data => {
+    if (!data?.room_code) return;
     const room = roomManager.getRoom(data.room_code);
     if (!room || !room.participants.has(userId)) return;
 
@@ -684,6 +726,7 @@ io.on('connection', socket => {
 
   // Rate-limited Chat
   socket.on('send_chat', data => {
+    if (!data?.room_code || !data?.message) return;
     const now = Date.now();
     const lastChat = chatRateLimit.get(userId) || 0;
     if (now - lastChat < 500) {
@@ -715,6 +758,7 @@ io.on('connection', socket => {
 
   // Rate-limited Reactions
   socket.on('send_reaction', data => {
+    if (!data?.room_code || !data?.emoji) return;
     const now = Date.now();
     const userLimit = reactionRateLimit.get(userId);
 

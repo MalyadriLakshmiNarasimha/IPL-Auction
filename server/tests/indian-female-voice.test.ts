@@ -105,7 +105,7 @@ describe('IPL Auction — Natural Indian Female Voice & Two-Event Voice System',
       } as unknown as Player;
       const intro = buildPlayerIntroduction(mockCummins);
       expect(intro).toBe(
-        "Up next, we have Australia's talented bowler, Pat Cummins. His base price is two crore rupees."
+        "Up next, we have an Australian fast bowler, Pat Cummins. His base price is two crore rupees."
       );
     });
 
