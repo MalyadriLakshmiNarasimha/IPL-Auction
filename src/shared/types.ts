@@ -18,6 +18,14 @@ export type PlayerCategory =
 
 export type StatVerificationStatus = 'verified' | 'projected' | 'historical_benchmark' | 'unavailable';
 
+export type PlayerDataStatus =
+  | 'VERIFIED'
+  | 'PARTIALLY_VERIFIED'
+  | 'NO_APPEARANCES_IN_SEASON'
+  | 'GENUINE_IPL_DEBUTANT'
+  | 'DATA_UNAVAILABLE'
+  | 'MAPPING_ERROR';
+
 export type ImageVerificationStatus = 'verified' | 'missing' | 'ambiguous';
 
 export interface PlayerImageEntry {
@@ -77,6 +85,10 @@ export interface PlayerDatabaseRecord {
 export interface PlayerPerformanceStats {
   matches: number;
   has_stats: boolean;
+  status?: PlayerDataStatus;
+  source_provenance?: string;
+  retrieval_date?: string;
+  verification_status?: PlayerDataStatus | StatVerificationStatus;
 
   // Batting
   innings?: number;
@@ -89,10 +101,13 @@ export interface PlayerPerformanceStats {
   fours?: number;
   sixes?: number;
   not_outs?: number;
+  balls_faced?: number;
 
   // Bowling
   bowling_innings?: number;
   overs?: number | string;
+  balls?: number;
+  runs_conceded?: number;
   wickets?: number;
   best_bowling?: string; // BEST (e.g. '5/10', '4/24')
   economy_rate?: number;
@@ -143,6 +158,7 @@ export interface Player {
   stats_2026: PlayerStats2026;
   ipl_career_stats?: IplCareerStats;
   season_2026_stats?: IplSeasonStats;
+  data_status?: PlayerDataStatus;
   achievements?: string[];
   player_points: number;
 

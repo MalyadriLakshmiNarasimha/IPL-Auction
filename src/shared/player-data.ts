@@ -522,6 +522,7 @@ function adaptDatabaseRecord(raw: PlayerDatabaseRecord): Player {
     stats_2026: stats,
     ipl_career_stats: getIplCareerStats(raw.id),
     season_2026_stats: getIplSeasonStats(raw.id),
+    data_status: getIplCareerStats(raw.id).status,
     achievements: getPlayerAchievements(raw.player_name),
     player_points: points,
   };

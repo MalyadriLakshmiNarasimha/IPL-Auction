@@ -5,7 +5,14 @@ import {
   getIplSeasonStats,
   HISTORICAL_IPL_CAREER_BY_ID,
   HISTORICAL_IPL_2026_BY_ID,
+  normalizePlayerName,
+  resolvePlayerId,
+  PLAYER_ALIASES,
 } from '../../src/shared/player-career-data';
+import { GET as getPlayerStatsRoute } from '../../src/app/api/players/[id]/stats/route';
+import { NextRequest } from 'next/server';
+import { RoomManager } from '../room';
+import { Server as SocketIOServer } from 'socket.io';
 
 describe('IPL Auction 2027 — Dual Player Statistics System', () => {
   describe('1. Two Distinct Datasets (Career vs 2026 Season)', () => {
@@ -273,5 +280,346 @@ describe('IPL Auction 2027 — Dual Player Statistics System', () => {
       const carouselModule = await import('../../src/components/PlayerStatsCarousel');
       expect(carouselModule.PlayerStatsCarousel).toBeDefined();
     }, 15000);
+  });
+
+  describe('6. P0 Critical Regression Test: Donovan Ferreira (p-194) Verified Statistics', () => {
+    it('proves Donovan Ferreira cannot be displayed as having zero 2026 appearances', () => {
+      const seasonStats = getIplSeasonStats('p-194');
+
+      // P0 Assertion: Donovan Ferreira MUST NOT have 0 appearances
+      expect(seasonStats.matches).not.toBe(0);
+      expect(seasonStats.matches).toBe(15);
+      expect(seasonStats.has_stats).toBe(true);
+      expect(seasonStats.has_season_stats).toBe(true);
+      expect(seasonStats.status).toBe('VERIFIED');
+
+      // Exact verified 2026 match records
+      expect(seasonStats.innings).toBe(13);
+      expect(seasonStats.runs).toBe(317);
+      expect(seasonStats.highest_score).toBe('69');
+      expect(seasonStats.batting_average).toBe(35.22);
+      expect(seasonStats.strike_rate).toBe(179.1);
+      expect(seasonStats.fifties).toBe(2);
+      expect(seasonStats.hundreds).toBe(0);
+      expect(seasonStats.fours).toBe(25);
+      expect(seasonStats.sixes).toBe(23);
+      expect(seasonStats.wickets).toBe(1);
+      expect(seasonStats.best_bowling).toBe('1/18');
+    });
+
+    it('verifies Donovan Ferreira overall career stats include 18 matches, 326 runs, 2 fifties and 1 wicket', () => {
+      const careerStats = getIplCareerStats('p-194');
+
+      expect(careerStats.has_stats).toBe(true);
+      expect(careerStats.has_ipl_career).toBe(true);
+      expect(careerStats.matches).toBe(18);
+      expect(careerStats.runs).toBe(326);
+      expect(careerStats.fifties).toBe(2);
+      expect(careerStats.wickets).toBe(1);
+      expect(careerStats.highest_score).toBe('69');
+      expect(careerStats.status).toBe('VERIFIED');
+      expect(careerStats.source_provenance).toContain('Rajasthan Royals');
+    });
+
+    it('resolves Donovan Ferreira by ID (p-194), canonical name, and alias (D. Ferreira)', () => {
+      const byId = getIplSeasonStats('p-194');
+      const byName = getIplSeasonStats('Donovan Ferreira');
+      const byAlias = getIplSeasonStats('D. Ferreira');
+
+      expect(byId.runs).toBe(317);
+      expect(byName.runs).toBe(317);
+      expect(byAlias.runs).toBe(317);
+
+      expect(byId.matches).toBe(15);
+      expect(byName.matches).toBe(15);
+      expect(byAlias.matches).toBe(15);
+    });
+  });
+
+  describe('7. Verification of All Phase 6 Required Test Players', () => {
+    it('verifies Virat Kohli (p-224) Batter dual stats', () => {
+      const c = getIplCareerStats('p-224');
+      const s = getIplSeasonStats('p-224');
+      expect(c.matches).toBe(252);
+      expect(c.runs).toBe(8004);
+      expect(s.matches).toBe(15);
+      expect(s.runs).toBe(741);
+    });
+
+    it('verifies Rohit Sharma (p-148) Batter dual stats', () => {
+      const c = getIplCareerStats('p-148');
+      const s = getIplSeasonStats('p-148');
+      expect(c.matches).toBe(257);
+      expect(c.runs).toBe(6628);
+      expect(s.matches).toBe(14);
+      expect(s.runs).toBe(417);
+    });
+
+    it('verifies MS Dhoni (p-028) resolves via alias "MS Dhoni" and contains catches/stumpings', () => {
+      const c = getIplCareerStats('MS Dhoni');
+      const s = getIplSeasonStats('MS Dhoni');
+      expect(c.matches).toBe(264);
+      expect(c.runs).toBe(5243);
+      expect(c.dismissals).toBe(190);
+      expect(c.catches).toBe(148);
+      expect(c.stumpings).toBe(42);
+      expect(s.matches).toBe(14);
+      expect(s.runs).toBe(161);
+    });
+
+    it('verifies Hardik Pandya (p-164) All-Rounder dual stats', () => {
+      const c = getIplCareerStats('p-164');
+      const s = getIplSeasonStats('p-164');
+      expect(c.matches).toBe(137);
+      expect(c.runs).toBe(2525);
+      expect(c.wickets).toBe(64);
+      expect(s.matches).toBe(14);
+      expect(s.runs).toBe(216);
+      expect(s.wickets).toBe(11);
+    });
+
+    it('verifies Ayush Mhatre (p-006) as genuine IPL debutant', () => {
+      const c = getIplCareerStats('p-006');
+      const s = getIplSeasonStats('p-006');
+      expect(c.has_stats).toBe(false);
+      expect(c.has_ipl_career).toBe(false);
+      expect(c.matches).toBe(0);
+      expect(c.status).toBe('GENUINE_IPL_DEBUTANT');
+      expect(s.has_stats).toBe(false);
+      expect(s.has_season_stats).toBe(false);
+      expect(s.matches).toBe(0);
+      expect(s.status).toBe('GENUINE_IPL_DEBUTANT');
+    });
+
+    it('verifies Vaibhav Sooryavanshi (p-203) as genuine IPL debutant', () => {
+      const c = getIplCareerStats('p-203');
+      const s = getIplSeasonStats('p-203');
+      expect(c.matches).toBe(0);
+      expect(c.status).toBe('GENUINE_IPL_DEBUTANT');
+      expect(s.matches).toBe(0);
+      expect(s.status).toBe('GENUINE_IPL_DEBUTANT');
+    });
+
+    it('verifies Cameron Green (p-085) with batting and bowling statistics', () => {
+      const c = getIplCareerStats('p-085');
+      const s = getIplSeasonStats('p-085');
+      expect(c.matches).toBe(29);
+      expect(c.runs).toBe(707);
+      expect(c.wickets).toBe(16);
+      expect(c.best_bowling).toBe('2/12');
+      expect(s.matches).toBe(11);
+      expect(s.runs).toBe(228);
+      expect(s.wickets).toBe(10);
+      expect(s.best_bowling).toBe('2/12');
+    });
+
+    it('verifies Aiden Markram (p-117) with batting and bowling figures', () => {
+      const c = getIplCareerStats('p-117');
+      const s = getIplSeasonStats('p-117');
+      expect(c.matches).toBe(44);
+      expect(c.runs).toBe(995);
+      expect(c.wickets).toBe(1);
+      expect(s.matches).toBe(9);
+      expect(s.runs).toBe(173);
+    });
+
+    it('verifies KL Rahul (p-036) with batting and wicketkeeping figures', () => {
+      const c = getIplCareerStats('p-036');
+      const s = getIplSeasonStats('p-036');
+      expect(c.matches).toBe(132);
+      expect(c.runs).toBe(4683);
+      expect(c.dismissals).toBe(68);
+      expect(s.matches).toBe(6);
+      expect(s.runs).toBe(181);
+    });
+
+    it('verifies Marcus Stoinis (p-179) with batting and bowling figures', () => {
+      const c = getIplCareerStats('p-179');
+      const s = getIplSeasonStats('p-179');
+      expect(c.matches).toBe(96);
+      expect(c.runs).toBe(1866);
+      expect(c.wickets).toBe(39);
+      expect(c.best_bowling).toBe('4/15');
+      expect(s.matches).toBe(7);
+      expect(s.runs).toBe(116);
+      expect(s.wickets).toBe(4);
+      expect(s.best_bowling).toBe('2/24');
+    });
+
+    it('verifies Mitchell Marsh resolves from alias to "Mitch Marsh" (p-118)', () => {
+      const c = getIplCareerStats('Mitchell Marsh');
+      const s = getIplSeasonStats('Mitchell Marsh');
+      expect(c.matches).toBe(42);
+      expect(c.runs).toBe(665);
+      expect(c.wickets).toBe(37);
+      expect(c.best_bowling).toBe('4/25');
+      expect(s.matches).toBe(10);
+      expect(s.runs).toBe(135);
+      expect(s.wickets).toBe(6);
+      expect(s.best_bowling).toBe('2/18');
+    });
+
+    it('verifies Finn Allen (p-084) is a genuine IPL debutant', () => {
+      const c = getIplCareerStats('p-084');
+      const s = getIplSeasonStats('p-084');
+      expect(c.matches).toBe(0);
+      expect(c.status).toBe('GENUINE_IPL_DEBUTANT');
+      expect(s.matches).toBe(0);
+      expect(s.status).toBe('GENUINE_IPL_DEBUTANT');
+    });
+  });
+
+  describe('8. Player Statistics Categories & Status Enforcement', () => {
+    it('verifies player with career but no 2026 appearances has NO_APPEARANCES_IN_SEASON status', () => {
+      const bantonCareer = getIplCareerStats('p-057');
+      const bantonSeason = getIplSeasonStats('p-057');
+
+      expect(bantonCareer.matches).toBeGreaterThan(0);
+      expect(bantonCareer.status).toBe('VERIFIED');
+
+      expect(bantonSeason.matches).toBe(0);
+      expect(bantonSeason.has_stats).toBe(false);
+      expect(bantonSeason.status).toBe('NO_APPEARANCES_IN_SEASON');
+    });
+
+    it('verifies genuine debutants have GENUINE_IPL_DEBUTANT status across both datasets', () => {
+      const debutantCareer = getIplCareerStats('p-203');
+      const debutantSeason = getIplSeasonStats('p-203');
+
+      expect(debutantCareer.status).toBe('GENUINE_IPL_DEBUTANT');
+      expect(debutantSeason.status).toBe('GENUINE_IPL_DEBUTANT');
+    });
+
+    it('verifies active established players have VERIFIED status across both datasets', () => {
+      const kohliCareer = getIplCareerStats('p-224');
+      const kohliSeason = getIplSeasonStats('p-224');
+
+      expect(kohliCareer.status).toBe('VERIFIED');
+      expect(kohliSeason.status).toBe('VERIFIED');
+    });
+  });
+
+  describe('9. Normalization, Diacritics, Punctuation and Name Aliasing', () => {
+    it('normalizes names with accents, punctuation, and casing', () => {
+      expect(normalizePlayerName('Lhuan-dré Pretorius')).toBe('lhuandrepretorius');
+      expect(normalizePlayerName('M.S. Dhoni')).toBe('msdhoni');
+      expect(normalizePlayerName('K.L. Rahul')).toBe('klrahul');
+      expect(normalizePlayerName('Donovan Ferreira')).toBe('donovanferreira');
+    });
+
+    it('resolves player IDs from various string variants', () => {
+      expect(resolvePlayerId('p-194')).toBe('p-194');
+      expect(resolvePlayerId('Donovan Ferreira')).toBe('p-194');
+      expect(resolvePlayerId('D. Ferreira')).toBe('p-194');
+      expect(resolvePlayerId('MS Dhoni')).toBe('p-028');
+      expect(resolvePlayerId('Mahendra Singh Dhoni')).toBe('p-028');
+      expect(resolvePlayerId('Mitchell Marsh')).toBe('p-118');
+      expect(resolvePlayerId('Mitch Marsh')).toBe('p-118');
+      expect(resolvePlayerId('Lhuan-dré Pretorius')).toBe('p-198');
+      expect(resolvePlayerId('Lhuan-dre Pretorius')).toBe('p-198');
+    });
+
+    it('returns null for nonexistent player identifiers', () => {
+      expect(resolvePlayerId('Nonexistent Player')).toBeNull();
+      expect(resolvePlayerId('p-9999')).toBeNull();
+    });
+  });
+
+  describe('10. Statistics API Endpoint Integration (/api/players/[id]/stats)', () => {
+    it('returns 200 with complete dual stats for verified player (p-194 Donovan Ferreira)', async () => {
+      const req = new NextRequest('http://localhost:3000/api/players/p-194/stats');
+      const res = await getPlayerStatsRoute(req, { params: { id: 'p-194' } });
+
+      expect(res.status).toBe(200);
+      const json = await res.json();
+
+      expect(json.player_id).toBe('p-194');
+      expect(json.canonical_name).toBe('Donovan Ferreira');
+      expect(json.status).toBe('VERIFIED');
+      expect(json.career.matches).toBe(18);
+      expect(json.career.runs).toBe(326);
+      expect(json.season_2026.matches).toBe(15);
+      expect(json.season_2026.runs).toBe(317);
+      expect(json.season_2026.fifties).toBe(2);
+    });
+
+    it('returns 200 when querying by alias "MS Dhoni"', async () => {
+      const req = new NextRequest('http://localhost:3000/api/players/MS%20Dhoni/stats');
+      const res = await getPlayerStatsRoute(req, { params: { id: 'MS Dhoni' } });
+
+      expect(res.status).toBe(200);
+      const json = await res.json();
+
+      expect(json.player_id).toBe('p-028');
+      expect(json.canonical_name).toBe('Mahendra Singh Dhoni');
+      expect(json.career.runs).toBe(5243);
+    });
+
+    it('returns 200 with GENUINE_IPL_DEBUTANT for uncapped player (p-006 Ayush Mhatre)', async () => {
+      const req = new NextRequest('http://localhost:3000/api/players/p-006/stats');
+      const res = await getPlayerStatsRoute(req, { params: { id: 'p-006' } });
+
+      expect(res.status).toBe(200);
+      const json = await res.json();
+
+      expect(json.status).toBe('GENUINE_IPL_DEBUTANT');
+      expect(json.career.matches).toBe(0);
+      expect(json.season_2026.matches).toBe(0);
+    });
+
+    it('returns 404 for unknown player ID', async () => {
+      const req = new NextRequest('http://localhost:3000/api/players/unknown-999/stats');
+      const res = await getPlayerStatsRoute(req, { params: { id: 'unknown-999' } });
+
+      expect(res.status).toBe(404);
+      const json = await res.json();
+      expect(json.status).toBe('MAPPING_ERROR');
+    });
+  });
+
+  describe('11. Multi-Client Socket.IO Player Statistics Broadcasting', () => {
+    it('ensures all players carry populated dual stats for authoritative broadcasting', () => {
+      const mockIo = {
+        to: () => ({ emit: () => {} }),
+        emit: () => {},
+      } as unknown as SocketIOServer;
+
+      const rm = new RoomManager(mockIo);
+      const room = rm.createRoom('TESTSTATS', 'Test Stats Room', 'host_session_1', 'Host');
+
+      expect(room.settings.selected_player_ids.length).toBe(274);
+
+      // Verify all 274 players in ALL_PLAYERS have populated dual stats
+      expect(ALL_PLAYERS.length).toBe(274);
+      for (const p of ALL_PLAYERS) {
+        expect(p.ipl_career_stats).toBeDefined();
+        expect(p.season_2026_stats).toBeDefined();
+      }
+
+      // Verify Donovan Ferreira (p-194) in ALL_PLAYERS carries verified stats
+      const df = ALL_PLAYERS.find(p => p.id === 'p-194');
+      expect(df).toBeDefined();
+      expect(df!.ipl_career_stats).toBeDefined();
+      expect(df!.season_2026_stats).toBeDefined();
+      expect(df!.ipl_career_stats!.runs).toBe(326);
+      expect(df!.season_2026_stats!.runs).toBe(317);
+      expect(df!.season_2026_stats!.matches).toBe(15);
+      expect(df!.season_2026_stats!.fifties).toBe(2);
+      expect(df!.season_2026_stats!.highest_score).toBe('69');
+      expect(df!.season_2026_stats!.strike_rate).toBe(179.1);
+
+      // Verify simulated bidding_started payload carries identical dual stats for clients
+      const biddingPayload = {
+        player: df!,
+        timer_ends_at: Date.now() + 15000,
+        timer_seconds: 15,
+        auction_state: rm.getPublicState(room),
+      };
+
+      expect(biddingPayload.player.season_2026_stats?.runs).toBe(317);
+      expect(biddingPayload.player.season_2026_stats?.matches).toBe(15);
+      expect(biddingPayload.player.season_2026_stats?.fifties).toBe(2);
+      expect(biddingPayload.player.ipl_career_stats?.runs).toBe(326);
+    });
   });
 });

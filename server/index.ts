@@ -18,6 +18,8 @@ import {
   resetAuthRateLimit,
 } from '../src/lib/auth';
 import { db, prisma, checkMySqlConnection } from '../src/lib/db';
+import { getPlayerById } from '../src/shared/player-data';
+import { getIplCareerStats, getIplSeasonStats, resolvePlayerId } from '../src/shared/player-career-data';
 import { parseCookie } from 'cookie';
 import dotenv from 'dotenv';
 
@@ -372,6 +374,53 @@ const server = http.createServer(async (req, res) => {
       res.writeHead(500, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({ error: 'Failed to retrieve results' }));
     });
+    return;
+  }
+
+  // Get player statistics endpoint
+  if (url.pathname.startsWith('/api/players/') && url.pathname.endsWith('/stats') && req.method === 'GET') {
+    const parts = url.pathname.split('/');
+    // e.g. /api/players/:id/stats -> parts: ['', 'api', 'players', ':id', 'stats']
+    const rawId = decodeURIComponent(parts[3] || '').trim();
+    if (!rawId) {
+      res.writeHead(400, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Missing player identifier', status: 'MAPPING_ERROR' }));
+      return;
+    }
+
+    const resolvedId = resolvePlayerId(rawId) || rawId;
+    const player = getPlayerById(resolvedId);
+
+    if (!player) {
+      res.writeHead(404, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: `Player '${rawId}' not found in database registry`, status: 'MAPPING_ERROR' }));
+      return;
+    }
+
+    const career = getIplCareerStats(resolvedId);
+    const season = getIplSeasonStats(resolvedId);
+
+    const overallStatus =
+      career.status === 'GENUINE_IPL_DEBUTANT'
+        ? 'GENUINE_IPL_DEBUTANT'
+        : career.status || 'VERIFIED';
+
+    res.writeHead(200, {
+      'Content-Type': 'application/json',
+      'Cache-Control': 'public, max-age=3600, s-maxage=3600',
+    });
+    res.end(
+      JSON.stringify({
+        player_id: player.id,
+        canonical_name: player.name,
+        role: player.role,
+        nationality: player.nationality || player.country,
+        team: player.team,
+        status: overallStatus,
+        career,
+        season_2026: season,
+      })
+    );
     return;
   }
 

@@ -15,11 +15,15 @@ interface PlayerStatsCarouselProps {
   className?: string;
 }
 
-function getRoleCategory(role?: string): 'Batter' | 'Bowler' | 'All-Rounder' | 'Wicketkeeper' {
+function getRoleCategory(role?: string, stats?: PlayerPerformanceStats): 'Batter' | 'Bowler' | 'All-Rounder' | 'Wicketkeeper' {
   const r = (role || '').toUpperCase();
   if (r.startsWith('WICKET') || r === 'WK') return 'Wicketkeeper';
   if (r.startsWith('ALL') || r === 'AR') return 'All-Rounder';
   if (r.startsWith('BOWL')) return 'Bowler';
+  // If classified as Batter but has wickets (all-rounder performance like Donovan Ferreira, Cameron Green, Marcus Stoinis, Mitch Marsh)
+  if (stats && (stats.wickets ?? 0) > 0 && (stats.runs ?? 0) > 0) {
+    return 'All-Rounder';
+  }
   return 'Batter';
 }
 
@@ -35,15 +39,14 @@ export const PlayerStatsCarousel: React.FC<PlayerStatsCarouselProps> = ({
   const [isTabHidden, setIsTabHidden] = useState<boolean>(false);
 
   // Retrieve authoritative datasets
-  const careerStats: IplCareerStats = player.ipl_career_stats || getIplCareerStats(player);
-  const seasonStats: IplSeasonStats = player.season_2026_stats || getIplSeasonStats(player);
-  const roleCategory = getRoleCategory(player.role);
+  const careerStats: IplCareerStats = player?.ipl_career_stats || getIplCareerStats(player);
+  const seasonStats: IplSeasonStats = player?.season_2026_stats || getIplSeasonStats(player);
 
   // Reset to Career view whenever a new player is loaded
   useEffect(() => {
     setActiveView('career');
     setDirection(1);
-  }, [player.id]);
+  }, [player?.id]);
 
   // Handle document visibility change (pause when tab is hidden)
   useEffect(() => {
@@ -56,7 +59,7 @@ export const PlayerStatsCarousel: React.FC<PlayerStatsCarouselProps> = ({
 
   // 5-second automatic rotation loop
   useEffect(() => {
-    if (isTabHidden || autoRotateInterval <= 0) return;
+    if (isTabHidden || autoRotateInterval <= 0 || !player) return;
 
     const timer = setInterval(() => {
       setActiveView((current) => {
@@ -67,7 +70,7 @@ export const PlayerStatsCarousel: React.FC<PlayerStatsCarouselProps> = ({
     }, autoRotateInterval);
 
     return () => clearInterval(timer);
-  }, [player.id, manualCycle, isTabHidden, autoRotateInterval]);
+  }, [player?.id, manualCycle, isTabHidden, autoRotateInterval, player]);
 
   const handleSelectView = (view: StatView) => {
     if (view === activeView) return;
@@ -76,8 +79,21 @@ export const PlayerStatsCarousel: React.FC<PlayerStatsCarouselProps> = ({
     setManualCycle((c) => c + 1); // Resets the 5-second timer and resumes auto-rotation
   };
 
+  if (!player) {
+    return (
+      <div
+        className={`z-10 rounded-xl bg-night-surface/90 border border-night-border/70 p-2.5 sm:p-3 overflow-hidden ${className}`}
+      >
+        <div className="flex items-center justify-center min-h-[72px]">
+          <div className="animate-pulse text-xs text-floodlight-muted">Loading player statistics...</div>
+        </div>
+      </div>
+    );
+  }
+
   const isCareer = activeView === 'career';
   const currentStats: PlayerPerformanceStats = isCareer ? careerStats : seasonStats;
+  const roleCategory = getRoleCategory(player.role, currentStats);
 
   // Slide animation variants
   const slideVariants = {
@@ -170,8 +186,20 @@ export const PlayerStatsCarousel: React.FC<PlayerStatsCarouselProps> = ({
                 <RoleSpecificStatsGrid stats={careerStats} role={roleCategory} />
               ) : (
                 <UnavailableStatsState
-                  title="Statistics unavailable (IPL Debutant)"
-                  subtitle="Uncapped / Yet to make IPL debut — Historical statistics not applicable"
+                  title={
+                    careerStats.status === 'MAPPING_ERROR'
+                      ? 'Statistics unavailable (Mapping Error)'
+                      : careerStats.status === 'DATA_UNAVAILABLE'
+                      ? 'Statistics unavailable'
+                      : 'Statistics unavailable (IPL Debutant)'
+                  }
+                  subtitle={
+                    careerStats.status === 'MAPPING_ERROR'
+                      ? 'Player identity mapping requires verification'
+                      : careerStats.status === 'DATA_UNAVAILABLE'
+                      ? 'Official statistics pending verification'
+                      : 'Uncapped / Yet to make IPL debut — Historical statistics not applicable'
+                  }
                 />
               )
             ) : seasonStats.has_stats && seasonStats.has_season_stats && seasonStats.matches > 0 ? (
@@ -179,12 +207,20 @@ export const PlayerStatsCarousel: React.FC<PlayerStatsCarouselProps> = ({
             ) : (
               <UnavailableStatsState
                 title={
-                  careerStats.has_ipl_career && careerStats.matches > 0
+                  seasonStats.status === 'MAPPING_ERROR'
+                    ? 'Statistics unavailable (Mapping Error)'
+                    : seasonStats.status === 'DATA_UNAVAILABLE'
+                    ? 'Statistics unavailable'
+                    : careerStats.has_ipl_career && careerStats.matches > 0
                     ? 'Statistics unavailable (No appearances in IPL 2026)'
                     : 'Statistics unavailable (IPL Debutant)'
                 }
                 subtitle={
-                  careerStats.has_ipl_career && careerStats.matches > 0
+                  seasonStats.status === 'MAPPING_ERROR'
+                    ? 'Player identity mapping requires verification'
+                    : seasonStats.status === 'DATA_UNAVAILABLE'
+                    ? 'Official statistics pending verification'
+                    : careerStats.has_ipl_career && careerStats.matches > 0
                     ? 'Did not participate in IPL 2026 matches'
                     : 'Uncapped / Yet to make IPL debut — Historical statistics not applicable'
                 }
