@@ -338,7 +338,7 @@ export default function HistoryPage() {
 
                       {/* Action: Continue Auction */}
                       <div className="mt-5 pt-3 border-t border-night-border/50 flex items-center justify-between gap-3">
-                        <div className="text-[10px] text-floodlight-subtle truncate">
+                        <div className="text-[10px] text-floodlight-subtle truncate" suppressHydrationWarning>
                           Active: {formatDate(room.last_activity)}
                         </div>
                         <Link
@@ -403,7 +403,7 @@ export default function HistoryPage() {
                         <div className="flex items-center gap-2 text-xs text-floodlight-muted mt-1">
                           <span>Host: <strong className="text-floodlight">{room.host_name}</strong></span>
                           <span className="text-floodlight-subtle">•</span>
-                          <span>{formatDate(room.completed_at)}</span>
+                          <span suppressHydrationWarning>{formatDate(room.completed_at)}</span>
                         </div>
 
                         {/* Champion and summary badge */}

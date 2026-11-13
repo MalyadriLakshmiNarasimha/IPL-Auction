@@ -30,24 +30,9 @@ function verifyAuthSession(): Promise<any> {
 export const UserNav: React.FC = () => {
   const router = useRouter();
 
-  // Instant hydration from local storage cache to eliminate flicker
-  const [user, setUser] = useState<AuthUser | null>(() => {
-    if (typeof window !== 'undefined') {
-      try {
-        const cached = localStorage.getItem('ipl_auth_cache');
-        if (cached) return JSON.parse(cached);
-      } catch {}
-    }
-    return null;
-  });
-
-  const [isLoading, setIsLoading] = useState<boolean>(() => {
-    if (typeof window !== 'undefined') {
-      return !localStorage.getItem('ipl_auth_cache');
-    }
-    return true;
-  });
-
+  // Initialize with null/true to ensure server and client initial render match 100%
+  const [user, setUser] = useState<AuthUser | null>(null);
+  const [isLoading, setIsLoading] = useState<boolean>(true);
   const [isOpen, setIsOpen] = useState(false);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   const isMounted = useRef(true);
@@ -86,6 +71,16 @@ export const UserNav: React.FC = () => {
 
   useEffect(() => {
     isMounted.current = true;
+
+    // Safely hydrate from localStorage after mount to prevent SSR mismatch
+    try {
+      const cached = localStorage.getItem('ipl_auth_cache');
+      if (cached) {
+        setUser(JSON.parse(cached));
+        setIsLoading(false);
+      }
+    } catch {}
+
     checkAuth();
 
     // Listen for intra-tab auth changes (login / logout)

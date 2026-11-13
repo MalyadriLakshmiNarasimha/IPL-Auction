@@ -24,28 +24,43 @@ export const CircularTimerRing: React.FC<CircularTimerRingProps> = ({
   size = 92,
   roleColor = '#DCC477',
 }) => {
+  const [isMounted, setIsMounted] = useState<boolean>(false);
   const [remaining, setRemaining] = useState<number>(timerSeconds);
+  const [progress, setProgress] = useState<number>(1);
   const lastHeartbeatSec = useRef<number>(-1);
+
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
 
   useEffect(() => {
     if (timerEndsAt <= 0) {
       setRemaining(timerSeconds);
+      setProgress(1);
       return;
     }
     if (isPaused) return;
 
-    const interval = setInterval(() => {
+    const updateTimer = () => {
       const now = Date.now();
       const remainingMs = Math.max(0, timerEndsAt - now);
       const remainingSec = Math.ceil(remainingMs / 1000);
       setRemaining(remainingSec);
+
+      const totalMs = timerSeconds * 1000;
+      const currentMs = Math.max(0, timerEndsAt - now);
+      const newProgress = totalMs > 0 ? Math.min(1, Math.max(0, currentMs / totalMs)) : 0;
+      setProgress(newProgress);
 
       // Play heartbeat sound on last 5 seconds
       if (remainingSec <= 5 && remainingSec > 0 && remainingSec !== lastHeartbeatSec.current) {
         lastHeartbeatSec.current = remainingSec;
         soundManager.playHeartbeat();
       }
-    }, 100);
+    };
+
+    updateTimer();
+    const interval = setInterval(updateTimer, 100);
 
     return () => clearInterval(interval);
   }, [timerEndsAt, isPaused, timerSeconds]);
@@ -55,12 +70,11 @@ export const CircularTimerRing: React.FC<CircularTimerRingProps> = ({
   const circumference = 2 * Math.PI * radius;
 
   const isAnnouncing = timerEndsAt <= 0;
-  const totalMs = timerSeconds * 1000;
-  const currentMs = isAnnouncing ? 0 : Math.max(0, timerEndsAt - Date.now());
-  const progress = isAnnouncing ? 1 : totalMs > 0 ? Math.min(1, Math.max(0, currentMs / totalMs)) : 0;
-  const strokeDashoffset = circumference * (1 - progress);
+  // Deterministic calculation during initial hydration matching SSR
+  const currentProgress = !isMounted ? 1 : isAnnouncing ? 1 : progress;
+  const strokeDashoffset = circumference * (1 - currentProgress);
 
-  const isUrgent = !isAnnouncing && remaining <= 5 && remaining > 0;
+  const isUrgent = isMounted && !isAnnouncing && remaining <= 5 && remaining > 0;
   const ringColor = isAnnouncing ? '#DCC477' : isUrgent ? '#EF4444' : '#F9CD05';
 
   return (

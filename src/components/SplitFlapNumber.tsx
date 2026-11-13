@@ -62,7 +62,7 @@ export const SplitFlapNumber: React.FC<SplitFlapNumberProps> = ({
 
       {/* Numerical Display with Big Shoulders font */}
       <div className="flex items-center justify-center h-20 sm:h-24 overflow-hidden my-1">
-        <AnimatePresence mode="popLayout">
+        <AnimatePresence mode="popLayout" initial={false}>
           <motion.div
             key={formatted}
             initial={{ y: -30, opacity: 0, rotateX: 45 }}

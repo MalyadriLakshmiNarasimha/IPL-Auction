@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { Participant, Player, TradeOffer, TradeTransaction, BoughtPlayer } from '@/shared/types';
 import { formatCurrency } from '@/shared/constants';
 import {
@@ -60,6 +60,17 @@ export const TradingWindowView: React.FC<TradingWindowViewProps> = ({
   const [selectedOpponentId, setSelectedOpponentId] = useState<string>(
     opponentParticipants[0]?.id || ''
   );
+
+  const [remainingSec, setRemainingSec] = useState<number>(0);
+  useEffect(() => {
+    if (!stageEndsAt) return;
+    const update = () => {
+      setRemainingSec(Math.max(0, Math.ceil((stageEndsAt - Date.now()) / 1000)));
+    };
+    update();
+    const timer = setInterval(update, 1000);
+    return () => clearInterval(timer);
+  }, [stageEndsAt]);
 
   // Active opponent participant
   const selectedOpponent = useMemo(
@@ -146,8 +157,8 @@ export const TradingWindowView: React.FC<TradingWindowViewProps> = ({
               <Clock className="w-4 h-4 text-flare animate-pulse" />
               <div>
                 <div className="text-[10px] text-floodlight-muted uppercase font-bold">Trading Deadline</div>
-                <div className="font-mono font-bold text-floodlight">
-                  {Math.max(0, Math.ceil((stageEndsAt - Date.now()) / 1000))}s remaining
+                <div className="font-mono font-bold text-floodlight" suppressHydrationWarning>
+                  {remainingSec}s remaining
                 </div>
               </div>
             </div>
@@ -191,7 +202,7 @@ export const TradingWindowView: React.FC<TradingWindowViewProps> = ({
                       From:{' '}
                       <span className="text-flare">{offer.sender_franchise.name}</span>
                     </span>
-                    <span className="text-[10px] text-floodlight-muted">
+                    <span className="text-[10px] text-floodlight-muted" suppressHydrationWarning>
                       {new Date(offer.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                     </span>
                   </div>
@@ -565,7 +576,7 @@ export const TradingWindowView: React.FC<TradingWindowViewProps> = ({
                   >
                     <div className="flex items-center justify-between text-[10px] text-floodlight-muted">
                       <span className="font-bold text-turf">CONFIRMED SWAP</span>
-                      <span>{new Date(tx.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                      <span suppressHydrationWarning>{new Date(tx.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
                     </div>
                     <div className="text-floodlight">
                       <span className="font-bold text-flare">{tx.team_a_short}</span> gets{' '}

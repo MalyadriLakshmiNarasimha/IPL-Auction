@@ -351,7 +351,7 @@ export const TeamDashboardView: React.FC<TeamDashboardViewProps> = ({
                       <span className="font-bold text-flare">{tx.team_b_short}</span> in exchange for{' '}
                       <span className="font-semibold text-white">{tx.player_b.name}</span>
                     </div>
-                    <span className="text-[10px] text-floodlight-muted">
+                    <span className="text-[10px] text-floodlight-muted" suppressHydrationWarning>
                       {new Date(tx.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                     </span>
                   </div>

@@ -94,7 +94,7 @@ export const LiveChat: React.FC<LiveChatProps> = ({
                     <span className="font-bold text-floodlight">
                       {m.franchise_short_code || m.display_name}
                     </span>
-                    <span className="text-[10px] text-floodlight-subtle ml-auto">
+                    <span className="text-[10px] text-floodlight-subtle ml-auto" suppressHydrationWarning>
                       {new Date(m.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                     </span>
                   </div>

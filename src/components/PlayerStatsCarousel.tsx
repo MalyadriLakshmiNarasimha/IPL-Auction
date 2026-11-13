@@ -154,7 +154,7 @@ export const PlayerStatsCarousel: React.FC<PlayerStatsCarouselProps> = ({
 
       {/* Carousel Body: Horizontal Slide Transition */}
       <div className="relative overflow-hidden min-h-[72px] flex items-center">
-        <AnimatePresence mode="wait" custom={direction}>
+        <AnimatePresence mode="wait" initial={false} custom={direction}>
           <motion.div
             key={`${player.id}-${activeView}`}
             custom={direction}

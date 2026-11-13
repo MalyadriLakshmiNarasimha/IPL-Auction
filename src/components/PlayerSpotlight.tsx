@@ -181,7 +181,7 @@ export const PlayerSpotlight: React.FC<PlayerSpotlightProps> = ({
         </div>
 
         {/* Dual Player Statistics System with Automatic 5-Second Rotation */}
-        <PlayerStatsCarousel player={player} />
+        <PlayerStatsCarousel key={player.id} player={player} />
       </div>
 
       {isDossierOpen && (

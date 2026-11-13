@@ -1309,6 +1309,7 @@ export default function RoomPage() {
               {/* Left Column: Spotlight, SplitFlap & BidLadder */}
               <div className="lg:col-span-7 flex flex-col gap-3">
                 <PlayerSpotlight
+                  key={auctionState.current_player?.id || 'empty-spotlight'}
                   player={auctionState.current_player}
                   timerEndsAt={auctionState.timer_ends_at}
                   timerSeconds={settings.timer_seconds}
