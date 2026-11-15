@@ -23,6 +23,7 @@
     "test:watch": "vitest",
     "test:bot-sim": "tsx server/tests/bot-simulator.ts",
     "test:browser": "tsx scripts/browser-verify.ts",
+    "stats:import": "tsx scripts/import_upto2026_stats.ts",
     "images:sync": "python scripts/acquire_player_photos.py",
     "images:force": "python scripts/acquire_player_photos.py --force"
   },

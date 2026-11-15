@@ -107,6 +107,30 @@ npm test
 npx tsx server/tests/run-sim-test.ts
 ```
 
+### 6. Authoritative Player Statistics Pipeline
+The statistics system is powered exclusively by the four authoritative CSV datasets in `Upto2026/`:
+- `Upto2026/batting_2026.csv` (175 records)
+- `Upto2026/batting_overall.csv` (737 records)
+- `Upto2026/bowling_2026.csv` (125 records)
+- `Upto2026/bowling_overall.csv` (576 records)
+
+To re-ingest and regenerate the unified player statistics registry (`src/shared/player-stats-registry.json`):
+```bash
+npm run stats:import
+```
+
+---
+
+## 📊 Dual Player Statistics & Twilight Scoreboard Display
+
+- **Overall IPL Career & IPL 2026 Season Separation**: Maintained as completely independent datasets.
+- **Dynamic Role-Based Rendering**:
+  - **Batter**: Displays the 7 core batting metrics: Matches (M), Innings (Inns), Runs, Average (Avg), Strike Rate (SR), Fours (4s), Sixes (6s).
+  - **Bowler**: Displays the 7 core bowling metrics: Matches (M), Bowling Innings (Inns), Overs, Balls Delivered, Runs Given, Wickets (Wkts), Economy (Econ).
+  - **All-Rounder**: Displays dual Batting and Bowling strips without empty or unrecorded sections.
+  - **Wicketkeeper**: Displays batting statistics and verified keeping dismissals when available.
+- **Multiplayer Synchronized Rotation**: Auto-rotates between Overall Career and 2026 Season on a smooth 3.0s cycle, with key-based unmount isolation to eliminate stat flashes and transition stalls across clients.
+
 ---
 
 ## 🔄 Complete User Workflow
