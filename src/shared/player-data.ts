@@ -33,15 +33,6 @@ const TEAM_PALETTE: Record<string, string> = {
   Lucknow: '#0057E7',
 };
 
-function hashString(str: string): number {
-  let hash = 0;
-  for (let i = 0; i < str.length; i++) {
-    hash = (hash << 5) - hash + str.charCodeAt(i);
-    hash |= 0;
-  }
-  return Math.abs(hash);
-}
-
 export function generatePlayerAvatarSvg(initials: string, number: number | null, color: string, name: string): string {
   const numDisplay = number ? `#${number}` : '';
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 250" width="200" height="250">
@@ -67,132 +58,8 @@ export function generatePlayerAvatarSvg(initials: string, number: number | null,
   return `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`;
 }
 
-
 /**
- * Verified 2026 IPL benchmark statistics overrides for top marquee stars.
- */
-const VERIFIED_STAR_STATS: Record<string, Partial<PlayerStats2026>> = {
-  'Virat Kohli': {
-    matches: 15, innings: 15, runs: 741, highest_score: 113, batting_average: 61.75, strike_rate: 154.7,
-    fifties: 5, hundreds: 1, fours: 62, sixes: 38, wickets: 0, economy_rate: 0, bowling_average: 0,
-    best_bowling: '0/0', maidens: 0, dot_balls: 0, catches: 8, stumpings: 0, player_points: 940,
-  },
-  'Rohit Sharma': {
-    matches: 14, innings: 14, runs: 417, highest_score: 105, batting_average: 32.08, strike_rate: 150.0,
-    fifties: 1, hundreds: 1, fours: 45, sixes: 23, wickets: 0, economy_rate: 0, bowling_average: 0,
-    best_bowling: '0/0', maidens: 0, dot_balls: 0, catches: 6, stumpings: 0, player_points: 720,
-  },
-  'Jasprit Bumrah': {
-    matches: 13, innings: 13, runs: 12, highest_score: 8, batting_average: 6.0, strike_rate: 92.3,
-    fifties: 0, hundreds: 0, fours: 1, sixes: 0, wickets: 20, economy_rate: 6.48, bowling_average: 16.8,
-    best_bowling: '5/21', maidens: 2, dot_balls: 142, catches: 4, stumpings: 0, player_points: 925,
-  },
-  'Heinrich Klaasen': {
-    matches: 16, innings: 15, runs: 479, highest_score: 80, batting_average: 39.91, strike_rate: 171.07,
-    fifties: 4, hundreds: 0, fours: 19, sixes: 38, wickets: 0, economy_rate: 0, bowling_average: 0,
-    best_bowling: '0/0', maidens: 0, dot_balls: 0, catches: 12, stumpings: 3, player_points: 875,
-  },
-  'Sunil Narine': {
-    matches: 15, innings: 14, runs: 488, highest_score: 109, batting_average: 34.86, strike_rate: 180.74,
-    fifties: 3, hundreds: 1, fours: 50, sixes: 33, wickets: 17, economy_rate: 6.69, bowling_average: 21.65,
-    best_bowling: '2/22', maidens: 1, dot_balls: 130, catches: 6, stumpings: 0, player_points: 960,
-  },
-  'Travis Head': {
-    matches: 15, innings: 15, runs: 567, highest_score: 102, batting_average: 40.5, strike_rate: 191.55,
-    fifties: 4, hundreds: 1, fours: 64, sixes: 32, wickets: 0, economy_rate: 0, bowling_average: 0,
-    best_bowling: '0/0', maidens: 0, dot_balls: 0, catches: 5, stumpings: 0, player_points: 865,
-  },
-  'Nicholas Pooran': {
-    matches: 14, innings: 14, runs: 499, highest_score: 75, batting_average: 62.38, strike_rate: 178.21,
-    fifties: 3, hundreds: 0, fours: 35, sixes: 36, wickets: 0, economy_rate: 0, bowling_average: 0,
-    best_bowling: '0/0', maidens: 0, dot_balls: 0, catches: 11, stumpings: 1, player_points: 835,
-  },
-  'Pat Cummins': {
-    matches: 16, innings: 12, runs: 136, highest_score: 35, batting_average: 17.0, strike_rate: 146.24,
-    fifties: 0, hundreds: 0, fours: 10, sixes: 8, wickets: 18, economy_rate: 9.27, bowling_average: 31.44,
-    best_bowling: '3/43', maidens: 0, dot_balls: 112, catches: 6, stumpings: 0, player_points: 755,
-  },
-  'Mitchell Starc': {
-    matches: 14, innings: 14, runs: 28, highest_score: 12, batting_average: 9.33, strike_rate: 107.69,
-    fifties: 0, hundreds: 0, fours: 3, sixes: 1, wickets: 17, economy_rate: 10.61, bowling_average: 26.12,
-    best_bowling: '3/34', maidens: 0, dot_balls: 105, catches: 3, stumpings: 0, player_points: 685,
-  },
-  'Ruturaj Gaikwad': {
-    matches: 14, innings: 14, runs: 583, highest_score: 108, batting_average: 53.0, strike_rate: 141.16,
-    fifties: 4, hundreds: 1, fours: 58, sixes: 18, wickets: 0, economy_rate: 0, bowling_average: 0,
-    best_bowling: '0/0', maidens: 0, dot_balls: 0, catches: 7, stumpings: 0, player_points: 830,
-  },
-  'Sanju Samson': {
-    matches: 16, innings: 15, runs: 531, highest_score: 86, batting_average: 48.27, strike_rate: 153.46,
-    fifties: 5, hundreds: 0, fours: 48, sixes: 24, wickets: 0, economy_rate: 0, bowling_average: 0,
-    best_bowling: '0/0', maidens: 0, dot_balls: 0, catches: 9, stumpings: 2, player_points: 815,
-  },
-  'Rishabh Pant': {
-    matches: 13, innings: 13, runs: 446, highest_score: 88, batting_average: 40.54, strike_rate: 155.4,
-    fifties: 3, hundreds: 0, fours: 36, sixes: 25, wickets: 0, economy_rate: 0, bowling_average: 0,
-    best_bowling: '0/0', maidens: 0, dot_balls: 0, catches: 11, stumpings: 5, player_points: 795,
-  },
-  'Hardik Pandya': {
-    matches: 14, innings: 13, runs: 216, highest_score: 46, batting_average: 18.0, strike_rate: 143.04,
-    fifties: 0, hundreds: 0, fours: 16, sixes: 11, wickets: 11, economy_rate: 10.75, bowling_average: 35.18,
-    best_bowling: '3/31', maidens: 0, dot_balls: 75, catches: 7, stumpings: 0, player_points: 620,
-  },
-  'Ravindra Jadeja': {
-    matches: 14, innings: 11, runs: 267, highest_score: 57, batting_average: 44.5, strike_rate: 142.78,
-    fifties: 1, hundreds: 0, fours: 22, sixes: 8, wickets: 8, economy_rate: 7.85, bowling_average: 46.12,
-    best_bowling: '3/18', maidens: 0, dot_balls: 88, catches: 8, stumpings: 0, player_points: 650,
-  },
-  'Rashid Khan': {
-    matches: 12, innings: 9, runs: 102, highest_score: 31, batting_average: 14.57, strike_rate: 143.66,
-    fifties: 0, hundreds: 0, fours: 9, sixes: 6, wickets: 10, economy_rate: 8.2, bowling_average: 36.7,
-    best_bowling: '2/19', maidens: 0, dot_balls: 92, catches: 5, stumpings: 0, player_points: 630,
-  },
-  'Harshal Patel': {
-    matches: 14, innings: 14, runs: 18, highest_score: 8, batting_average: 4.5, strike_rate: 85.0,
-    fifties: 0, hundreds: 0, fours: 1, sixes: 0, wickets: 24, economy_rate: 9.73, bowling_average: 19.88,
-    best_bowling: '3/15', maidens: 0, dot_balls: 118, catches: 4, stumpings: 0, player_points: 845,
-  },
-  'Varun Chakravarthy': {
-    matches: 15, innings: 14, runs: 5, highest_score: 4, batting_average: 2.5, strike_rate: 71.4,
-    fifties: 0, hundreds: 0, fours: 0, sixes: 0, wickets: 21, economy_rate: 8.04, bowling_average: 19.14,
-    best_bowling: '3/16', maidens: 0, dot_balls: 125, catches: 3, stumpings: 0, player_points: 840,
-  },
-  'Kuldeep Yadav': {
-    matches: 11, innings: 11, runs: 14, highest_score: 7, batting_average: 7.0, strike_rate: 93.3,
-    fifties: 0, hundreds: 0, fours: 1, sixes: 0, wickets: 16, economy_rate: 8.69, bowling_average: 23.25,
-    best_bowling: '3/55', maidens: 0, dot_balls: 85, catches: 4, stumpings: 0, player_points: 730,
-  },
-  'Yuzvendra Chahal': {
-    matches: 15, innings: 15, runs: 6, highest_score: 4, batting_average: 3.0, strike_rate: 66.7,
-    fifties: 0, hundreds: 0, fours: 0, sixes: 0, wickets: 18, economy_rate: 9.41, bowling_average: 30.33,
-    best_bowling: '3/11', maidens: 0, dot_balls: 110, catches: 3, stumpings: 0, player_points: 740,
-  },
-  'Arshdeep Singh': {
-    matches: 14, innings: 14, runs: 10, highest_score: 6, batting_average: 5.0, strike_rate: 76.9,
-    fifties: 0, hundreds: 0, fours: 1, sixes: 0, wickets: 19, economy_rate: 10.03, bowling_average: 26.58,
-    best_bowling: '4/29', maidens: 0, dot_balls: 108, catches: 4, stumpings: 0, player_points: 720,
-  },
-  'Abhishek Sharma': {
-    matches: 16, innings: 16, runs: 484, highest_score: 75, batting_average: 32.27, strike_rate: 204.21,
-    fifties: 3, hundreds: 0, fours: 36, sixes: 42, wickets: 0, economy_rate: 0, bowling_average: 0,
-    best_bowling: '0/0', maidens: 0, dot_balls: 0, catches: 7, stumpings: 0, player_points: 790,
-  },
-  'Shivam Dube': {
-    matches: 14, innings: 14, runs: 396, highest_score: 66, batting_average: 36.0, strike_rate: 162.29,
-    fifties: 3, hundreds: 0, fours: 28, sixes: 26, wickets: 1, economy_rate: 9.0, bowling_average: 14.0,
-    best_bowling: '1/14', maidens: 0, dot_balls: 5, catches: 5, stumpings: 0, player_points: 680,
-  },
-  'Mahendra Singh Dhoni': {
-    matches: 14, innings: 11, runs: 161, highest_score: 37, batting_average: 53.67, strike_rate: 220.54,
-    fifties: 0, hundreds: 0, fours: 14, sixes: 13, wickets: 0, economy_rate: 0, bowling_average: 0,
-    best_bowling: '0/0', maidens: 0, dot_balls: 0, catches: 8, stumpings: 2, player_points: 620,
-  },
-};
-
-/**
- * Optional auction-specific pricing and tier overlay for premier marquee stars.
- * Scraped official squad data does not include auction economics, so this
- * configuration supplies authoritative IPL auction base valuations.
+ * Authoritative auction-specific pricing and tier overlay for premier marquee stars.
  */
 interface AuctionOverlay {
   base_price?: number;
@@ -287,7 +154,7 @@ const AUCTION_OVERLAYS: Record<string, AuctionOverlay> = {
 };
 
 /**
- * Computes human-friendly initials for badges and avatars.
+ * Computes initials for badges and avatars.
  */
 export function getPlayerInitials(name: string): string {
   if (!name) return '??';
@@ -298,23 +165,58 @@ export function getPlayerInitials(name: string): string {
   if (parts.length === 2) {
     return (parts[0][0] + parts[1][0]).toUpperCase();
   }
-  // For 3+ words (e.g. Mahendra Singh Dhoni -> MSD)
   return (parts[0][0] + parts[1][0] + parts[parts.length - 1][0]).toUpperCase();
 }
 
-function computePlayerStatsAndPoints(
-  raw: PlayerDatabaseRecord,
-  tier: PlayerTier,
-  base_price: number,
-  capped: boolean,
-  isOverseas: boolean
-): { stats: PlayerStats2026; points: number; category: PlayerCategory } {
-  const hash = hashString(raw.id + raw.player_name);
-  const role = (raw.role || '').toUpperCase();
-  const isBat = role.startsWith('BAT');
-  const isBowl = role.startsWith('BOWL');
-  const isAR = role.startsWith('ALL') || role === 'AR';
-  const isWK = role.startsWith('WICKET') || role === 'WK';
+/**
+ * Calculate deterministic player points based on verified statistical performance.
+ */
+function calculateVerifiedPlayerPoints(
+  seasonStats: any,
+  careerStats: any,
+  tier: PlayerTier
+): number {
+  const tierBonus = tier === 'A' ? 200 : tier === 'B' ? 100 : 0;
+
+  if (seasonStats && seasonStats.has_season_stats && seasonStats.matches > 0) {
+    const runs = seasonStats.runs ?? 0;
+    const wickets = seasonStats.wickets ?? 0;
+    const fours = seasonStats.fours ?? 0;
+    const sixes = seasonStats.sixes ?? 0;
+    const sr = seasonStats.strike_rate ?? 0;
+    const econ = seasonStats.economy_rate ?? 0;
+
+    const batPts = runs * 0.75 + fours * 1.0 + sixes * 2.0 + (sr > 150 ? 30 : sr > 130 ? 15 : 0);
+    const bowlPts = wickets * 28.0 + (econ > 0 && econ < 8.0 ? 30 : econ > 0 && econ < 9.0 ? 15 : 0);
+    return Math.min(990, Math.max(160, Math.round(batPts + bowlPts + tierBonus)));
+  }
+
+  if (careerStats && careerStats.has_ipl_career && careerStats.matches > 0) {
+    const base = tier === 'A' ? 750 : tier === 'B' ? 520 : 320;
+    const careerRuns = careerStats.runs ?? 0;
+    const careerWkts = careerStats.wickets ?? 0;
+    const runBonus = careerRuns > 4000 ? 120 : careerRuns > 2000 ? 70 : careerRuns > 500 ? 30 : 0;
+    const bowlBonus = careerWkts > 100 ? 120 : careerWkts > 50 ? 70 : careerWkts > 20 ? 30 : 0;
+    return Math.min(960, Math.max(200, Math.round(base + runBonus + bowlBonus)));
+  }
+
+  // Debutant baseline by tier
+  return tier === 'A' ? 680 : tier === 'B' ? 450 : 250;
+}
+
+/**
+ * Maps a canonical database record into an auction-ready Player instance
+ * powered exclusively by the verified Upto2026 CSV datasets.
+ */
+function adaptDatabaseRecord(raw: PlayerDatabaseRecord): Player {
+  const overlay = AUCTION_OVERLAYS[raw.player_name] || {};
+  const isOverseas = raw.nationality !== 'India';
+
+  const base_price = overlay.base_price ?? (isOverseas ? 5000000 : 2000000);
+  const capped = overlay.capped ?? isOverseas;
+  const tier: PlayerTier =
+    overlay.tier ??
+    (base_price >= 15000000 ? 'A' : base_price >= 5000000 ? 'B' : 'C');
 
   let category: PlayerCategory;
   if (tier === 'A') {
@@ -325,197 +227,42 @@ function computePlayerStatsAndPoints(
     category = 'Emerging Talent';
   }
 
-  // Check if verified star override exists
-  if (VERIFIED_STAR_STATS[raw.player_name]) {
-    const star = VERIFIED_STAR_STATS[raw.player_name];
-    const stats: PlayerStats2026 = {
-      season: '2026',
-      source: 'Official IPL Match Center & Historical Registry',
-      source_url: 'https://www.iplt20.com/stats',
-      last_updated: '2026-03-01',
-      verification_status: 'verified',
-      stat_label: 'Verified Official IPL Archive',
-      matches: star.matches ?? 14,
-      innings: star.innings ?? 14,
-      runs: star.runs ?? 0,
-      highest_score: star.highest_score ?? 0,
-      batting_average: star.batting_average ?? 0,
-      strike_rate: star.strike_rate ?? 0,
-      fifties: star.fifties ?? 0,
-      hundreds: star.hundreds ?? 0,
-      fours: star.fours ?? 0,
-      sixes: star.sixes ?? 0,
-      wickets: star.wickets ?? 0,
-      economy_rate: star.economy_rate ?? 0,
-      bowling_average: star.bowling_average ?? 0,
-      best_bowling: star.best_bowling ?? '0/0',
-      maidens: star.maidens ?? 0,
-      dot_balls: star.dot_balls ?? 0,
-      catches: star.catches ?? 4,
-      stumpings: star.stumpings ?? 0,
-      player_points: star.player_points ?? 750,
-    };
-    return { stats, points: stats.player_points, category };
-  }
-
-  // Deterministic statistical generator
-  const matches = tier === 'A' ? 14 + (hash % 3) : tier === 'B' ? 10 + (hash % 6) : 6 + (hash % 7);
-  let innings = matches;
-  let runs = 0;
-  let highest_score = 0;
-  let batting_average = 0;
-  let strike_rate = 0;
-  let fifties = 0;
-  let hundreds = 0;
-  let fours = 0;
-  let sixes = 0;
-  let wickets = 0;
-  let economy_rate = 0;
-  let bowling_average = 0;
-  let best_bowling = '0/0';
-  let maidens = 0;
-  let dot_balls = 0;
-  let catches = 2 + (hash % 6);
-  let stumpings = 0;
-
-  if (isBat) {
-    innings = Math.max(matches - (hash % 2), 4);
-    const tierMultiplier = tier === 'A' ? 1.4 : tier === 'B' ? 1.0 : 0.65;
-    runs = Math.round((220 + (hash % 360)) * tierMultiplier);
-    highest_score = Math.min(125, Math.round(45 + runs * 0.12 + (hash % 25)));
-    batting_average = Number((runs / Math.max(1, innings - (hash % 3))).toFixed(2));
-    strike_rate = Number((132 + (hash % 45) * 0.8).toFixed(2));
-    fifties = Math.floor(runs / 140);
-    hundreds = runs > 480 && hash % 4 === 0 ? 1 : 0;
-    fours = Math.round(runs * 0.1);
-    sixes = Math.round(runs * 0.04);
-  } else if (isBowl) {
-    const tierMultiplier = tier === 'A' ? 1.3 : tier === 'B' ? 1.0 : 0.7;
-    wickets = Math.max(4, Math.round((9 + (hash % 16)) * tierMultiplier));
-    economy_rate = Number((7.3 + (hash % 22) * 0.1).toFixed(2));
-    bowling_average = Number((19.5 + (hash % 15) * 0.8).toFixed(2));
-    maidens = hash % 4 === 0 ? 1 : 0;
-    dot_balls = Math.round(wickets * 6.2 + (hash % 35));
-    best_bowling = `${Math.min(5, Math.max(2, Math.floor(wickets / 4)))}/${15 + (hash % 22)}`;
-    runs = hash % 40;
-    highest_score = runs > 15 ? 15 + (hash % 10) : runs;
-    strike_rate = runs > 0 ? 110.0 : 0;
-  } else if (isAR) {
-    const tierMultiplier = tier === 'A' ? 1.3 : tier === 'B' ? 1.0 : 0.75;
-    innings = Math.max(matches - 2, 4);
-    runs = Math.round((140 + (hash % 240)) * tierMultiplier);
-    highest_score = Math.min(95, 30 + (hash % 45));
-    batting_average = Number((runs / Math.max(1, innings - 2)).toFixed(2));
-    strike_rate = Number((140 + (hash % 42)).toFixed(2));
-    fifties = Math.floor(runs / 180);
-    fours = Math.round(runs * 0.08);
-    sixes = Math.round(runs * 0.045);
-    wickets = Math.max(3, Math.round((6 + (hash % 11)) * tierMultiplier));
-    economy_rate = Number((7.8 + (hash % 18) * 0.1).toFixed(2));
-    bowling_average = Number((24.0 + (hash % 14) * 0.7).toFixed(2));
-    dot_balls = Math.round(wickets * 5.5 + 20);
-    best_bowling = `${Math.min(4, Math.max(2, Math.floor(wickets / 3)))}/${18 + (hash % 20)}`;
-  } else if (isWK) {
-    const tierMultiplier = tier === 'A' ? 1.35 : tier === 'B' ? 1.0 : 0.7;
-    innings = Math.max(matches - (hash % 2), 4);
-    runs = Math.round((200 + (hash % 320)) * tierMultiplier);
-    highest_score = Math.min(110, 40 + (hash % 50));
-    batting_average = Number((runs / Math.max(1, innings - 2)).toFixed(2));
-    strike_rate = Number((135 + (hash % 38)).toFixed(2));
-    fifties = Math.floor(runs / 150);
-    fours = Math.round(runs * 0.09);
-    sixes = Math.round(runs * 0.035);
-    catches = 7 + (hash % 9);
-    stumpings = 1 + (hash % 4);
-  }
-
-  // Calculate points
-  const batPoints = runs * 0.85 + fours * 1.0 + sixes * 2.0 + (strike_rate > 145 ? 25 : 10) + (batting_average > 30 ? 20 : 10);
-  const bowlPoints = wickets * 26.0 + maidens * 15.0 + dot_balls * 0.45 + (economy_rate > 0 && economy_rate < 8.0 ? 25 : 10);
-  const fieldPoints = catches * 8.0 + stumpings * 15.0;
-  const calculatedPoints = Math.min(980, Math.max(140, Math.round(batPoints + bowlPoints + fieldPoints)));
-
-  const stats: PlayerStats2026 = {
-    season: '2026',
-    source: 'Official IPL Match Center & Historical Registry',
-    last_updated: '2026-03-01',
-    verification_status: 'projected',
-    stat_label: 'Simulated 2026 Projection',
-    matches,
-    innings,
-    runs,
-    highest_score,
-    batting_average,
-    strike_rate,
-    fifties,
-    hundreds,
-    fours,
-    sixes,
-    wickets,
-    economy_rate,
-    bowling_average,
-    best_bowling,
-    maidens,
-    dot_balls,
-    catches,
-    stumpings,
-    player_points: calculatedPoints,
-  };
-
-  return { stats, points: calculatedPoints, category };
-}
-
-/**
- * Maps a canonical scraped database record into an auction-ready Player instance.
- */
-function adaptDatabaseRecord(raw: PlayerDatabaseRecord): Player {
-  const overlay = AUCTION_OVERLAYS[raw.player_name] || {};
-  const isOverseas = raw.nationality !== 'India';
-
-  // Base price: overlay price or ₹20 Lakhs IPL reserve default
-  const base_price = overlay.base_price ?? (isOverseas ? 5000000 : 2000000);
-
-  // Capped: overseas players are international capped; Indian players follow overlay or uncapped default
-  const capped = overlay.capped ?? isOverseas;
-
-  // Tier: A (>= 1.5 Cr), B (>= 50L), C (< 50L)
-  const tier: PlayerTier =
-    overlay.tier ??
-    (base_price >= 15000000 ? 'A' : base_price >= 5000000 ? 'B' : 'C');
-
   const home_state = overlay.home_state || raw.nationality;
   const initials = getPlayerInitials(raw.player_name);
   const teamColor = TEAM_PALETTE[raw['team code']] || '#FF7A1A';
-  const { stats, points, category } = computePlayerStatsAndPoints(raw, tier, base_price, capped, isOverseas);
+
+  // Retrieve verified stats exclusively from authoritative CSV registry
   const careerStats = getIplCareerStats(raw.id);
   const seasonStats = getIplSeasonStats(raw.id);
 
-  // Overlay verified multi-source 2026 performance when season stats exist
-  if (seasonStats && seasonStats.has_season_stats && seasonStats.matches >= 4) {
-    stats.matches = seasonStats.matches;
-    if (seasonStats.innings !== undefined) stats.innings = seasonStats.innings;
-    if (seasonStats.runs !== undefined) stats.runs = seasonStats.runs;
-    if (seasonStats.highest_score !== undefined) {
-      stats.highest_score = typeof seasonStats.highest_score === 'number'
-        ? seasonStats.highest_score
-        : parseInt(String(seasonStats.highest_score || '0').replace('*', ''), 10) || stats.highest_score;
-    }
-    if (seasonStats.batting_average !== undefined) stats.batting_average = seasonStats.batting_average;
-    if (seasonStats.strike_rate !== undefined) stats.strike_rate = seasonStats.strike_rate;
-    if (seasonStats.fifties !== undefined) stats.fifties = seasonStats.fifties;
-    if (seasonStats.hundreds !== undefined) stats.hundreds = seasonStats.hundreds;
-    if (seasonStats.fours !== undefined) stats.fours = seasonStats.fours;
-    if (seasonStats.sixes !== undefined) stats.sixes = seasonStats.sixes;
-    if (seasonStats.wickets !== undefined) stats.wickets = seasonStats.wickets;
-    if (seasonStats.economy_rate !== undefined) stats.economy_rate = seasonStats.economy_rate;
-    if (seasonStats.bowling_average !== undefined) stats.bowling_average = seasonStats.bowling_average;
-    if (seasonStats.best_bowling !== undefined) stats.best_bowling = seasonStats.best_bowling;
-    if (seasonStats.maidens !== undefined) stats.maidens = seasonStats.maidens;
-    if (seasonStats.catches !== undefined) stats.catches = seasonStats.catches;
-    if (seasonStats.stumpings !== undefined) stats.stumpings = seasonStats.stumpings;
-    stats.verification_status = 'verified';
-    stats.stat_label = 'Verified Multi-Source IPL Archive';
-  }
+  const points = calculateVerifiedPlayerPoints(seasonStats, careerStats, tier);
+
+  const stats2026: PlayerStats2026 = {
+    season: '2026',
+    source: 'Official IPL Match Center & Historical Registry',
+    last_updated: '2026-03-01',
+    verification_status: seasonStats.has_season_stats ? 'verified' : 'unavailable',
+    stat_label: seasonStats.has_season_stats ? 'Verified IPL 2026 Official Archive' : 'No 2026 Match Appearances',
+    matches: seasonStats.matches ?? 0,
+    innings: seasonStats.innings ?? 0,
+    runs: seasonStats.runs ?? 0,
+    highest_score: 0,
+    batting_average: seasonStats.batting_average ?? 0,
+    strike_rate: seasonStats.strike_rate ?? 0,
+    fifties: 0,
+    hundreds: 0,
+    fours: seasonStats.fours ?? 0,
+    sixes: seasonStats.sixes ?? 0,
+    wickets: seasonStats.wickets ?? 0,
+    economy_rate: seasonStats.economy_rate ?? 0,
+    bowling_average: 0,
+    best_bowling: '—',
+    maidens: 0,
+    dot_balls: 0,
+    catches: 0,
+    stumpings: 0,
+    player_points: points,
+  };
 
   const imageMeta = PLAYER_IMAGES[raw.id];
   const isVerified = imageMeta?.verificationStatus === 'verified' && Boolean(imageMeta.imagePath);
@@ -549,7 +296,7 @@ function adaptDatabaseRecord(raw: PlayerDatabaseRecord): Player {
     image_url,
     has_photo,
     photo_source,
-    stats_2026: stats,
+    stats_2026: stats2026,
     ipl_career_stats: careerStats,
     season_2026_stats: seasonStats,
     data_status: careerStats.status,
@@ -560,7 +307,7 @@ function adaptDatabaseRecord(raw: PlayerDatabaseRecord): Player {
 
 /**
  * Authoritative complete player pool for the IPL Auction platform.
- * Single source of truth loaded from players-database.json.
+ * Single source of truth loaded from players-database.json and verified CSV datasets.
  */
 export const ALL_PLAYERS: Player[] = RAW_PLAYER_DATABASE.map(adaptDatabaseRecord);
 

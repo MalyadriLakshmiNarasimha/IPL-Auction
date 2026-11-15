@@ -59,7 +59,8 @@ describe('Comprehensive 8-Stage IPL Auction & Team Management Ecosystem Verifica
 
     expect(bumrah).toBeDefined();
     expect(bumrah?.role.toUpperCase()).toContain('BOWL');
-    expect(bumrah?.stats_2026?.wickets).toBeGreaterThan(15);
+    expect(bumrah?.ipl_career_stats?.wickets).toBeGreaterThan(150);
+    expect(bumrah?.stats_2026?.wickets).toBeGreaterThan(0);
 
     // Smart purse & composition calculation
     const participant: Participant = {

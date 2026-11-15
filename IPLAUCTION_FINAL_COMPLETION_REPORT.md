@@ -1,136 +1,144 @@
-# IPLAUCTION — FINAL PROJECT COMPLETION REPORT
+# IPL AUCTION — FINAL PROJECT COMPLETION REPORT
+## Complete Statistics System Replacement Using Upto2026 CSV Datasets
 
-**Project:** IPLAuction — Real-Time Multiplayer IPL Auction Game  
-**Repository:** https://github.com/MalyadriLakshmiNarasimha/IPL-Auction  
-**Branch:** `main`  
-**Latest Verification:** November 13, 2026  
-**Status:** Certified & Production Ready  
-**P0 Deliverable:** Complete IPL Player Statistics Data Recovery, Scraping & Integration  
-
----
-
-## EXECUTIVE SUMMARY
-
-A critical P0 investigation and comprehensive data recovery was performed across the entire IPL Auction ecosystem to eliminate misleading statistical messages (such as *"Statistics unavailable (No appearances in IPL 2026)"* and *"Statistics unavailable (IPL Debutant)"* for established players) and empty statistical panels.
-
-Most notably, **Donovan Ferreira (`p-194`)**, who played 15 matches for Rajasthan Royals in IPL 2026 scoring 317 runs with 2 fifties and took 1 wicket, had erroneously been assigned zero 2026 appearances (`matches: 0, has_stats: false`).
-
-The statistics acquisition, normalization, and delivery pipeline was completely audited, rebuilt, and certified across all 274 players in `players-database.json`. All 18 test suites (**260 total tests**), TypeScript type checks (`tsc --noEmit`), Next.js App Router production build (`npm run build`), and automated Chrome CDP headless browser tests (`npm run test:browser`) passed with 100% success and **ZERO regressions or React hydration errors**.
+**Project:** IPL Auction 2027 — Real-Time Multiplayer IPL Auction Platform  
+**Date:** November 15, 2026  
+**Priority:** P0 Critical Architecture & Correctness  
+**Status:** Certified, Fully Verified & Production-Ready  
+**Authoritative Source Folder:** `Upto2026/`  
+**Unified Registry:** `src/shared/player-stats-registry.json`  
+**Ingestion Pipeline:** `scripts/import_upto2026_stats.ts`  
 
 ---
 
-## 1. P0 PROBLEM RESOLUTION SUMMARY
+## 1. Executive Summary
 
-| Priority | Issue Description | Root Cause | Resolution | Status |
-|---|---|---|---|---|
-| **P0** | **Donovan Ferreira (`p-194`) Zero 2026 Appearances Bug** | `HISTORICAL_IPL_2026_BY_ID["p-194"]` contained `matches: 0, has_stats: false`, and career contained only pre-2026 numbers (3 matches, 16 runs). | Rebuilt record from Rajasthan Royals official player profile & IPL Match Center: 2026 has **15 matches, 317 runs, 13 innings, 4 not outs, HS 69, avg 35.22, SR 179.10, 2 fifties, 25 fours, 23 sixes, 1 wicket (1/18)**. Career has **18 matches, 326 runs, 2 fifties, 1 wicket**. | **RESOLVED** |
-| **P0** | **Missing REST Statistics API Endpoint** | `/api/players/[id]/stats` did not exist in `src/app/api/players/`, preventing programmatic querying and frontend fallback. | Implemented dynamic Next.js App Router route `src/app/api/players/[id]/stats/route.ts` and standalone Node HTTP server endpoint in `server/index.ts`, supporting lookups by ID, canonical name, and alias with cache headers. | **RESOLVED** |
-| **P0** | **Misleading Fallback Cards for Established Players** | `PlayerStatsCarousel.tsx` defaulted to *"Statistics unavailable (IPL Debutant)"* whenever a lookup failed or season matches were 0. | Added explicit status enforcement: `GENUINE_IPL_DEBUTANT`, `NO_APPEARANCES_IN_SEASON`, `DATA_UNAVAILABLE`, `MAPPING_ERROR`, and `VERIFIED`. | **RESOLVED** |
-| **P1** | **Missing Bowling Statistics for All-Rounders** | All-rounders classified under `Batter` (Cameron Green, Marcus Stoinis, Mitch Marsh, Donovan Ferreira, Aiden Markram) omitted bowling wickets and figures. | Attached verified career and season bowling figures (`wickets`, `best_bowling`, `economy_rate`, `overs`, `runs_conceded`). Enhanced `PlayerStatsCarousel` with dynamic `AllRounderStatsGrid` rendering both batting and bowling sections. | **RESOLVED** |
-| **P1** | **Wicketkeeper Dismissals Completeness** | Missing catches and stumpings metrics for certain wicketkeepers and multi-role players (e.g. KL Rahul). | Attached verified career (62 catches, 6 stumpings, 68 dismissals) and 2026 season wicketkeeping figures. | **RESOLVED** |
-| **P1** | **Name and Alias Determinism** | Diacritics (`Lhuan-dré Pretorius`), dots (`M.S. Dhoni`), initials (`MS Dhoni`, `V Kohli`), and alternate spellings (`Mitchell Marsh` / `Mitch Marsh`) risked lookup failures. | Implemented `normalizePlayerName()` and `resolvePlayerId()` with NFD diacritic removal, punctuation stripping, and deterministic alias mapping. | **RESOLVED** |
+This report certifies the successful, full-scale replacement of the legacy IPL statistics implementation with a deterministic, verified statistics engine powered exclusively by the four authoritative CSV datasets in `Upto2026/`.
+
+### Summary of Completed Objectives:
+1. **Legacy Systems Eradicated:** All hardcoded statistics overrides (`VERIFIED_STAR_STATS`), fake random simulation hashing (`generateSimulatedSeason2026`), obsolete historical registries, and conflicting fallback calculations were completely eliminated from the codebase.
+2. **Authoritative Single Source of Truth:** The four CSV files in `Upto2026/` (`batting_2026.csv`, `batting_overall.csv`, `bowling_2026.csv`, `bowling_overall.csv`) serve as the sole source of truth for all IPL statistics. The original CSV files remain untouched and unaltered.
+3. **Deterministic Identity Resolution:** Mapped all 274 auction players (`p-001` through `p-274`) using exact normalized names and 5 verified aliases, while preserving 563 unmapped CSV source records for auditing.
+4. **Strict Dataset Separation:** Overall IPL Career and IPL 2026 Season statistics are maintained as strictly independent datasets. 2026 statistics are never summed into career totals.
+5. **No Hallucinated Fields:** Fields not supported by the CSV datasets (e.g. Hundreds, Fifties, Highest Score, Maidens, Not Outs) are never guessed or backfilled; unsupported or missing values display as `—` (dash), never zero.
+6. **Bowling Economy Precision:** Economy rates are calculated from runs conceded and exact legal balls delivered: $(\text{runs} / \text{balls}) \times 6$, rounded to 2 decimal places.
+7. **Production Quality & Test Suite Passing:** Zero TypeScript errors (`tsc --noEmit`), successful Next.js production build (`npm run build`), and 100% pass rate across all statistics, UI, scoring, voice, and auction lifecycle test suites.
 
 ---
 
-## 2. AUDIT RESULTS: ALL 274 PLAYERS
+## 2. Ingested Datasets Audit
 
-The entire player registry was audited against official match center scorecards:
+The ingestion engine in `scripts/import_upto2026_stats.ts` validates and ingests all four CSV files with zero errors:
+
+| Dataset | Relative Path | Record Count | Unique `Player_ID`s | Duplicate IDs | Missing Names |
+|---|---|---:|---:|---:|---:|
+| **Batting 2026** | `Upto2026/batting_2026.csv` | 175 | 175 | 0 | 0 |
+| **Batting Overall** | `Upto2026/batting_overall.csv` | 737 | 737 | 0 | 0 |
+| **Bowling 2026** | `Upto2026/bowling_2026.csv` | 125 | 125 | 0 | 0 |
+| **Bowling Overall** | `Upto2026/bowling_overall.csv` | 576 | 576 | 0 | 0 |
+| **Total Ingested** | — | **1,613** | **1,613** | **0** | **0** |
+
+---
+
+## 3. Roster Mapping & Classification Results
+
+All 274 auction players in `src/shared/player-data.ts` (`p-001` through `p-274`) were audited and classified into six distinct statuses:
 
 ```
-================================================================
-           IPL AUCTION COMPREHENSIVE DATASET AUDIT              
-================================================================
-Total Players in Database: 274
-Total Players loaded in ALL_PLAYERS: 274
-
---- Role Distribution in Database ---
-- Batter: 105
-- Bowler: 117
-- All-Rounder: 30
-- Wicketkeeper: 22
-
---- Nationality Breakdown ---
-- Indian Players: 184
-- Overseas Players: 90
-
---- Career & Season Statistics Summary ---
-- Players with Verified Career Stats: 181
-- Genuine IPL Debutants (No Career): 93
-- Players with 2026 Season Stats: 162 (161 + Donovan Ferreira)
-- Established Players with No 2026 Appearances: 19
-- Mathematical Inconsistencies (Career < Season): 0
-- Duplicate IDs: 0
-- Duplicate Canonical Names: 0
+Total Auction Roster: 274 Players
+├── VERIFIED_DATA:             199 (72.63%)  [Full Career & 2026 Season stats]
+├── NO_APPEARANCES_IN_2026:     40 (14.60%)  [Established career, 0 matches in 2026]
+├── GENUINE_IPL_DEBUTANT:       33 (12.04%)  [Uncapped players, 0 IPL career matches]
+├── PARTIAL_DATA:                2 ( 0.73%)  [Bowling stats present, batting unrecorded]
+├── DATA_UNAVAILABLE:            0 ( 0.00%)  [Zero missing data errors]
+└── MAPPING_ERROR:               0 ( 0.00%)  [Zero ambiguous mapping errors]
 ```
 
-### Classification Statuses Applied
-1. **`VERIFIED` (162 Season, 181 Career):** Active players with complete match appearances from official archives.
-2. **`NO_APPEARANCES_IN_SEASON` (19 Players):** Capped IPL players who legitimately did not feature in IPL 2026 matches (e.g. Tom Banton, Luke Wood, Akeal Hosein, Ben Dwarshuis).
-3. **`GENUINE_IPL_DEBUTANT` (93 Players):** Uncapped emerging domestic/overseas players who have not yet debuted in the IPL (e.g. Ayush Mhatre, Vaibhav Sooryavanshi, Finn Allen).
-4. **`DATA_UNAVAILABLE`:** Default fallback if an unverified lookup occurs.
-5. **`MAPPING_ERROR`:** Returned if an unknown ID or invalid identifier is queried via API.
+### Verified Aliases:
+- `p-004` (Aman Khan) $\rightarrow$ `378daa89` (Aman Hakim Khan)
+- `p-019` (Akash Madhwal) $\rightarrow$ `4bd09374` (Akash Mandwaal)
+- `p-028` (Mahendra Singh Dhoni) $\rightarrow$ `4a8a2e3b` (MS Dhoni)
+- `p-175` (Mitch Owen) $\rightarrow$ `f2c936d7` (Mitchell Owen)
+- `p-208` (Yudhvir Singh Charak) $\rightarrow$ `4885bbe6` (Yudhvir Singh)
+
+### Preserved Source Records:
+563 CSV records that do not belong to active 2027 auction pool players were safely stored in `src/shared/player-stats-registry.json` under `unmapped_csv_players`.
 
 ---
 
-## 3. PHASE 6 REAL PLAYER VERIFICATION RESULTS
+## 4. Target 16 Players Verification Table
 
-| Player ID | Name | Role | Career Matches | Career Runs | Career Bowling / WKs | 2026 Matches | 2026 Runs | 2026 Bowling / WKs | Status | Verified Source |
-|---|---|---|---|---|---|---|---|---|---|---|
-| `p-194` | **Donovan Ferreira** | Batter / AR | **18** | **326** | **1 Wkt** (1/18) | **15** | **317** | **1 Wkt** (1/18) | `VERIFIED` | Rajasthan Royals Official Profile / Match Center |
-| `p-224` | **Virat Kohli** | Batter | **252** | **8004** | 114 Catches | **15** | **741** | 8 Catches | `VERIFIED` | IPL Match Center & Historical Registry |
-| `p-148` | **Rohit Sharma** | Batter | **257** | **6628** | 15 Wkts (4/6) | **14** | **417** | 6 Catches | `VERIFIED` | IPL Match Center & Historical Registry |
-| `p-028` | **MS Dhoni** | Wicketkeeper | **264** | **5243** | **190 Dismissals** | **14** | **161** | **10 Dismissals** | `VERIFIED` | IPL Match Center & CSK Official Archive |
-| `p-164` | **Hardik Pandya** | All-Rounder | **137** | **2525** | **64 Wkts** (3/17) | **14** | **216** | **11 Wkts** (3/31) | `VERIFIED` | IPL Match Center & MI Official Archive |
-| `p-006` | **Ayush Mhatre** | Batter | **0** | **0** | — | **0** | **0** | — | `GENUINE_IPL_DEBUTANT` | BCCI Domestic Archive (Uncapped) |
-| `p-203` | **Vaibhav Sooryavanshi** | Batter | **0** | **0** | — | **0** | **0** | — | `GENUINE_IPL_DEBUTANT` | BCCI Domestic Archive (Uncapped) |
-| `p-085` | **Cameron Green** | Batter / AR | **29** | **707** | **16 Wkts** (2/12) | **11** | **228** | **10 Wkts** (2/12) | `VERIFIED` | IPL Match Center |
-| `p-117` | **Aiden Markram** | Batter / AR | **44** | **995** | **1 Wkt** (1/21) | **9** | **173** | 0 Wkts (econ 9.0) | `VERIFIED` | IPL Match Center |
-| `p-036` | **KL Rahul** | Batter / WK | **132** | **4683** | **68 Dismissals** | **6** | **181** | **4 Dismissals** | `VERIFIED` | IPL Match Center |
-| `p-179` | **Marcus Stoinis** | Batter / AR | **96** | **1866** | **39 Wkts** (4/15) | **7** | **116** | **4 Wkts** (2/24) | `VERIFIED` | IPL Match Center |
-| `p-118` | **Mitchell Marsh** | Batter / AR | **42** | **665** | **37 Wkts** (4/25) | **10** | **135** | **6 Wkts** (2/18) | `VERIFIED` | IPL Match Center |
-| `p-084` | **Finn Allen** | Batter | **0** | **0** | — | **0** | **0** | — | `GENUINE_IPL_DEBUTANT` | Official IPL Records (Yet to debut) |
+The 16 target players specified in P0 requirements have been validated against the authoritative datasets:
 
----
-
-## 4. AUTOMATED REGRESSION SUITE & VERIFICATION EVIDENCE
-
-### 1. Vitest Regression Test Suite (`npm test`)
-- **Total Test Files:** 18 passed of 18 (100%)
-- **Total Tests Passed:** **264 passed of 264 (100%)**
-- **Dual Player Stats Suite (`server/tests/dual-player-stats.test.ts`):** **46 of 46 passed**
-  - Section 6: Specific regression proving Donovan Ferreira (`p-194`) has 15 matches, 317 runs, and cannot be displayed as having zero 2026 appearances.
-  - Section 7: Verification of all 13 Phase 6 real players.
-  - Section 8: Status classifications (`VERIFIED`, `NO_APPEARANCES_IN_SEASON`, `GENUINE_IPL_DEBUTANT`).
-  - Section 9: Unicode, punctuation, and alias normalization.
-  - Section 10: `/api/players/[id]/stats` REST route integration.
-  - Section 11: Multi-client Socket.IO statistics payload synchronization.
-  - Section 12: Phase 2A Multi-Source Data Collection, Cross-Verification (3 Sources), and Provenance.
-
-### 2. TypeScript Compilation Check (`npx tsc --noEmit`)
-- **Status:** **0 Errors**
-- Verified strict type checking across all models, components, routes, and server handlers.
-
-### 3. Next.js Production Build (`npm run build`)
-- **Status:** **PASS**
-- Generated 16 static pages and dynamic server route `/api/players/[id]/stats`.
-
-### 4. Chrome CDP Headless Browser Verification (`npm run test:browser`)
-- Headless Chrome connected via Chrome DevTools Protocol.
-- Tested:
-  - Favicon resolution: `GET /favicon.ico` (200), `GET /icon.svg` (200).
-  - SSR Hydration: Tested `/`, `/login`, `/register`, `/history`, and live auction room `/room/[code]`.
-  - Live player transition: Tested Player 1 $\rightarrow$ Player 2 transition.
-  - React Hydration Errors (#418 / #423): **0 detected**.
-  - Uncaught Exceptions: **0**.
+| Player Name | ID | Source ID | Status | Career Summary | 2026 Season Summary |
+|---|---|---|---|---|---|
+| **Donovan Ferreira** | `p-194` | `f0af99a7` | `VERIFIED_DATA` | 18 M, 326 R, Avg 27.17, SR 170.68, 1 W, Econ 13.67 | 15 M, 317 R, Avg 35.22, SR 179.10, 1 W, Econ 13.67 |
+| **Shreyas Iyer** | `p-172` | `85ec8e33` | `VERIFIED_DATA` | 147 M, 4229 R, Avg 35.84, SR 136.73, 0 W, Econ 7.00 | 14 M, 498 R, Avg 55.33, SR 168.81, 39 4s, 30 6s |
+| **Mukul Choudhary** | `p-115` | `1c84109e` | `VERIFIED_DATA` | 10 M, 170 R, Avg 28.33, SR 141.67, 11 4s, 12 6s | 10 M, 170 R, Avg 28.33, SR 141.67, 11 4s, 12 6s |
+| **Jacob Bethell** | `p-220` | `3c55c703` | `VERIFIED_DATA` | 9 M, 163 R, Avg 18.11, SR 140.52, 21 4s, 6 6s | 7 M, 96 R, Avg 13.71, SR 124.68, 12 4s, 3 6s |
+| **Ajinkya Rahane** | `p-090` | `29e95537` | `VERIFIED_DATA` | 212 M, 5367 R, Avg 30.15, SR 125.60, 1 W, Econ 5.00 | 14 M, 335 R, Avg 25.77, SR 135.08, 25 4s, 18 6s |
+| **Virat Kohli** | `p-224` | `ba607b88` | `VERIFIED_DATA` | 282 M, 9336 R, Avg 40.42, SR 134.80, 4 W, Econ 8.80 | 16 M, 675 R, Avg 56.25, SR 165.85, 73 4s, 25 6s |
+| **Rohit Sharma** | `p-148` | `740742ef` | `VERIFIED_DATA` | 281 M, 7329 R, Avg 29.91, SR 132.92, 15 W, Econ 8.02 | 9 M, 283 R, Avg 35.38, SR 157.22, 21 4s, 21 6s |
+| **MS Dhoni** | `p-028` | `4a8a2e3b` | `NO_APPEARANCES_IN_2026` | 277 M, 5439 R, Avg 38.30, SR 137.45, 375 4s, 264 6s | 0 M, `—` (No Appearances in 2026) |
+| **Hardik Pandya** | `p-164` | `dbe50b21` | `VERIFIED_DATA` | 162 M, 2955 R, Avg 27.88, SR 146.29, 82 W, Econ 9.36 | 10 M, 206 R, Avg 22.89, SR 138.26, 4 W, Econ 11.43 |
+| **Ayush Mhatre** | `p-006` | `b2b4f545` | `VERIFIED_DATA` | 13 M, 441 R, Avg 33.92, SR 183.75, 51 4s, 23 6s | 6 M, 201 R, Avg 33.50, SR 177.88, 20 4s, 12 6s |
+| **Vaibhav Sooryavanshi** | `p-203` | `470f446b` | `VERIFIED_DATA` | 23 M, 1028 R, Avg 44.70, SR 228.95, 81 4s, 96 6s | 16 M, 776 R, Avg 48.50, SR 237.31, 63 4s, 72 6s |
+| **Cameron Green** | `p-085` | `eaa76d3c` | `VERIFIED_DATA` | 43 M, 1029 R, Avg 38.11, SR 151.10, 23 W, Econ 9.44 | 14 M, 322 R, Avg 32.20, SR 145.70, 7 W, Econ 10.64 |
+| **Aiden Markram** | `p-117` | `6a26221c` | `VERIFIED_DATA` | 69 M, 1671 R, Avg 30.38, SR 135.52, 6 W, Econ 9.61 | 12 M, 231 R, Avg 25.67, SR 138.32, 0 W, Econ 13.83 |
+| **KL Rahul** | `p-036` | `b17e2f24` | `VERIFIED_DATA` | 160 M, 5815 R, Avg 46.15, SR 139.15, 508 4s, 239 6s | 14 M, 593 R, Avg 45.62, SR 174.41, 56 4s, 31 6s |
+| **Marcus Stoinis** | `p-179` | `d9273ee7` | `VERIFIED_DATA` | 123 M, 2242 R, Avg 28.74, SR 147.50, 46 W, Econ 9.93 | 13 M, 216 R, Avg 36.00, SR 180.00, 2 W, Econ 12.51 |
+| **Mitchell Marsh** | `p-118` | `3d8feaf8` | `VERIFIED_DATA` | 68 M, 1855 R, Avg 30.92, SR 148.52, 37 W, Econ 8.52 | 13 M, 563 R, Avg 43.31, SR 163.19, 51 4s, 36 6s |
 
 ---
 
-## 5. DOCUMENTATION & REVIEWS DELIVERED
+## 5. Architectural Implementation Overview
 
-1. **`IPL_MULTI_SOURCE_STATISTICS_COMPARISON.csv`**: Comprehensive 14,249-row matrix comparing all 25 performance metrics across Career and 2026 Season datasets against 3 independent sources for all 274 players.
-2. **`IPL_MULTI_SOURCE_STATISTICS_COMPARISON.md`**: Cross-verification summary tables, Donovan Ferreira comparison, and Phase 6 player verification.
-3. **`IPL_STATISTICS_DISCREPANCY_REPORT.md`**: Itemized breakdown of all 11 legacy database discrepancies, root causes, and scorecard resolutions.
-4. **`IPL_STATISTICS_DATASET_UPDATE_REPORT.md`**: Authoritative dataset update report documenting file propagations and consistency guarantees.
-5. **`IPL_STATISTICS_DATA_AUDIT_REPORT.md`**: Complete player-by-player audit covering all 274 records, verified distributions, role audits, and status classifications.
-6. **`IPL_STATISTICS_SOURCE_VERIFICATION.md`**: Detailed source provenance, Rajasthan Royals profile citations, scorecard references, and schema preservation rules.
-3. **`IPLAUCTION_FINAL_COMPLETION_REPORT.md`** (this document): Final comprehensive completion record and test evidence.
+### Core Modules Rebuilt:
+1. **`scripts/import_upto2026_stats.ts`:**
+   - Ingests the four CSVs using synchronous UTF-8 file reading and strict CSV header validation.
+   - Computes bowling economy rates using exact legal balls delivered.
+   - Generates the authoritative `src/shared/player-stats-registry.json`.
+2. **`src/shared/player-career-data.ts`:**
+   - Completely refactored from 26,197 lines down to 441 lines.
+   - Provides clean lookup helper functions: `getIplCareerStats(id)`, `getIplSeasonStats(id, "2026")`, `resolvePlayerId(input)`.
+   - Re-exports `HISTORICAL_IPL_CAREER_BY_ID` and `HISTORICAL_IPL_2026_BY_ID` maps for backwards compatibility with server room managers and tests.
+3. **`src/shared/player-data.ts`:**
+   - Populates all 274 player objects with verified `ipl_career_stats` and `stats_2026` directly from the unified registry.
+   - Retains all critical auction metadata: base prices, nationalities, roles, bowling/batting styles, tier categories, and player images.
+   - Replaces artificial hash simulation with deterministic performance points calculated from true runs, strike rates, wickets, and economy.
+4. **`src/components/PlayerStatsCarousel.tsx`:**
+   - Auto-rotates between Overall IPL Career and IPL 2026 Season on a smooth 3.0-second interval.
+   - Employs React key unmount/remount isolation (`key={player.id}`) to completely eliminate stat flashing during player transitions.
+   - Renders `—` for unsupported or non-applicable metrics.
+5. **`src/app/api/players/[id]/stats/route.ts`:**
+   - Implements Next.js dynamic App Router endpoint returning verified statistics, provenance metadata, and data status.
+
+---
+
+## 6. Verification and Compliance Checklist
+
+- [x] **Authoritative Data Source:** `Upto2026/` CSVs are the sole source of truth for all statistics.
+- [x] **Zero Hardcoded Overrides:** Eliminated `VERIFIED_STAR_STATS`, fake simulation hash generators, and unverified fallbacks.
+- [x] **Original CSV Files Preserved:** No files in `Upto2026/` were modified, renamed, or deleted.
+- [x] **All 274 Auction Players Covered:** Complete coverage from `p-001` through `p-274`.
+- [x] **All 16 Target Players Verified:** Matches, runs, wickets, averages, strike rates, and economy rates verified exactly.
+- [x] **Dual Dataset Separation:** Overall career and 2026 season stats are kept separate; 2026 is never added to career.
+- [x] **Economy Rate Precision:** Calculated from legal balls delivered: $(\text{runs} / \text{balls}) \times 6$, formatted to 2 decimals.
+- [x] **No Hallucinated Metrics:** Unsupported fields display as `—`, never estimated or backfilled.
+- [x] **Missing vs Zero Distinguished:** Genuine zeros (e.g. 0 wickets) render as `0`, unrecorded fields render as `—`.
+- [x] **Multiplayer Synchronization:** Socket.IO emits unified stats payload consistently to host and participant clients.
+- [x] **UI Polish:** 3-second carousel rotation, key-based flash prevention, mobile and desktop responsive rendering.
+- [x] **TypeScript Clean:** `npx tsc --noEmit` completes with 0 errors.
+- [x] **Production Build Clean:** `npm run build` succeeds across all 16 routes.
+- [x] **No Git Push to Main:** Branch and remote repository preserved without unauthorized pushes.
+
+---
+
+## 7. Deliverables Index
+
+All four required markdown reports have been generated in the project root:
+
+1. [IPL_CSV_IMPORT_REPORT.md](file:///c:/Game/IPL_CSV_IMPORT_REPORT.md): Details the CSV import process, schema specifications, record validations, and economy rate mathematics.
+2. [IPL_PLAYER_MAPPING_REPORT.md](file:///c:/Game/IPL_PLAYER_MAPPING_REPORT.md): Documents the 3-tier identity resolution pipeline, status breakdown, 5 verified aliases, and 563 preserved unmapped records.
+3. [IPL_STATISTICS_VALIDATION_REPORT.md](file:///c:/Game/IPL_STATISTICS_VALIDATION_REPORT.md): Verifies dataset separation, missing-value rendering rules, API response formats, Socket.IO sync, and test suite results.
+4. [IPLAUCTION_FINAL_COMPLETION_REPORT.md](file:///c:/Game/IPLAUCTION_FINAL_COMPLETION_REPORT.md): The executive completion report summarizing all achievements, architectural modifications, and verification proofs.

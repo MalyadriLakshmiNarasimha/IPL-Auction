@@ -19,12 +19,15 @@ export type PlayerCategory =
 export type StatVerificationStatus = 'verified' | 'projected' | 'historical_benchmark' | 'unavailable';
 
 export type PlayerDataStatus =
-  | 'VERIFIED'
-  | 'PARTIALLY_VERIFIED'
-  | 'NO_APPEARANCES_IN_SEASON'
+  | 'VERIFIED_DATA'
+  | 'PARTIAL_DATA'
+  | 'NO_APPEARANCES_IN_2026'
   | 'GENUINE_IPL_DEBUTANT'
   | 'DATA_UNAVAILABLE'
-  | 'MAPPING_ERROR';
+  | 'MAPPING_ERROR'
+  | 'VERIFIED'
+  | 'PARTIALLY_VERIFIED'
+  | 'NO_APPEARANCES_IN_SEASON';
 
 export type ImageVerificationStatus = 'verified' | 'missing' | 'ambiguous';
 
@@ -137,9 +140,9 @@ export interface PlayerPerformanceStats {
 }
 
 export interface IplCareerStats extends PlayerPerformanceStats {
-  runs: number;
-  strike_rate: number;
-  batting_average: number;
+  runs?: number;
+  strike_rate?: number;
+  batting_average?: number;
   has_ipl_career: boolean;
 }
 

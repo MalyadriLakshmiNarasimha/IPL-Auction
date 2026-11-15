@@ -11,34 +11,34 @@ describe('Player UI Enhancements, IPL Career Statistics & Multiplayer Reactions'
     it('returns authentic all-time historical statistics for Virat Kohli', () => {
       const stats = getIplCareerStats('Virat Kohli');
       expect(stats.has_ipl_career).toBe(true);
-      expect(stats.matches).toBe(252);
-      expect(stats.runs).toBe(8004);
-      expect(stats.strike_rate).toBeCloseTo(131.97, 1);
-      expect(stats.batting_average).toBeCloseTo(38.66, 1);
+      expect(stats.matches).toBe(282);
+      expect(stats.runs).toBe(9336);
+      expect(stats.strike_rate).toBeCloseTo(134.8, 1);
+      expect(stats.batting_average).toBeCloseTo(40.42, 1);
     });
 
     it('returns authentic all-time historical statistics for Rohit Sharma', () => {
       const stats = getIplCareerStats('Rohit Sharma');
       expect(stats.has_ipl_career).toBe(true);
-      expect(stats.matches).toBe(257);
-      expect(stats.runs).toBe(6628);
-      expect(stats.strike_rate).toBeCloseTo(131.14, 1);
-      expect(stats.batting_average).toBeCloseTo(29.72, 1);
+      expect(stats.matches).toBe(281);
+      expect(stats.runs).toBe(7329);
+      expect(stats.strike_rate).toBeCloseTo(132.92, 1);
+      expect(stats.batting_average).toBeCloseTo(29.91, 1);
     });
 
     it('returns authentic all-time historical statistics for MS Dhoni', () => {
       const stats = getIplCareerStats('MS Dhoni');
       expect(stats.has_ipl_career).toBe(true);
-      expect(stats.matches).toBe(264);
-      expect(stats.runs).toBe(5243);
-      expect(stats.strike_rate).toBeCloseTo(137.53, 1);
-      expect(stats.batting_average).toBeCloseTo(39.12, 1);
+      expect(stats.matches).toBe(277);
+      expect(stats.runs).toBe(5439);
+      expect(stats.strike_rate).toBeCloseTo(137.45, 1);
+      expect(stats.batting_average).toBeCloseTo(38.3, 1);
     });
 
     it('returns authentic all-time historical statistics for bowlers (e.g. Jasprit Bumrah)', () => {
       const stats = getIplCareerStats('Jasprit Bumrah');
       expect(stats.has_ipl_career).toBe(true);
-      expect(stats.matches).toBe(133);
+      expect(stats.matches).toBe(158);
     });
 
     it('gracefully handles uncapped debutants with zero IPL matches', () => {
@@ -105,12 +105,12 @@ describe('Player UI Enhancements, IPL Career Statistics & Multiplayer Reactions'
     it('verifies specific marquee players retain accurate career stats in ALL_PLAYERS', () => {
       const kohli = ALL_PLAYERS.find(p => p.name === 'Virat Kohli');
       expect(kohli).toBeDefined();
-      expect(kohli!.ipl_career_stats!.runs).toBe(8004);
+      expect(kohli!.ipl_career_stats!.runs).toBe(9336);
       expect(kohli!.achievements!.length).toBeGreaterThan(0);
 
       const rohit = ALL_PLAYERS.find(p => p.name === 'Rohit Sharma');
       expect(rohit).toBeDefined();
-      expect(rohit!.ipl_career_stats!.runs).toBe(6628);
+      expect(rohit!.ipl_career_stats!.runs).toBe(7329);
       expect(rohit!.achievements!.some(a => a.includes('6-time IPL Champion'))).toBe(true);
     });
   });

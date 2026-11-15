@@ -1,17 +1,17 @@
 'use client';
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Player, IplCareerStats, IplSeasonStats, PlayerPerformanceStats } from '../shared/types';
 import { getIplCareerStats, getIplSeasonStats } from '../shared/player-career-data';
-import { Flame, Calendar, Award } from 'lucide-react';
+import { Flame, Calendar } from 'lucide-react';
 
 export type StatView = 'career' | 'season_2026';
 
 interface PlayerStatsCarouselProps {
   player: Player;
   initialView?: StatView;
-  autoRotateInterval?: number; // ms, default 5000
+  autoRotateInterval?: number; // ms, default 3000
   className?: string;
 }
 
@@ -20,9 +20,13 @@ function getRoleCategory(role?: string, stats?: PlayerPerformanceStats): 'Batter
   if (r.startsWith('WICKET') || r === 'WK') return 'Wicketkeeper';
   if (r.startsWith('ALL') || r === 'AR') return 'All-Rounder';
   if (r.startsWith('BOWL')) return 'Bowler';
-  // If classified as Batter but has wickets (all-rounder performance like Donovan Ferreira, Cameron Green, Marcus Stoinis, Mitch Marsh)
+  // If classified as Batter but has wickets (all-rounder performance)
   if (stats && (stats.wickets ?? 0) > 0 && (stats.runs ?? 0) > 0) {
     return 'All-Rounder';
+  }
+  // If classified as Batter but only has bowling data
+  if (stats && (stats.wickets ?? 0) > 0 && (!stats.runs || stats.runs === 0)) {
+    return 'Bowler';
   }
   return 'Batter';
 }
@@ -30,7 +34,7 @@ function getRoleCategory(role?: string, stats?: PlayerPerformanceStats): 'Batter
 export const PlayerStatsCarousel: React.FC<PlayerStatsCarouselProps> = ({
   player,
   initialView = 'career',
-  autoRotateInterval = 5000,
+  autoRotateInterval = 3000,
   className = '',
 }) => {
   const [activeView, setActiveView] = useState<StatView>(initialView);
@@ -38,11 +42,11 @@ export const PlayerStatsCarousel: React.FC<PlayerStatsCarouselProps> = ({
   const [manualCycle, setManualCycle] = useState<number>(0);
   const [isTabHidden, setIsTabHidden] = useState<boolean>(false);
 
-  // Retrieve authoritative datasets directly from registry to guarantee freshness and prevent stale client payload pollution
+  // Retrieve authoritative datasets directly from registry / player object
   const careerStats: IplCareerStats = getIplCareerStats(player) || player?.ipl_career_stats;
   const seasonStats: IplSeasonStats = getIplSeasonStats(player) || player?.season_2026_stats;
 
-  // Reset to Career view whenever a new player is loaded
+  // Reset to Career view whenever active player changes
   useEffect(() => {
     setActiveView('career');
     setDirection(1);
@@ -57,7 +61,7 @@ export const PlayerStatsCarousel: React.FC<PlayerStatsCarouselProps> = ({
     return () => document.removeEventListener('visibilitychange', handleVisibility);
   }, []);
 
-  // 5-second automatic rotation loop
+  // 3-second automatic rotation loop between Career and 2026
   useEffect(() => {
     if (isTabHidden || autoRotateInterval <= 0 || !player) return;
 
@@ -76,7 +80,7 @@ export const PlayerStatsCarousel: React.FC<PlayerStatsCarouselProps> = ({
     if (view === activeView) return;
     setDirection(view === 'season_2026' ? 1 : -1);
     setActiveView(view);
-    setManualCycle((c) => c + 1); // Resets the 5-second timer and resumes auto-rotation
+    setManualCycle((c) => c + 1); // Resets the 3-second timer and resumes auto-rotation
   };
 
   if (!player) {
@@ -98,7 +102,7 @@ export const PlayerStatsCarousel: React.FC<PlayerStatsCarouselProps> = ({
   // Slide animation variants
   const slideVariants = {
     enter: (dir: number) => ({
-      x: dir > 0 ? 60 : -60,
+      x: dir > 0 ? 50 : -50,
       opacity: 0,
     }),
     center: {
@@ -106,21 +110,22 @@ export const PlayerStatsCarousel: React.FC<PlayerStatsCarouselProps> = ({
       opacity: 1,
       transition: {
         x: { type: 'spring', stiffness: 380, damping: 32 },
-        opacity: { duration: 0.22 },
+        opacity: { duration: 0.2 },
       },
     },
     exit: (dir: number) => ({
-      x: dir > 0 ? -60 : 60,
+      x: dir > 0 ? -50 : 50,
       opacity: 0,
       transition: {
         x: { type: 'spring', stiffness: 380, damping: 32 },
-        opacity: { duration: 0.18 },
+        opacity: { duration: 0.16 },
       },
     }),
   };
 
   return (
     <div
+      key={player.id}
       className={`z-10 rounded-xl bg-night-surface/90 border border-night-border/70 p-2.5 sm:p-3 overflow-hidden ${className}`}
     >
       {/* Top Header: Title, Official Tag, & Clickable View Indicators */}
@@ -182,45 +187,45 @@ export const PlayerStatsCarousel: React.FC<PlayerStatsCarouselProps> = ({
           >
             {/* Check if statistics are available */}
             {isCareer ? (
-              careerStats.has_stats && careerStats.has_ipl_career && careerStats.matches > 0 ? (
+              careerStats && careerStats.has_stats && careerStats.has_ipl_career && careerStats.matches > 0 ? (
                 <RoleSpecificStatsGrid stats={careerStats} role={roleCategory} />
               ) : (
                 <UnavailableStatsState
                   title={
-                    careerStats.status === 'MAPPING_ERROR'
+                    careerStats?.status === 'MAPPING_ERROR'
                       ? 'Statistics unavailable (Mapping Error)'
-                      : careerStats.status === 'DATA_UNAVAILABLE'
+                      : careerStats?.status === 'DATA_UNAVAILABLE'
                       ? 'Statistics unavailable'
                       : 'Statistics unavailable (IPL Debutant)'
                   }
                   subtitle={
-                    careerStats.status === 'MAPPING_ERROR'
+                    careerStats?.status === 'MAPPING_ERROR'
                       ? 'Player identity mapping requires verification'
-                      : careerStats.status === 'DATA_UNAVAILABLE'
+                      : careerStats?.status === 'DATA_UNAVAILABLE'
                       ? 'Official statistics pending verification'
                       : 'Uncapped / Yet to make IPL debut — Historical statistics not applicable'
                   }
                 />
               )
-            ) : seasonStats.has_stats && seasonStats.has_season_stats && seasonStats.matches > 0 ? (
+            ) : seasonStats && seasonStats.has_stats && seasonStats.has_season_stats && seasonStats.matches > 0 ? (
               <RoleSpecificStatsGrid stats={seasonStats} role={roleCategory} />
             ) : (
               <UnavailableStatsState
                 title={
-                  seasonStats.status === 'MAPPING_ERROR'
+                  seasonStats?.status === 'MAPPING_ERROR'
                     ? 'Statistics unavailable (Mapping Error)'
-                    : seasonStats.status === 'DATA_UNAVAILABLE'
+                    : seasonStats?.status === 'DATA_UNAVAILABLE'
                     ? 'Statistics unavailable'
-                    : careerStats.has_ipl_career && careerStats.matches > 0
+                    : careerStats && careerStats.has_ipl_career && careerStats.matches > 0
                     ? 'Statistics unavailable (No appearances in IPL 2026)'
                     : 'Statistics unavailable (IPL Debutant)'
                 }
                 subtitle={
-                  seasonStats.status === 'MAPPING_ERROR'
+                  seasonStats?.status === 'MAPPING_ERROR'
                     ? 'Player identity mapping requires verification'
-                    : seasonStats.status === 'DATA_UNAVAILABLE'
+                    : seasonStats?.status === 'DATA_UNAVAILABLE'
                     ? 'Official statistics pending verification'
-                    : careerStats.has_ipl_career && careerStats.matches > 0
+                    : careerStats && careerStats.has_ipl_career && careerStats.matches > 0
                     ? 'Did not participate in IPL 2026 matches'
                     : 'Uncapped / Yet to make IPL debut — Historical statistics not applicable'
                 }
@@ -231,13 +236,13 @@ export const PlayerStatsCarousel: React.FC<PlayerStatsCarouselProps> = ({
       </div>
 
       {/* Multi-Source Provenance Footer */}
-      {currentStats.source_provenance && (
+      {currentStats && currentStats.source_provenance && (
         <div className="mt-2 pt-1.5 border-t border-night-border/40 flex items-center justify-between text-[9px] text-floodlight-subtle">
-          <span className="truncate max-w-[65%]" title={currentStats.source_provenance}>
+          <span className="truncate max-w-[70%]" title={currentStats.source_provenance}>
             {currentStats.source_provenance}
           </span>
           <span className="text-turf font-bold ml-1 flex-shrink-0 flex items-center gap-0.5">
-            ✓ 3 Sources Verified
+            ✓ Verified Upto2026
           </span>
         </div>
       )}
@@ -275,12 +280,18 @@ const RoleSpecificStatsGrid: React.FC<{
 };
 
 /**
- * Batter: Matches, Innings, Runs, HS (BEST), Avg, SR, 100s, 50s, 4s, 6s, Not Outs
+ * Batter: Matches, Innings, Runs, Average, Strike Rate, 4s, 6s
+ * Unsupported fields display '—' (never zero)
  */
 const BatterStatsGrid: React.FC<{ stats: PlayerPerformanceStats }> = ({ stats }) => {
-  const avg = stats.batting_average && stats.batting_average > 0 ? stats.batting_average.toFixed(2) : '—';
-  const sr = stats.strike_rate && stats.strike_rate > 0 ? stats.strike_rate.toFixed(2) : '—';
-  const hs = stats.highest_score !== undefined && stats.highest_score !== null ? stats.highest_score : '—';
+  const avg = stats.batting_average !== undefined && stats.batting_average > 0 ? stats.batting_average.toFixed(2) : '—';
+  const sr = stats.strike_rate !== undefined && stats.strike_rate > 0 ? stats.strike_rate.toFixed(2) : '—';
+  const hs = stats.highest_score !== undefined && stats.highest_score !== null ? String(stats.highest_score) : '—';
+  const hundreds = stats.hundreds !== undefined && stats.hundreds !== null ? stats.hundreds : '—';
+  const fifties = stats.fifties !== undefined && stats.fifties !== null ? stats.fifties : '—';
+  const notOuts = stats.not_outs !== undefined && stats.not_outs !== null ? stats.not_outs : '—';
+  const fours = stats.fours !== undefined && stats.fours !== null ? stats.fours : '—';
+  const sixes = stats.sixes !== undefined && stats.sixes !== null ? stats.sixes : '—';
 
   return (
     <div className="space-y-1.5 w-full">
@@ -289,118 +300,127 @@ const BatterStatsGrid: React.FC<{ stats: PlayerPerformanceStats }> = ({ stats })
         <StatTile label="Matches" value={stats.matches} />
         <StatTile label="Innings" value={stats.innings ?? stats.matches} />
         <StatTile label="Runs" value={stats.runs?.toLocaleString('en-IN') ?? 0} highlight="flare" />
-        <StatTile label="BEST (HS)" value={hs} highlight="flare" />
+        <StatTile label="BEST (HS)" value={hs} />
         <StatTile label="Average" value={avg} />
         <StatTile label="Strike Rate" value={sr} highlight="turf" />
       </div>
 
-      {/* Secondary Row: 100s, 50s, 4s, 6s, Not Outs */}
+      {/* Secondary Row: 4s, 6s (CSV fields) + 100s, 50s, NO ('—' if missing) */}
       <div className="grid grid-cols-5 gap-1 sm:gap-1.5 text-center bg-night-raised/40 p-1 rounded-lg border border-night-border/30">
-        <StatPill label="100s" value={stats.hundreds ?? 0} />
-        <StatPill label="50s" value={stats.fifties ?? 0} />
-        <StatPill label="4s" value={stats.fours ?? 0} />
-        <StatPill label="6s" value={stats.sixes ?? 0} />
-        <StatPill label="NO" value={stats.not_outs ?? 0} />
+        <StatPill label="4s" value={fours} highlight="flare" />
+        <StatPill label="6s" value={sixes} highlight="flare" />
+        <StatPill label="100s" value={hundreds} />
+        <StatPill label="50s" value={fifties} />
+        <StatPill label="NO" value={notOuts} />
       </div>
     </div>
   );
 };
 
 /**
- * Bowler: Matches, Innings, Overs, Wickets, BEST (Mandatory), Econ, Avg, SR, 4w, 5w, Maidens
+ * Bowler: Matches, Bowling Innings, Overs, Balls, Runs Conceded, Wickets, Economy
+ * Unsupported fields display '—' (never zero)
  */
 const BowlerStatsGrid: React.FC<{ stats: PlayerPerformanceStats }> = ({ stats }) => {
-  const econ = stats.economy_rate && stats.economy_rate > 0 ? stats.economy_rate.toFixed(2) : '—';
-  const avg = stats.bowling_average && stats.bowling_average > 0 ? stats.bowling_average.toFixed(2) : '—';
-  const sr = stats.bowling_strike_rate && stats.bowling_strike_rate > 0 ? stats.bowling_strike_rate.toFixed(1) : '—';
+  const econ = stats.economy_rate !== undefined && stats.economy_rate > 0 ? stats.economy_rate.toFixed(2) : '—';
+  const avg = stats.bowling_average !== undefined && stats.bowling_average > 0 ? stats.bowling_average.toFixed(2) : '—';
+  const sr = stats.bowling_strike_rate !== undefined && stats.bowling_strike_rate > 0 ? stats.bowling_strike_rate.toFixed(1) : '—';
   const best = stats.best_bowling || '—';
+  const maidens = stats.maidens !== undefined && stats.maidens !== null ? stats.maidens : '—';
+  const fourW = stats.four_wickets !== undefined && stats.four_wickets !== null ? stats.four_wickets : '—';
+  const fiveW = stats.five_wickets !== undefined && stats.five_wickets !== null ? stats.five_wickets : '—';
+  const balls = stats.balls !== undefined && stats.balls !== null ? stats.balls : '—';
+  const runsConceded = stats.runs_conceded !== undefined && stats.runs_conceded !== null ? stats.runs_conceded : '—';
 
   return (
     <div className="space-y-1.5 w-full">
-      {/* Primary Row: Matches, Bowling Innings, Overs, Wickets, BEST, Economy */}
+      {/* Primary Row: Matches, B-Innings, Overs, Wickets, Economy, Runs Conceded */}
       <div className="grid grid-cols-3 sm:grid-cols-6 gap-1 sm:gap-1.5 text-center">
         <StatTile label="Matches" value={stats.matches} />
         <StatTile label="B-Innings" value={stats.bowling_innings ?? stats.matches} />
         <StatTile label="Overs" value={stats.overs ?? '—'} />
         <StatTile label="Wickets" value={stats.wickets ?? 0} highlight="flare" />
-        <StatTile label="BEST" value={best} highlight="flare" />
         <StatTile label="Economy" value={econ} highlight="turf" />
+        <StatTile label="Runs Given" value={runsConceded} />
       </div>
 
-      {/* Secondary Row: Bowling Avg, Strike Rate, 4w, 5w, Maidens */}
+      {/* Secondary Row: Balls, BEST, Maidens, 4w, 5w ('—' if missing) */}
       <div className="grid grid-cols-5 gap-1 sm:gap-1.5 text-center bg-night-raised/40 p-1 rounded-lg border border-night-border/30">
-        <StatPill label="B-Avg" value={avg} />
-        <StatPill label="B-SR" value={sr} />
-        <StatPill label="4w" value={stats.four_wickets ?? 0} />
-        <StatPill label="5w" value={stats.five_wickets ?? 0} />
-        <StatPill label="Mdns" value={stats.maidens ?? 0} />
+        <StatPill label="Balls" value={balls} />
+        <StatPill label="BEST" value={best} />
+        <StatPill label="Mdns" value={maidens} />
+        <StatPill label="4w" value={fourW} />
+        <StatPill label="5w" value={fiveW} />
       </div>
     </div>
   );
 };
 
 /**
- * All-Rounder: Both Batting and Bowling Sections + BEST bowling figures
+ * All-Rounder: Both Batting and Bowling Sections from CSV datasets
  */
 const AllRounderStatsGrid: React.FC<{ stats: PlayerPerformanceStats }> = ({ stats }) => {
-  const batAvg = stats.batting_average && stats.batting_average > 0 ? stats.batting_average.toFixed(2) : '—';
-  const batSr = stats.strike_rate && stats.strike_rate > 0 ? stats.strike_rate.toFixed(2) : '—';
-  const hs = stats.highest_score !== undefined && stats.highest_score !== null ? stats.highest_score : '—';
-  const econ = stats.economy_rate && stats.economy_rate > 0 ? stats.economy_rate.toFixed(2) : '—';
-  const bowlAvg = stats.bowling_average && stats.bowling_average > 0 ? stats.bowling_average.toFixed(2) : '—';
-  const best = stats.best_bowling || '—';
+  const batAvg = stats.batting_average !== undefined && stats.batting_average > 0 ? stats.batting_average.toFixed(2) : '—';
+  const batSr = stats.strike_rate !== undefined && stats.strike_rate > 0 ? stats.strike_rate.toFixed(2) : '—';
+  const econ = stats.economy_rate !== undefined && stats.economy_rate > 0 ? stats.economy_rate.toFixed(2) : '—';
+  const fours = stats.fours !== undefined && stats.fours !== null ? stats.fours : '—';
+  const sixes = stats.sixes !== undefined && stats.sixes !== null ? stats.sixes : '—';
+  const runsConceded = stats.runs_conceded !== undefined && stats.runs_conceded !== null ? stats.runs_conceded : '—';
 
   return (
     <div className="space-y-1.5 w-full">
       {/* Batting Section */}
-      <div className="grid grid-cols-5 gap-1 sm:gap-1.5 text-center">
+      <div className="grid grid-cols-6 gap-1 sm:gap-1.5 text-center">
         <StatTile label="Matches" value={stats.matches} />
         <StatTile label="Runs" value={stats.runs?.toLocaleString('en-IN') ?? 0} highlight="flare" />
-        <StatTile label="BEST (HS)" value={hs} />
         <StatTile label="Bat Avg" value={batAvg} />
         <StatTile label="Bat SR" value={batSr} highlight="turf" />
+        <StatTile label="4s" value={fours} />
+        <StatTile label="6s" value={sixes} />
       </div>
 
       {/* Bowling Section */}
       <div className="grid grid-cols-5 gap-1 sm:gap-1.5 text-center bg-night-raised/40 p-1 rounded-lg border border-night-border/30">
         <StatPill label="Wickets" value={stats.wickets ?? 0} highlight="flare" />
-        <StatPill label="BEST" value={best} highlight="flare" />
         <StatPill label="Economy" value={econ} highlight="turf" />
-        <StatPill label="Bowl Avg" value={bowlAvg} />
         <StatPill label="Overs" value={stats.overs ?? '—'} />
+        <StatPill label="Balls" value={stats.balls ?? '—'} />
+        <StatPill label="Runs Given" value={runsConceded} />
       </div>
     </div>
   );
 };
 
 /**
- * Wicketkeeper: Batting metrics + Catches, Stumpings, Total Dismissals
+ * Wicketkeeper: Batting metrics + Dismissals presentation
  */
 const WicketkeeperStatsGrid: React.FC<{ stats: PlayerPerformanceStats }> = ({ stats }) => {
-  const avg = stats.batting_average && stats.batting_average > 0 ? stats.batting_average.toFixed(2) : '—';
-  const sr = stats.strike_rate && stats.strike_rate > 0 ? stats.strike_rate.toFixed(2) : '—';
-  const hs = stats.highest_score !== undefined && stats.highest_score !== null ? stats.highest_score : '—';
-  const catches = stats.catches ?? 0;
-  const stumpings = stats.stumpings ?? 0;
-  const dismissals = stats.dismissals ?? catches + stumpings;
+  const avg = stats.batting_average !== undefined && stats.batting_average > 0 ? stats.batting_average.toFixed(2) : '—';
+  const sr = stats.strike_rate !== undefined && stats.strike_rate > 0 ? stats.strike_rate.toFixed(2) : '—';
+  const fours = stats.fours !== undefined && stats.fours !== null ? stats.fours : '—';
+  const sixes = stats.sixes !== undefined && stats.sixes !== null ? stats.sixes : '—';
+  const catches = stats.catches !== undefined && stats.catches !== null ? stats.catches : '—';
+  const stumpings = stats.stumpings !== undefined && stats.stumpings !== null ? stats.stumpings : '—';
+  const dismissals = stats.dismissals !== undefined && stats.dismissals !== null ? stats.dismissals : '—';
 
   return (
     <div className="space-y-1.5 w-full">
       {/* Batting Section */}
       <div className="grid grid-cols-5 gap-1 sm:gap-1.5 text-center">
         <StatTile label="Matches" value={stats.matches} />
+        <StatTile label="Innings" value={stats.innings ?? stats.matches} />
         <StatTile label="Runs" value={stats.runs?.toLocaleString('en-IN') ?? 0} highlight="flare" />
-        <StatTile label="BEST (HS)" value={hs} highlight="flare" />
         <StatTile label="Average" value={avg} />
         <StatTile label="Strike Rate" value={sr} highlight="turf" />
       </div>
 
-      {/* Keeping / Dismissals Section */}
-      <div className="grid grid-cols-4 gap-1 sm:gap-1.5 text-center bg-night-raised/40 p-1 rounded-lg border border-night-border/30">
+      {/* Secondary Row: 4s, 6s + Keeping Dismissals */}
+      <div className="grid grid-cols-5 gap-1 sm:gap-1.5 text-center bg-night-raised/40 p-1 rounded-lg border border-night-border/30">
+        <StatPill label="4s" value={fours} highlight="flare" />
+        <StatPill label="6s" value={sixes} highlight="flare" />
         <StatPill label="Catches" value={catches} />
         <StatPill label="Stumpings" value={stumpings} />
-        <StatPill label="Dismissals" value={dismissals} highlight="flare" />
-        <StatPill label="100s / 50s" value={`${stats.hundreds ?? 0} / ${stats.fifties ?? 0}`} />
+        <StatPill label="Dismissals" value={dismissals} />
       </div>
     </div>
   );
