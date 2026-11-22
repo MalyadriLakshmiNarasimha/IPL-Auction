@@ -1,12 +1,19 @@
-import { Player } from './types';
+import { Player, SportType } from './types';
 
 export type PlayerAuctionCategory = 'BATTERS' | 'BOWLERS' | 'ALL-ROUNDERS' | 'WICKET KEEPERS';
+export type PklAuctionCategory = 'RAIDERS' | 'DEFENDERS' | 'ALL-ROUNDERS';
 
 export const PLAYER_CATEGORY_ORDER: readonly PlayerAuctionCategory[] = [
   'BATTERS',
   'BOWLERS',
   'ALL-ROUNDERS',
   'WICKET KEEPERS',
+] as const;
+
+export const PKL_CATEGORY_ORDER: readonly PklAuctionCategory[] = [
+  'RAIDERS',
+  'DEFENDERS',
+  'ALL-ROUNDERS',
 ] as const;
 
 /**
@@ -39,6 +46,25 @@ export function getPlayerCategory(player: { role?: string; name?: string }): Pla
 }
 
 /**
+ * Classifies any PKL player into one of the 3 authoritative PKL auction categories:
+ * 1. RAIDERS
+ * 2. DEFENDERS
+ * 3. ALL-ROUNDERS
+ */
+export function getPklPlayerCategory(player: { role?: string; position_detail?: string; name?: string }): PklAuctionCategory {
+  const r = (player.role || '').toLowerCase();
+  const pos = (player.position_detail || '').toLowerCase();
+
+  if (r.includes('all') || pos.includes('all') || r === 'ar') {
+    return 'ALL-ROUNDERS';
+  }
+  if (r.includes('def') || pos.includes('corner') || pos.includes('cover')) {
+    return 'DEFENDERS';
+  }
+  return 'RAIDERS';
+}
+
+/**
  * Performs an unbiased Fisher-Yates (Knuth) in-place shuffle on an array copy.
  * Ensures uniform distribution without biasing positions.
  */
@@ -56,18 +82,47 @@ export function fisherYatesShuffle<T>(array: readonly T[]): T[] {
 /**
  * Generates the authoritative randomized category-wise player auction sequence:
  *
- * 1. Collects all selected players across every IPL team without franchise grouping.
- * 2. Classifies each player into one of the 4 categories:
- *    - BATTERS
- *    - BOWLERS
- *    - ALL-ROUNDERS
- *    - WICKET KEEPERS
- * 3. Randomly shuffles players within each category using an unbiased Fisher-Yates shuffle.
- * 4. Concatenates the shuffled categories in the strict fixed category sequence:
- *    BATTERS -> BOWLERS -> ALL-ROUNDERS -> WICKET KEEPERS.
- * 5. Guarantees that each selected player appears exactly once.
+ * For IPL:
+ * 1. BATTERS -> 2. BOWLERS -> 3. ALL-ROUNDERS -> 4. WICKET KEEPERS
+ *
+ * For PKL:
+ * 1. RAIDERS -> 2. DEFENDERS -> 3. ALL-ROUNDERS
  */
-export function generateCategoryWiseSequence(players: readonly Player[]): Player[] {
+export function generateCategoryWiseSequence(
+  players: readonly Player[],
+  sportType: SportType = 'IPL'
+): Player[] {
+  if (sportType === 'PKL') {
+    const raiders: Player[] = [];
+    const defenders: Player[] = [];
+    const allRounders: Player[] = [];
+
+    for (const player of players) {
+      const category = getPklPlayerCategory(player);
+      switch (category) {
+        case 'RAIDERS':
+          raiders.push(player);
+          break;
+        case 'DEFENDERS':
+          defenders.push(player);
+          break;
+        case 'ALL-ROUNDERS':
+          allRounders.push(player);
+          break;
+      }
+    }
+
+    const shuffledRaiders = fisherYatesShuffle(raiders);
+    const shuffledDefenders = fisherYatesShuffle(defenders);
+    const shuffledAllRounders = fisherYatesShuffle(allRounders);
+
+    return [
+      ...shuffledRaiders,
+      ...shuffledDefenders,
+      ...shuffledAllRounders,
+    ];
+  }
+
   const batters: Player[] = [];
   const bowlers: Player[] = [];
   const allRounders: Player[] = [];

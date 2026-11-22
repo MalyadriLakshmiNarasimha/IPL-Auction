@@ -1,5 +1,5 @@
 import { AuctionState, Participant, Player, RoomSettings } from './types';
-import { MIN_RESERVE_PER_SLOT, formatCurrency, getMinAuctionParticipants } from './constants';
+import { MIN_RESERVE_PER_SLOT, getMinReservePerSlot, formatCurrency, getMinAuctionParticipants } from './constants';
 
 export interface BidValidationResult {
   valid: boolean;
@@ -90,13 +90,14 @@ export function validateBid(
   // After this bid, player would occupy 1 slot.
   // Remaining empty slots = squad_size - (currentSquadCount + 1)
   const remainingEmptySlots = settings.squad_size - (currentSquadCount + 1);
-  const minReserveNeeded = remainingEmptySlots * MIN_RESERVE_PER_SLOT;
+  const minReservePerSlot = getMinReservePerSlot(settings.sport_type);
+  const minReserveNeeded = remainingEmptySlots * minReservePerSlot;
   const purseAfterBid = participant.purse_remaining - targetBidAmount;
 
   if (purseAfterBid < minReserveNeeded) {
     return {
       valid: false,
-      reason: `Reserve rule: you must keep ${formatCurrency(minReserveNeeded)} for your remaining ${remainingEmptySlots} empty slot${remainingEmptySlots === 1 ? '' : 's'}`,
+      reason: `Reserve rule: you must keep ${formatCurrency(minReserveNeeded)} for your remaining ${remainingEmptySlots} empty slot${remainingEmptySlots === 1 ? '' : 's'} (${formatCurrency(minReservePerSlot)}/slot)`,
     };
   }
 
@@ -182,6 +183,15 @@ export function validateAuctionStart(
     settings.selected_player_ids && settings.selected_player_ids.length > 0
       ? settings.selected_player_ids.length
       : totalAvailablePlayersCount;
+
+  // Validate maximum allowable managers based on floor(pool size / squad size)
+  const maxManagersAllowed = Math.floor(poolCount / settings.squad_size);
+  if (activeParticipants.length > maxManagersAllowed) {
+    return {
+      valid: false,
+      reason: `Room capacity exceeded: maximum allowed managers for this pool (${poolCount} players) and squad size (${settings.squad_size}) is ${maxManagersAllowed}. Currently ${activeParticipants.length} active managers.`,
+    };
+  }
 
   const minPoolRequired = activeParticipants.length * settings.squad_size;
   if (poolCount < minPoolRequired || poolCount === 0) {

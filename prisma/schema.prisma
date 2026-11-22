@@ -39,6 +39,7 @@ model Room {
   name         String         @db.VarChar(100)
   host_user_id String
   status       String         @default("lobby") @db.VarChar(32)
+  sport_type   String?        @default("IPL") @db.VarChar(16)
   created_at   DateTime       @default(now())
   updated_at      DateTime          @updatedAt
   host            User              @relation(fields: [host_user_id], references: [id], onDelete: Cascade)
@@ -48,6 +49,7 @@ model Room {
   commentary_logs CommentaryLog[]
 
   @@index([host_user_id])
+  @@index([sport_type])
   @@map("rooms")
 }
 

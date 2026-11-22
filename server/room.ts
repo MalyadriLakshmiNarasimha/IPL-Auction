@@ -603,7 +603,7 @@ export class RoomManager {
       selectedPlayers = [...sourcePool];
     }
 
-    this.sortPool(selectedPlayers, room.settings.order_type);
+    this.sortPool(selectedPlayers, room.settings.order_type, room.settings.sport_type);
 
     room.pool = selectedPlayers;
     room.unsold_pool = [];
@@ -643,12 +643,13 @@ export class RoomManager {
     }, delayMs);
   }
 
-  private sortPool(pool: Player[], orderType: OrderType) {
+  private sortPool(pool: Player[], orderType: OrderType, sportType: SportType = 'IPL') {
     if (orderType === 'role') {
       // Authoritative Category Sequence:
-      // 1. BATTERS -> 2. BOWLERS -> 3. ALL-ROUNDERS -> 4. WICKET KEEPERS
+      // IPL: 1. BATTERS -> 2. BOWLERS -> 3. ALL-ROUNDERS -> 4. WICKET KEEPERS
+      // PKL: 1. RAIDERS -> 2. DEFENDERS -> 3. ALL-ROUNDERS
       // Unbiased Fisher-Yates shuffle within each category across all franchises.
-      const sequenced = generateCategoryWiseSequence(pool);
+      const sequenced = generateCategoryWiseSequence(pool, sportType);
       pool.splice(0, pool.length, ...sequenced);
     } else if (orderType === 'base_price') {
       pool.sort((a, b) => b.base_price - a.base_price);
@@ -1294,7 +1295,7 @@ export class RoomManager {
       room.auction_state.phase = 'bidding';
       // Generate sequence only once; never re-randomize an ongoing auction sequence
       if (room.auction_state.current_player_index < 0) {
-        this.sortPool(room.pool, room.settings.order_type);
+        this.sortPool(room.pool, room.settings.order_type, room.settings.sport_type);
       }
       this.scheduleNextPlayer(room, 1000);
     } else if (newStage === 'unsold_auction') {
@@ -1358,7 +1359,7 @@ export class RoomManager {
     const chosen = room.unsold_pool.filter(p => idSet.has(p.id));
     if (chosen.length === 0) return false;
 
-    this.sortPool(chosen, orderType);
+    this.sortPool(chosen, orderType, room.settings.sport_type);
     room.pool = chosen;
     room.unsold_pool = room.unsold_pool.filter(p => !idSet.has(p.id));
     room.auction_state.total_pool_count = room.pool.length;

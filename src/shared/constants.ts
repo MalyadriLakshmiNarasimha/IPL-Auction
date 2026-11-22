@@ -25,7 +25,13 @@ export function getMinAuctionParticipants(): number {
 export const MIN_AUCTION_PARTICIPANTS: number = getMinAuctionParticipants();
 export const MAX_ROOM_PARTICIPANTS = 30;
 
-export const MIN_RESERVE_PER_SLOT = 20_00_000; // ₹20 Lakhs
+export const MIN_RESERVE_PER_SLOT_IPL = 20_00_000; // ₹20 Lakhs (IPL lowest base price)
+export const MIN_RESERVE_PER_SLOT_PKL = 9_00_000; // ₹9 Lakhs (PKL lowest base price)
+export const MIN_RESERVE_PER_SLOT = 20_00_000; // Default fallback for backward compatibility
+
+export function getMinReservePerSlot(sport: SportType = 'IPL'): number {
+  return sport === 'PKL' ? MIN_RESERVE_PER_SLOT_PKL : MIN_RESERVE_PER_SLOT_IPL;
+}
 
 export const BID_INCREMENTS = [
   { label: '+₹25L', amount: 25_00_000 },
