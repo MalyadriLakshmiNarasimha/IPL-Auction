@@ -1,0 +1,177 @@
+{
+  "metadata": {
+    "generated_at": "2026-11-22T08:21:12.645Z",
+    "source": "PKL Validated Team Stats Ingestion",
+    "teams_tracked": 12
+  },
+  "teams": {
+    "team-1": [
+      {
+        "team_id": "team-1",
+        "team_name": "Bengaluru Bulls",
+        "season": "Season 11",
+        "matches": 22,
+        "wins": 8,
+        "losses": 12,
+        "ties": 2,
+        "points_table_position": 8,
+        "total_raid_points": 480,
+        "total_tackle_points": 246
+      }
+    ],
+    "team-2": [
+      {
+        "team_id": "team-2",
+        "team_name": "Dabang Delhi K.C.",
+        "season": "Season 11",
+        "matches": 22,
+        "wins": 13,
+        "losses": 6,
+        "ties": 3,
+        "points_table_position": 3,
+        "total_raid_points": 520,
+        "total_tackle_points": 228
+      }
+    ],
+    "team-3": [
+      {
+        "team_id": "team-3",
+        "team_name": "Jaipur Pink Panthers",
+        "season": "Season 11",
+        "matches": 22,
+        "wins": 16,
+        "losses": 3,
+        "ties": 3,
+        "points_table_position": 2,
+        "total_raid_points": 535,
+        "total_tackle_points": 264
+      }
+    ],
+    "team-4": [
+      {
+        "team_id": "team-4",
+        "team_name": "Bengal Warriorz",
+        "season": "Season 11",
+        "matches": 22,
+        "wins": 9,
+        "losses": 11,
+        "ties": 2,
+        "points_table_position": 7,
+        "total_raid_points": 510,
+        "total_tackle_points": 215
+      }
+    ],
+    "team-5": [
+      {
+        "team_id": "team-5",
+        "team_name": "U Mumba",
+        "season": "Season 11",
+        "matches": 22,
+        "wins": 6,
+        "losses": 13,
+        "ties": 3,
+        "points_table_position": 10,
+        "total_raid_points": 470,
+        "total_tackle_points": 230
+      }
+    ],
+    "team-6": [
+      {
+        "team_id": "team-6",
+        "team_name": "Patna Pirates",
+        "season": "Season 11",
+        "matches": 22,
+        "wins": 11,
+        "losses": 8,
+        "ties": 3,
+        "points_table_position": 6,
+        "total_raid_points": 540,
+        "total_tackle_points": 250
+      }
+    ],
+    "team-7": [
+      {
+        "team_id": "team-7",
+        "team_name": "Puneri Paltan",
+        "season": "Season 11",
+        "matches": 22,
+        "wins": 17,
+        "losses": 2,
+        "ties": 3,
+        "points_table_position": 1,
+        "total_raid_points": 560,
+        "total_tackle_points": 342
+      }
+    ],
+    "team-8": [
+      {
+        "team_id": "team-8",
+        "team_name": "Telugu Titans",
+        "season": "Season 11",
+        "matches": 22,
+        "wins": 2,
+        "losses": 19,
+        "ties": 1,
+        "points_table_position": 12,
+        "total_raid_points": 420,
+        "total_tackle_points": 185
+      }
+    ],
+    "team-28": [
+      {
+        "team_id": "team-28",
+        "team_name": "Haryana Steelers",
+        "season": "Season 11",
+        "matches": 22,
+        "wins": 13,
+        "losses": 8,
+        "ties": 1,
+        "points_table_position": 5,
+        "total_raid_points": 490,
+        "total_tackle_points": 270
+      }
+    ],
+    "team-29": [
+      {
+        "team_id": "team-29",
+        "team_name": "Tamil Thalaivas",
+        "season": "Season 11",
+        "matches": 22,
+        "wins": 9,
+        "losses": 13,
+        "ties": 0,
+        "points_table_position": 9,
+        "total_raid_points": 460,
+        "total_tackle_points": 255
+      }
+    ],
+    "team-30": [
+      {
+        "team_id": "team-30",
+        "team_name": "UP Yoddhas",
+        "season": "Season 11",
+        "matches": 22,
+        "wins": 4,
+        "losses": 17,
+        "ties": 1,
+        "points_table_position": 11,
+        "total_raid_points": 430,
+        "total_tackle_points": 225
+      }
+    ],
+    "team-31": [
+      {
+        "team_id": "team-31",
+        "team_name": "Gujarat Giants",
+        "season": "Season 11",
+        "matches": 22,
+        "wins": 13,
+        "losses": 9,
+        "ties": 0,
+        "points_table_position": 4,
+        "total_raid_points": 485,
+        "total_tackle_points": 258
+      }
+    ]
+  }
+}

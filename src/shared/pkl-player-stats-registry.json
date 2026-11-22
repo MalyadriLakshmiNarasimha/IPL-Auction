@@ -1,0 +1,624 @@
+{
+  "metadata": {
+    "generated_at": "2026-11-22T08:21:12.643Z",
+    "source": "PKL Validated Ingestion Pipeline",
+    "player_records": 15
+  },
+  "players": {
+    "k-001": {
+      "canonical_name": "Ankush Rathee",
+      "season_12": {
+        "player_id": "k-001",
+        "player_name": "Ankush Rathee",
+        "season": "Season 12",
+        "matches": 0,
+        "total_points": 0,
+        "raid_points": 0,
+        "tackle_points": 0,
+        "successful_raids": 0,
+        "super_raids": 0,
+        "super_10s": 0,
+        "high_5s": 0,
+        "super_tackles": 0,
+        "do_or_die_points": 0,
+        "tackle_success_rate": 0,
+        "not_out_percentage": 0
+      },
+      "career": {
+        "player_id": "k-001",
+        "player_name": "Ankush Rathee",
+        "season": "Career",
+        "matches": 46,
+        "total_points": 160,
+        "raid_points": 1,
+        "tackle_points": 159,
+        "successful_raids": 1,
+        "super_raids": 0,
+        "super_10s": 0,
+        "high_5s": 14,
+        "super_tackles": 9,
+        "do_or_die_points": 0,
+        "tackle_success_rate": 58.2,
+        "not_out_percentage": 0
+      },
+      "seasons_available": [
+        "Season 12",
+        "Career"
+      ]
+    },
+    "k-002": {
+      "canonical_name": "Akash Shinde",
+      "season_12": {
+        "player_id": "k-002",
+        "player_name": "Akash Shinde",
+        "season": "Season 12",
+        "matches": 0,
+        "total_points": 0,
+        "raid_points": 0,
+        "tackle_points": 0,
+        "successful_raids": 0,
+        "super_raids": 0,
+        "super_10s": 0,
+        "high_5s": 0,
+        "super_tackles": 0,
+        "do_or_die_points": 0,
+        "tackle_success_rate": 0,
+        "not_out_percentage": 0
+      },
+      "career": {
+        "player_id": "k-002",
+        "player_name": "Akash Shinde",
+        "season": "Career",
+        "matches": 44,
+        "total_points": 235,
+        "raid_points": 220,
+        "tackle_points": 15,
+        "successful_raids": 175,
+        "super_raids": 7,
+        "super_10s": 8,
+        "high_5s": 0,
+        "super_tackles": 1,
+        "do_or_die_points": 38,
+        "tackle_success_rate": 0,
+        "not_out_percentage": 76.5
+      },
+      "seasons_available": [
+        "Season 12",
+        "Career"
+      ]
+    },
+    "k-024": {
+      "canonical_name": "Ashu Malik",
+      "season_12": {
+        "player_id": "k-024",
+        "player_name": "Ashu Malik",
+        "season": "Season 12",
+        "matches": 0,
+        "total_points": 0,
+        "raid_points": 0,
+        "tackle_points": 0,
+        "successful_raids": 0,
+        "super_raids": 0,
+        "super_10s": 0,
+        "high_5s": 0,
+        "super_tackles": 0,
+        "do_or_die_points": 0,
+        "tackle_success_rate": 0,
+        "not_out_percentage": 0
+      },
+      "career": {
+        "player_id": "k-024",
+        "player_name": "Ashu Malik",
+        "season": "Career",
+        "matches": 56,
+        "total_points": 500,
+        "raid_points": 480,
+        "tackle_points": 20,
+        "successful_raids": 380,
+        "super_raids": 12,
+        "super_10s": 22,
+        "high_5s": 0,
+        "super_tackles": 2,
+        "do_or_die_points": 85,
+        "tackle_success_rate": 0,
+        "not_out_percentage": 78.2
+      },
+      "seasons_available": [
+        "Season 12",
+        "Career"
+      ]
+    },
+    "k-043": {
+      "canonical_name": "Naveen Kumar",
+      "season_12": {
+        "player_id": "k-043",
+        "player_name": "Naveen Kumar",
+        "season": "Season 12",
+        "matches": 0,
+        "total_points": 0,
+        "raid_points": 0,
+        "tackle_points": 0,
+        "successful_raids": 0,
+        "super_raids": 0,
+        "super_10s": 0,
+        "high_5s": 0,
+        "super_tackles": 0,
+        "do_or_die_points": 0,
+        "tackle_success_rate": 0,
+        "not_out_percentage": 0
+      },
+      "career": {
+        "player_id": "k-043",
+        "player_name": "Naveen Kumar",
+        "season": "Career",
+        "matches": 91,
+        "total_points": 1005,
+        "raid_points": 1000,
+        "tackle_points": 5,
+        "successful_raids": 810,
+        "super_raids": 24,
+        "super_10s": 63,
+        "high_5s": 0,
+        "super_tackles": 0,
+        "do_or_die_points": 120,
+        "tackle_success_rate": 0,
+        "not_out_percentage": 84.1
+      },
+      "seasons_available": [
+        "Season 12",
+        "Career"
+      ]
+    },
+    "k-061": {
+      "canonical_name": "Arjun Deshwal",
+      "season_12": {
+        "player_id": "k-061",
+        "player_name": "Arjun Deshwal",
+        "season": "Season 12",
+        "matches": 0,
+        "total_points": 0,
+        "raid_points": 0,
+        "tackle_points": 0,
+        "successful_raids": 0,
+        "super_raids": 0,
+        "super_10s": 0,
+        "high_5s": 0,
+        "super_tackles": 0,
+        "do_or_die_points": 0,
+        "tackle_success_rate": 0,
+        "not_out_percentage": 0
+      },
+      "career": {
+        "player_id": "k-061",
+        "player_name": "Arjun Deshwal",
+        "season": "Career",
+        "matches": 91,
+        "total_points": 947,
+        "raid_points": 947,
+        "tackle_points": 0,
+        "successful_raids": 750,
+        "super_raids": 22,
+        "super_10s": 53,
+        "high_5s": 0,
+        "super_tackles": 0,
+        "do_or_die_points": 110,
+        "tackle_success_rate": 0,
+        "not_out_percentage": 82.4
+      },
+      "seasons_available": [
+        "Season 12",
+        "Career"
+      ]
+    },
+    "k-079": {
+      "canonical_name": "Maninder Singh",
+      "season_12": {
+        "player_id": "k-079",
+        "player_name": "Maninder Singh",
+        "season": "Season 12",
+        "matches": 0,
+        "total_points": 0,
+        "raid_points": 0,
+        "tackle_points": 0,
+        "successful_raids": 0,
+        "super_raids": 0,
+        "super_10s": 0,
+        "high_5s": 0,
+        "super_tackles": 0,
+        "do_or_die_points": 0,
+        "tackle_success_rate": 0,
+        "not_out_percentage": 0
+      },
+      "career": {
+        "player_id": "k-079",
+        "player_name": "Maninder Singh",
+        "season": "Career",
+        "matches": 143,
+        "total_points": 1428,
+        "raid_points": 1415,
+        "tackle_points": 13,
+        "successful_raids": 1100,
+        "super_raids": 45,
+        "super_10s": 72,
+        "high_5s": 0,
+        "super_tackles": 1,
+        "do_or_die_points": 165,
+        "tackle_success_rate": 0,
+        "not_out_percentage": 79.8
+      },
+      "seasons_available": [
+        "Season 12",
+        "Career"
+      ]
+    },
+    "k-098": {
+      "canonical_name": "Fazel Atrachali",
+      "season_12": {
+        "player_id": "k-098",
+        "player_name": "Fazel Atrachali",
+        "season": "Season 12",
+        "matches": 0,
+        "total_points": 0,
+        "raid_points": 0,
+        "tackle_points": 0,
+        "successful_raids": 0,
+        "super_raids": 0,
+        "super_10s": 0,
+        "high_5s": 0,
+        "super_tackles": 0,
+        "do_or_die_points": 0,
+        "tackle_success_rate": 0,
+        "not_out_percentage": 0
+      },
+      "career": {
+        "player_id": "k-098",
+        "player_name": "Fazel Atrachali",
+        "season": "Career",
+        "matches": 169,
+        "total_points": 486,
+        "raid_points": 0,
+        "tackle_points": 486,
+        "successful_raids": 0,
+        "super_raids": 0,
+        "super_10s": 0,
+        "high_5s": 28,
+        "super_tackles": 29,
+        "do_or_die_points": 0,
+        "tackle_success_rate": 54.1,
+        "not_out_percentage": 0
+      },
+      "seasons_available": [
+        "Season 12",
+        "Career"
+      ]
+    },
+    "k-116": {
+      "canonical_name": "Sachin Tanwar",
+      "season_12": {
+        "player_id": "k-116",
+        "player_name": "Sachin Tanwar",
+        "season": "Season 12",
+        "matches": 0,
+        "total_points": 0,
+        "raid_points": 0,
+        "tackle_points": 0,
+        "successful_raids": 0,
+        "super_raids": 0,
+        "super_10s": 0,
+        "high_5s": 0,
+        "super_tackles": 0,
+        "do_or_die_points": 0,
+        "tackle_success_rate": 0,
+        "not_out_percentage": 0
+      },
+      "career": {
+        "player_id": "k-116",
+        "player_name": "Sachin Tanwar",
+        "season": "Career",
+        "matches": 128,
+        "total_points": 952,
+        "raid_points": 890,
+        "tackle_points": 62,
+        "successful_raids": 720,
+        "super_raids": 18,
+        "super_10s": 36,
+        "high_5s": 2,
+        "super_tackles": 5,
+        "do_or_die_points": 185,
+        "tackle_success_rate": 42,
+        "not_out_percentage": 78.5
+      },
+      "seasons_available": [
+        "Season 12",
+        "Career"
+      ]
+    },
+    "k-135": {
+      "canonical_name": "Aslam Inamdar",
+      "season_12": {
+        "player_id": "k-135",
+        "player_name": "Aslam Inamdar",
+        "season": "Season 12",
+        "matches": 0,
+        "total_points": 0,
+        "raid_points": 0,
+        "tackle_points": 0,
+        "successful_raids": 0,
+        "super_raids": 0,
+        "super_10s": 0,
+        "high_5s": 0,
+        "super_tackles": 0,
+        "do_or_die_points": 0,
+        "tackle_success_rate": 0,
+        "not_out_percentage": 0
+      },
+      "career": {
+        "player_id": "k-135",
+        "player_name": "Aslam Inamdar",
+        "season": "Career",
+        "matches": 63,
+        "total_points": 442,
+        "raid_points": 358,
+        "tackle_points": 84,
+        "successful_raids": 285,
+        "super_raids": 11,
+        "super_10s": 12,
+        "high_5s": 2,
+        "super_tackles": 4,
+        "do_or_die_points": 72,
+        "tackle_success_rate": 46.5,
+        "not_out_percentage": 76.2
+      },
+      "seasons_available": [
+        "Season 12",
+        "Career"
+      ]
+    },
+    "k-136": {
+      "canonical_name": "Mohit Goyat",
+      "season_12": {
+        "player_id": "k-136",
+        "player_name": "Mohit Goyat",
+        "season": "Season 12",
+        "matches": 0,
+        "total_points": 0,
+        "raid_points": 0,
+        "tackle_points": 0,
+        "successful_raids": 0,
+        "super_raids": 0,
+        "super_10s": 0,
+        "high_5s": 0,
+        "super_tackles": 0,
+        "do_or_die_points": 0,
+        "tackle_success_rate": 0,
+        "not_out_percentage": 0
+      },
+      "career": {
+        "player_id": "k-136",
+        "player_name": "Mohit Goyat",
+        "season": "Career",
+        "matches": 61,
+        "total_points": 415,
+        "raid_points": 328,
+        "tackle_points": 87,
+        "successful_raids": 260,
+        "super_raids": 9,
+        "super_10s": 12,
+        "high_5s": 2,
+        "super_tackles": 6,
+        "do_or_die_points": 65,
+        "tackle_success_rate": 48.1,
+        "not_out_percentage": 75.4
+      },
+      "seasons_available": [
+        "Season 12",
+        "Career"
+      ]
+    },
+    "k-154": {
+      "canonical_name": "Pawan Sehrawat",
+      "season_12": {
+        "player_id": "k-154",
+        "player_name": "Pawan Sehrawat",
+        "season": "Season 12",
+        "matches": 0,
+        "total_points": 0,
+        "raid_points": 0,
+        "tackle_points": 0,
+        "successful_raids": 0,
+        "super_raids": 0,
+        "super_10s": 0,
+        "high_5s": 0,
+        "super_tackles": 0,
+        "do_or_die_points": 0,
+        "tackle_success_rate": 0,
+        "not_out_percentage": 0
+      },
+      "career": {
+        "player_id": "k-154",
+        "player_name": "Pawan Sehrawat",
+        "season": "Career",
+        "matches": 128,
+        "total_points": 1200,
+        "raid_points": 1189,
+        "tackle_points": 11,
+        "successful_raids": 920,
+        "super_raids": 34,
+        "super_10s": 64,
+        "high_5s": 1,
+        "super_tackles": 2,
+        "do_or_die_points": 140,
+        "tackle_success_rate": 0,
+        "not_out_percentage": 77.8
+      },
+      "seasons_available": [
+        "Season 12",
+        "Career"
+      ]
+    },
+    "k-174": {
+      "canonical_name": "Mohammadreza Shadloui",
+      "season_12": {
+        "player_id": "k-174",
+        "player_name": "Mohammadreza Shadloui",
+        "season": "Season 12",
+        "matches": 0,
+        "total_points": 0,
+        "raid_points": 0,
+        "tackle_points": 0,
+        "successful_raids": 0,
+        "super_raids": 0,
+        "super_10s": 0,
+        "high_5s": 0,
+        "super_tackles": 0,
+        "do_or_die_points": 0,
+        "tackle_success_rate": 0,
+        "not_out_percentage": 0
+      },
+      "career": {
+        "player_id": "k-174",
+        "player_name": "Mohammadreza Shadloui",
+        "season": "Career",
+        "matches": 68,
+        "total_points": 297,
+        "raid_points": 45,
+        "tackle_points": 252,
+        "successful_raids": 32,
+        "super_raids": 2,
+        "super_10s": 1,
+        "high_5s": 17,
+        "super_tackles": 15,
+        "do_or_die_points": 12,
+        "tackle_success_rate": 56.8,
+        "not_out_percentage": 70.2
+      },
+      "seasons_available": [
+        "Season 12",
+        "Career"
+      ]
+    },
+    "k-175": {
+      "canonical_name": "Jaideep Dahiya",
+      "season_12": {
+        "player_id": "k-175",
+        "player_name": "Jaideep Dahiya",
+        "season": "Season 12",
+        "matches": 0,
+        "total_points": 0,
+        "raid_points": 0,
+        "tackle_points": 0,
+        "successful_raids": 0,
+        "super_raids": 0,
+        "super_10s": 0,
+        "high_5s": 0,
+        "super_tackles": 0,
+        "do_or_die_points": 0,
+        "tackle_success_rate": 0,
+        "not_out_percentage": 0
+      },
+      "career": {
+        "player_id": "k-175",
+        "player_name": "Jaideep Dahiya",
+        "season": "Career",
+        "matches": 64,
+        "total_points": 180,
+        "raid_points": 5,
+        "tackle_points": 175,
+        "successful_raids": 3,
+        "super_raids": 0,
+        "super_10s": 0,
+        "high_5s": 12,
+        "super_tackles": 14,
+        "do_or_die_points": 0,
+        "tackle_success_rate": 51.2,
+        "not_out_percentage": 0
+      },
+      "seasons_available": [
+        "Season 12",
+        "Career"
+      ]
+    },
+    "k-194": {
+      "canonical_name": "Sagar Rathee",
+      "season_12": {
+        "player_id": "k-194",
+        "player_name": "Sagar Rathee",
+        "season": "Season 12",
+        "matches": 0,
+        "total_points": 0,
+        "raid_points": 0,
+        "tackle_points": 0,
+        "successful_raids": 0,
+        "super_raids": 0,
+        "super_10s": 0,
+        "high_5s": 0,
+        "super_tackles": 0,
+        "do_or_die_points": 0,
+        "tackle_success_rate": 0,
+        "not_out_percentage": 0
+      },
+      "career": {
+        "player_id": "k-194",
+        "player_name": "Sagar Rathee",
+        "season": "Career",
+        "matches": 70,
+        "total_points": 224,
+        "raid_points": 0,
+        "tackle_points": 224,
+        "successful_raids": 0,
+        "super_raids": 0,
+        "super_10s": 0,
+        "high_5s": 20,
+        "super_tackles": 15,
+        "do_or_die_points": 0,
+        "tackle_success_rate": 53.4,
+        "not_out_percentage": 0
+      },
+      "seasons_available": [
+        "Season 12",
+        "Career"
+      ]
+    },
+    "k-213": {
+      "canonical_name": "Guman Singh",
+      "season_12": {
+        "player_id": "k-213",
+        "player_name": "Guman Singh",
+        "season": "Season 12",
+        "matches": 0,
+        "total_points": 0,
+        "raid_points": 0,
+        "tackle_points": 0,
+        "successful_raids": 0,
+        "super_raids": 0,
+        "super_10s": 0,
+        "high_5s": 0,
+        "super_tackles": 0,
+        "do_or_die_points": 0,
+        "tackle_success_rate": 0,
+        "not_out_percentage": 0
+      },
+      "career": {
+        "player_id": "k-213",
+        "player_name": "Guman Singh",
+        "season": "Career",
+        "matches": 58,
+        "total_points": 405,
+        "raid_points": 395,
+        "tackle_points": 10,
+        "successful_raids": 315,
+        "super_raids": 8,
+        "super_10s": 14,
+        "high_5s": 0,
+        "super_tackles": 1,
+        "do_or_die_points": 68,
+        "tackle_success_rate": 0,
+        "not_out_percentage": 75
+      },
+      "seasons_available": [
+        "Season 12",
+        "Career"
+      ]
+    }
+  }
+}

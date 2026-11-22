@@ -1,32 +1,29 @@
-import { FranchiseIdentity, Player, PlayerTier, PlayerCategory } from './types';
+import rawPklPlayers from '../../pkl-players-database.json';
+import pklStatsData from './pkl-player-stats-registry.json';
+import { FranchiseIdentity, Player, PlayerRole, PlayerTier, PlayerCategory } from './types';
+import { calculatePklPlayerPoints, PklRawStats } from './pkl-scoring';
 
-export interface PKLCareerStats {
-  matches: number;
-  total_points: number;
-  raid_points: number;
-  tackle_points: number;
-  super_raids?: number;
-  super_10s?: number;
-  high_5s?: number;
-  not_out_percentage?: number;
-  tackle_success_rate?: number;
-}
+export const PKL_DISCLAIMER =
+  'Unofficial fan game. Virtual money only. Not affiliated with, endorsed by, or sponsored by Mashal Sports or Pro Kabaddi League.';
 
-export interface PKLPlayerRecord {
+export interface PklDatabaseRecord {
   id: string;
+  legacy_id?: string | null;
+  official_profile_id: string;
   name: string;
-  role: 'Raider' | 'Defender' | 'All-Rounder';
-  position_detail: 'Raider' | 'Right Corner' | 'Left Corner' | 'Right Cover' | 'Left Cover' | 'All-Rounder';
   team: string;
   team_code: string;
+  role: 'Raider' | 'Defender' | 'All-Rounder';
+  position_detail: 'Raider' | 'Right Corner' | 'Left Corner' | 'Right Cover' | 'Left Cover' | 'Cover' | 'Defender' | 'All-Rounder';
   nationality: string;
-  home_state: string;
-  base_price: number; // in INR
+  is_overseas: boolean;
+  tier: PlayerTier | 'D';
   category: 'Category A' | 'Category B' | 'Category C' | 'Category D';
-  tier: PlayerTier;
-  jersey_number?: number;
-  stats: PKLCareerStats;
-  achievements?: string[];
+  base_price: number;
+  jersey_number?: number | null;
+  profile_url?: string;
+  card_text?: string;
+  data_status: string;
 }
 
 export const PKL_FRANCHISES: FranchiseIdentity[] = [
@@ -44,1273 +41,230 @@ export const PKL_FRANCHISES: FranchiseIdentity[] = [
   { id: 'up', name: 'UP Yoddhas', short_code: 'UP', color: '#B91C1C', secondary_color: '#1E3A8A' },
 ];
 
-export const RAW_PKL_PLAYERS: PKLPlayerRecord[] = [
-  // --- Category A / Marquee Legends (Base Price: ₹30L) ---
-  {
-    id: 'pkl-001',
-    name: 'Pawan Sehrawat',
-    role: 'Raider',
-    position_detail: 'Raider',
-    team: 'Telugu Titans',
-    team_code: 'TEL',
-    nationality: 'India',
-    home_state: 'Delhi',
-    base_price: 3000000,
-    category: 'Category A',
-    tier: 'A',
-    jersey_number: 17,
-    stats: { matches: 126, total_points: 1238, raid_points: 1189, tackle_points: 49, super_10s: 62, super_raids: 32 },
-    achievements: ['PKL MVP Season 6', 'Best Raider Season 6, 7 & 8', 'Most Expensive Player in PKL History (₹2.6Cr+)'],
-  },
-  {
-    id: 'pkl-002',
-    name: 'Pardeep Narwal',
-    role: 'Raider',
-    position_detail: 'Raider',
-    team: 'Bengaluru Bulls',
-    team_code: 'BB',
-    nationality: 'India',
-    home_state: 'Haryana',
-    base_price: 3000000,
-    category: 'Category A',
-    tier: 'A',
-    jersey_number: 9,
-    stats: { matches: 170, total_points: 1709, raid_points: 1690, tackle_points: 19, super_10s: 85, super_raids: 73 },
-    achievements: ['All-Time Highest PKL Raid Points Scorer (1690+)', '3x PKL Champion (Patna Pirates)', 'Dubki King of Kabaddi'],
-  },
-  {
-    id: 'pkl-003',
-    name: 'Fazel Atrachali',
-    role: 'Defender',
-    position_detail: 'Left Corner',
-    team: 'Bengal Warriorz',
-    team_code: 'BW',
-    nationality: 'Iran',
-    home_state: 'Gorgan',
-    base_price: 3000000,
-    category: 'Category A',
-    tier: 'A',
-    jersey_number: 99,
-    stats: { matches: 169, total_points: 486, raid_points: 0, tackle_points: 486, high_5s: 30, tackle_success_rate: 54 },
-    achievements: ['All-Time Highest PKL Tackle Points (480+)', '2x Best Defender of the Tournament', 'Sultan of PKL'],
-  },
-  {
-    id: 'pkl-004',
-    name: 'Mohammadreza Shadloui Chiyaneh',
-    role: 'All-Rounder',
-    position_detail: 'Left Corner',
-    team: 'Haryana Steelers',
-    team_code: 'HAR',
-    nationality: 'Iran',
-    home_state: 'Tehran',
-    base_price: 3000000,
-    category: 'Category A',
-    tier: 'A',
-    jersey_number: 1,
-    stats: { matches: 68, total_points: 297, raid_points: 64, tackle_points: 233, high_5s: 18, super_raids: 3 },
-    achievements: ['Best Defender Season 8 & Season 10', 'Record ₹2.07Cr foreign acquisition', 'Fastest to 200 Tackle Points'],
-  },
-  {
-    id: 'pkl-005',
-    name: 'Naveen Kumar',
-    role: 'Raider',
-    position_detail: 'Raider',
-    team: 'Dabang Delhi K.C.',
-    team_code: 'DEL',
-    nationality: 'India',
-    home_state: 'Haryana',
-    base_price: 3000000,
-    category: 'Category A',
-    tier: 'A',
-    jersey_number: 10,
-    stats: { matches: 91, total_points: 1024, raid_points: 1005, tackle_points: 19, super_10s: 64, super_raids: 20 },
-    achievements: ['PKL MVP Season 8', 'Fastest Player to 1000 PKL Raid Points', 'Naveen Express'],
-  },
-  {
-    id: 'pkl-006',
-    name: 'Maninder Singh',
-    role: 'Raider',
-    position_detail: 'Raider',
-    team: 'Bengal Warriorz',
-    team_code: 'BW',
-    nationality: 'India',
-    home_state: 'Punjab',
-    base_price: 3000000,
-    category: 'Category A',
-    tier: 'A',
-    jersey_number: 13,
-    stats: { matches: 143, total_points: 1428, raid_points: 1419, tackle_points: 9, super_10s: 72, super_raids: 48 },
-    achievements: ['PKL Champion Season 7 Captain', '2nd All-Time Highest Raid Points Scorer', 'Mighty Mani'],
-  },
-  {
-    id: 'pkl-007',
-    name: 'Arjun Deshwal',
-    role: 'Raider',
-    position_detail: 'Raider',
-    team: 'Jaipur Pink Panthers',
-    team_code: 'JPP',
-    nationality: 'India',
-    home_state: 'Uttar Pradesh',
-    base_price: 3000000,
-    category: 'Category A',
-    tier: 'A',
-    jersey_number: 8,
-    stats: { matches: 91, total_points: 955, raid_points: 947, tackle_points: 8, super_10s: 53, super_raids: 25 },
-    achievements: ['PKL MVP Season 9', 'Season 9 Top Raid Points Scorer (296)', 'Raid Machine'],
-  },
-  {
-    id: 'pkl-008',
-    name: 'Sunil Kumar',
-    role: 'Defender',
-    position_detail: 'Right Cover',
-    team: 'U Mumba',
-    team_code: 'MUM',
-    nationality: 'India',
-    home_state: 'Haryana',
-    base_price: 3000000,
-    category: 'Category A',
-    tier: 'A',
-    jersey_number: 7,
-    stats: { matches: 137, total_points: 336, raid_points: 0, tackle_points: 336, high_5s: 19, tackle_success_rate: 51 },
-    achievements: ['PKL Champion Captain Season 9 (Jaipur)', 'Premier Right Cover Defender', 'Indian National Team Captain'],
-  },
-  {
-    id: 'pkl-009',
-    name: 'Aslam Inamdar',
-    role: 'All-Rounder',
-    position_detail: 'All-Rounder',
-    team: 'Puneri Paltan',
-    team_code: 'PUN',
-    nationality: 'India',
-    home_state: 'Maharashtra',
-    base_price: 3000000,
-    category: 'Category A',
-    tier: 'A',
-    jersey_number: 5,
-    stats: { matches: 68, total_points: 508, raid_points: 432, tackle_points: 76, super_10s: 16, super_raids: 11 },
-    achievements: ['PKL Champion Captain Season 10', 'Asian Games Gold Medalist 2023', 'Puneri Talisman'],
-  },
-  {
-    id: 'pkl-010',
-    name: 'Surjeet Singh',
-    role: 'Defender',
-    position_detail: 'Right Cover',
-    team: 'Jaipur Pink Panthers',
-    team_code: 'JPP',
-    nationality: 'India',
-    home_state: 'Punjab',
-    base_price: 3000000,
-    category: 'Category A',
-    tier: 'A',
-    jersey_number: 3,
-    stats: { matches: 148, total_points: 404, raid_points: 0, tackle_points: 404, high_5s: 34, tackle_success_rate: 49 },
-    achievements: ['Most High 5s in PKL History (34)', 'Master of the Dash', 'Senior Indian Team Veteran'],
-  },
-  {
-    id: 'pkl-011',
-    name: 'Sachin Tanwar',
-    role: 'Raider',
-    position_detail: 'Raider',
-    team: 'Tamil Thalaivas',
-    team_code: 'TAM',
-    nationality: 'India',
-    home_state: 'Rajasthan',
-    base_price: 3000000,
-    category: 'Category A',
-    tier: 'A',
-    jersey_number: 99,
-    stats: { matches: 128, total_points: 1006, raid_points: 952, tackle_points: 54, super_10s: 36, super_raids: 19 },
-    achievements: ['PKL 11 Record ₹2.15Cr Signing', 'Do-or-Die Raid Specialist', 'Asian Games Gold Medalist'],
-  },
-  {
-    id: 'pkl-012',
-    name: 'Ankush Rathee',
-    role: 'Defender',
-    position_detail: 'Left Corner',
-    team: 'Jaipur Pink Panthers',
-    team_code: 'JPP',
-    nationality: 'India',
-    home_state: 'Haryana',
-    base_price: 3000000,
-    category: 'Category A',
-    tier: 'A',
-    jersey_number: 44,
-    stats: { matches: 46, total_points: 159, raid_points: 0, tackle_points: 159, high_5s: 14, tackle_success_rate: 58 },
-    achievements: ['Best Defender of Season 9 (89 Tackle Pts)', 'Highest Tackle Points in a Debut Season', 'Ankle Hold Master'],
-  },
+const PKL_TEAM_PALETTE: Record<string, string> = {
+  BB: '#D1121F',
+  DEL: '#1E3A8A',
+  JPP: '#EC4899',
+  BW: '#00A3E0',
+  MUM: '#FF6600',
+  PAT: '#15803D',
+  PUN: '#F97316',
+  TEL: '#F59E0B',
+  HAR: '#2563EB',
+  TAM: '#EAB308',
+  UP: '#B91C1C',
+  GG: '#EA580C',
+};
 
-  // --- Category B / Proven Tournament Performers (Base Price: ₹20L) ---
-  {
-    id: 'pkl-013',
-    name: 'Ashu Malik',
-    role: 'Raider',
-    position_detail: 'Raider',
-    team: 'Dabang Delhi K.C.',
-    team_code: 'DEL',
-    nationality: 'India',
-    home_state: 'Haryana',
-    base_price: 2000000,
-    category: 'Category B',
-    tier: 'B',
-    jersey_number: 11,
-    stats: { matches: 68, total_points: 574, raid_points: 554, tackle_points: 20, super_10s: 23, super_raids: 14 },
-    achievements: ['Joint Top Scorer Season 10 (276 Raid Pts)', 'Dabang Delhi Lead Raider'],
-  },
-  {
-    id: 'pkl-014',
-    name: 'Saurabh Nandal',
-    role: 'Defender',
-    position_detail: 'Right Corner',
-    team: 'Bengaluru Bulls',
-    team_code: 'BB',
-    nationality: 'India',
-    home_state: 'Haryana',
-    base_price: 2000000,
-    category: 'Category B',
-    tier: 'B',
-    jersey_number: 2,
-    stats: { matches: 92, total_points: 246, raid_points: 0, tackle_points: 246, high_5s: 11, tackle_success_rate: 51 },
-    achievements: ['Best Defender Season 9 Runner-up', 'Bengaluru Bulls Defensive Anchor'],
-  },
-  {
-    id: 'pkl-015',
-    name: 'Jaideep Dahiya',
-    role: 'Defender',
-    position_detail: 'Left Cover',
-    team: 'Haryana Steelers',
-    team_code: 'HAR',
-    nationality: 'India',
-    home_state: 'Haryana',
-    base_price: 2000000,
-    category: 'Category B',
-    tier: 'B',
-    jersey_number: 6,
-    stats: { matches: 66, total_points: 180, raid_points: 0, tackle_points: 180, high_5s: 12, tackle_success_rate: 52 },
-    achievements: ['Haryana Steelers Captain', 'Block and Chain Specialist'],
-  },
-  {
-    id: 'pkl-016',
-    name: 'Krishan Dhull',
-    role: 'Defender',
-    position_detail: 'Right Corner',
-    team: 'Telugu Titans',
-    team_code: 'TEL',
-    nationality: 'India',
-    home_state: 'Haryana',
-    base_price: 2000000,
-    category: 'Category B',
-    tier: 'B',
-    jersey_number: 4,
-    stats: { matches: 66, total_points: 169, raid_points: 0, tackle_points: 169, high_5s: 10, tackle_success_rate: 53 },
-    achievements: ['Season 10 Finalist (Patna Pirates)', 'Top 3 Defenders Season 10'],
-  },
-  {
-    id: 'pkl-017',
-    name: 'Bharat Hooda',
-    role: 'Raider',
-    position_detail: 'Raider',
-    team: 'UP Yoddhas',
-    team_code: 'UP',
-    nationality: 'India',
-    home_state: 'Haryana',
-    base_price: 2000000,
-    category: 'Category B',
-    tier: 'B',
-    jersey_number: 18,
-    stats: { matches: 64, total_points: 512, raid_points: 489, tackle_points: 23, super_10s: 22, super_raids: 15 },
-    achievements: ['Season 9 Breakout Star (279 Pts)', 'Multi-point Raid Specialist'],
-  },
-  {
-    id: 'pkl-018',
-    name: 'Guman Singh',
-    role: 'Raider',
-    position_detail: 'Raider',
-    team: 'Gujarat Giants',
-    team_code: 'GG',
-    nationality: 'India',
-    home_state: 'Haryana',
-    base_price: 2000000,
-    category: 'Category B',
-    tier: 'B',
-    jersey_number: 77,
-    stats: { matches: 58, total_points: 405, raid_points: 396, tackle_points: 9, super_10s: 17, super_raids: 10 },
-    achievements: ['₹1.97Cr Mega Auction Buy Season 11', 'Leading Raider for Gujarat Giants'],
-  },
-  {
-    id: 'pkl-019',
-    name: 'Nitesh Kumar',
-    role: 'Defender',
-    position_detail: 'Right Corner',
-    team: 'Tamil Thalaivas',
-    team_code: 'TAM',
-    nationality: 'India',
-    home_state: 'Haryana',
-    base_price: 2000000,
-    category: 'Category B',
-    tier: 'B',
-    jersey_number: 1,
-    stats: { matches: 129, total_points: 350, raid_points: 0, tackle_points: 350, high_5s: 23, tackle_success_rate: 52 },
-    achievements: ['Only Player with 100 Tackle Pts in a Single Season (Season 6)', 'Former UP Yoddhas Captain'],
-  },
-  {
-    id: 'pkl-020',
-    name: 'Mohit Goyat',
-    role: 'Raider',
-    position_detail: 'Raider',
-    team: 'Puneri Paltan',
-    team_code: 'PUN',
-    nationality: 'India',
-    home_state: 'Haryana',
-    base_price: 2000000,
-    category: 'Category B',
-    tier: 'B',
-    jersey_number: 12,
-    stats: { matches: 61, total_points: 404, raid_points: 345, tackle_points: 59, super_10s: 14, super_raids: 8 },
-    achievements: ['PKL Champion Season 10', 'All-Round raiding & ankle-hold specialist'],
-  },
-  {
-    id: 'pkl-021',
-    name: 'Sombir Gulia',
-    role: 'Defender',
-    position_detail: 'Right Corner',
-    team: 'Gujarat Giants',
-    team_code: 'GG',
-    nationality: 'India',
-    home_state: 'Haryana',
-    base_price: 2000000,
-    category: 'Category B',
-    tier: 'B',
-    jersey_number: 22,
-    stats: { matches: 109, total_points: 216, raid_points: 0, tackle_points: 216, high_5s: 13, tackle_success_rate: 48 },
-    achievements: ['Defensive Wall of Gujarat Giants', 'Seasoned Corner Defender'],
-  },
-  {
-    id: 'pkl-022',
-    name: 'Vikas Kandola',
-    role: 'Raider',
-    position_detail: 'Raider',
-    team: 'Jaipur Pink Panthers',
-    team_code: 'JPP',
-    nationality: 'India',
-    home_state: 'Haryana',
-    base_price: 2000000,
-    category: 'Category B',
-    tier: 'B',
-    jersey_number: 7,
-    stats: { matches: 120, total_points: 800, raid_points: 772, tackle_points: 28, super_10s: 30, super_raids: 18 },
-    achievements: ['Top Raider Haryana Steelers & Bengaluru Bulls', 'Running Hand Touch Virtuoso'],
-  },
-  {
-    id: 'pkl-023',
-    name: 'Gaurav Khatri',
-    role: 'Defender',
-    position_detail: 'Right Corner',
-    team: 'Puneri Paltan',
-    team_code: 'PUN',
-    nationality: 'India',
-    home_state: 'Haryana',
-    base_price: 2000000,
-    category: 'Category B',
-    tier: 'B',
-    jersey_number: 33,
-    stats: { matches: 45, total_points: 109, raid_points: 0, tackle_points: 109, high_5s: 6, tackle_success_rate: 57 },
-    achievements: ['PKL Champion Season 10', 'Top 5 Tackler Season 10'],
-  },
-  {
-    id: 'pkl-024',
-    name: 'Siddharth Desai',
-    role: 'Raider',
-    position_detail: 'Raider',
-    team: 'Dabang Delhi K.C.',
-    team_code: 'DEL',
-    nationality: 'India',
-    home_state: 'Maharashtra',
-    base_price: 2000000,
-    category: 'Category B',
-    tier: 'B',
-    jersey_number: 8,
-    stats: { matches: 79, total_points: 692, raid_points: 677, tackle_points: 15, super_10s: 34, super_raids: 21 },
-    achievements: ['Bahubali of PKL', 'Fastest 50, 100 & 200 Raid Points in Debut Season'],
-  },
-
-  // --- Category C / Emerging Stars & Domestic Stalwarts (Base Price: ₹13L) ---
-  {
-    id: 'pkl-025',
-    name: 'Yogesh Dahiya',
-    role: 'Defender',
-    position_detail: 'Right Corner',
-    team: 'Dabang Delhi K.C.',
-    team_code: 'DEL',
-    nationality: 'India',
-    home_state: 'Haryana',
-    base_price: 1300000,
-    category: 'Category C',
-    tier: 'C',
-    jersey_number: 21,
-    stats: { matches: 23, total_points: 74, raid_points: 0, tackle_points: 74, high_5s: 5, tackle_success_rate: 56 },
-    achievements: ['New Young Player of the Tournament Season 10'],
-  },
-  {
-    id: 'pkl-026',
-    name: 'Shankar Gadai',
-    role: 'All-Rounder',
-    position_detail: 'All-Rounder',
-    team: 'Puneri Paltan',
-    team_code: 'PUN',
-    nationality: 'India',
-    home_state: 'Maharashtra',
-    base_price: 1300000,
-    category: 'Category C',
-    tier: 'C',
-    jersey_number: 14,
-    stats: { matches: 38, total_points: 88, raid_points: 38, tackle_points: 50, high_5s: 2, super_raids: 1 },
-    achievements: ['PKL Champion Season 10', 'Crucial Substitute Specialist'],
-  },
-  {
-    id: 'pkl-027',
-    name: 'Sunil Pehalwan',
-    role: 'Defender',
-    position_detail: 'Left Cover',
-    team: 'Patna Pirates',
-    team_code: 'PAT',
-    nationality: 'India',
-    home_state: 'Haryana',
-    base_price: 1300000,
-    category: 'Category C',
-    tier: 'C',
-    jersey_number: 19,
-    stats: { matches: 42, total_points: 92, raid_points: 0, tackle_points: 92, high_5s: 4, tackle_success_rate: 47 },
-    achievements: ['Solid Left Cover for Patna Pirates'],
-  },
-  {
-    id: 'pkl-028',
-    name: 'Ajinkya Pawar',
-    role: 'Raider',
-    position_detail: 'Raider',
-    team: 'Bengaluru Bulls',
-    team_code: 'BB',
-    nationality: 'India',
-    home_state: 'Maharashtra',
-    base_price: 1300000,
-    category: 'Category C',
-    tier: 'C',
-    jersey_number: 27,
-    stats: { matches: 84, total_points: 442, raid_points: 420, tackle_points: 22, super_10s: 13, super_raids: 11 },
-    achievements: ['Super Raid Specialist', 'Key contributor for Tamil Thalaivas & Bengaluru Bulls'],
-  },
-  {
-    id: 'pkl-029',
-    name: 'Sahil Gulia',
-    role: 'Defender',
-    position_detail: 'Left Corner',
-    team: 'Tamil Thalaivas',
-    team_code: 'TAM',
-    nationality: 'India',
-    home_state: 'Haryana',
-    base_price: 1300000,
-    category: 'Category C',
-    tier: 'C',
-    jersey_number: 23,
-    stats: { matches: 58, total_points: 156, raid_points: 0, tackle_points: 156, high_5s: 9, tackle_success_rate: 50 },
-    achievements: ['Tamil Thalaivas Vice-Captain', 'Season 10 Top Defender for Thalaivas'],
-  },
-  {
-    id: 'pkl-030',
-    name: 'Neeraj Kumar',
-    role: 'Defender',
-    position_detail: 'Right Cover',
-    team: 'Gujarat Giants',
-    team_code: 'GG',
-    nationality: 'India',
-    home_state: 'Haryana',
-    base_price: 1300000,
-    category: 'Category C',
-    tier: 'C',
-    jersey_number: 15,
-    stats: { matches: 80, total_points: 172, raid_points: 0, tackle_points: 172, high_5s: 7, tackle_success_rate: 46 },
-    achievements: ['Former Patna Pirates Captain', 'Season 8 Finalist'],
-  },
-  {
-    id: 'pkl-031',
-    name: 'Sudhakar M',
-    role: 'Raider',
-    position_detail: 'Raider',
-    team: 'Patna Pirates',
-    team_code: 'PAT',
-    nationality: 'India',
-    home_state: 'Tamil Nadu',
-    base_price: 1300000,
-    category: 'Category C',
-    tier: 'C',
-    jersey_number: 24,
-    stats: { matches: 20, total_points: 105, raid_points: 103, tackle_points: 2, super_10s: 3, super_raids: 4 },
-    achievements: ['Breakout NYP of Season 10', 'Electrifying Toe Touch Specialist'],
-  },
-  {
-    id: 'pkl-032',
-    name: 'Sanket Sawant',
-    role: 'Defender',
-    position_detail: 'Left Cover',
-    team: 'Puneri Paltan',
-    team_code: 'PUN',
-    nationality: 'India',
-    home_state: 'Maharashtra',
-    base_price: 1300000,
-    category: 'Category C',
-    tier: 'C',
-    jersey_number: 4,
-    stats: { matches: 62, total_points: 110, raid_points: 0, tackle_points: 110, high_5s: 4, tackle_success_rate: 45 },
-    achievements: ['PKL Champion Season 10', 'Puneri Defensive Wall'],
-  },
-  {
-    id: 'pkl-033',
-    name: 'Manjeet Dahiya',
-    role: 'Raider',
-    position_detail: 'Raider',
-    team: 'U Mumba',
-    team_code: 'MUM',
-    nationality: 'India',
-    home_state: 'Haryana',
-    base_price: 1300000,
-    category: 'Category C',
-    tier: 'C',
-    jersey_number: 88,
-    stats: { matches: 90, total_points: 588, raid_points: 540, tackle_points: 48, super_10s: 18, super_raids: 12 },
-    achievements: ['Tallest Raider in PKL (6ft 3in)', 'Bonus Point Maestro'],
-  },
-  {
-    id: 'pkl-034',
-    name: 'Mahender Singh',
-    role: 'Defender',
-    position_detail: 'Left Cover',
-    team: 'Bengal Warriorz',
-    team_code: 'BW',
-    nationality: 'India',
-    home_state: 'Himachal Pradesh',
-    base_price: 1300000,
-    category: 'Category C',
-    tier: 'C',
-    jersey_number: 3,
-    stats: { matches: 118, total_points: 294, raid_points: 0, tackle_points: 294, high_5s: 17, tackle_success_rate: 48 },
-    achievements: ['The Bulldozer', 'Season 6 PKL Champion with Bengaluru Bulls'],
-  },
-  {
-    id: 'pkl-035',
-    name: 'Amirmohammad Zafardanesh',
-    role: 'All-Rounder',
-    position_detail: 'All-Rounder',
-    team: 'U Mumba',
-    team_code: 'MUM',
-    nationality: 'Iran',
-    home_state: 'Tehran',
-    base_price: 1300000,
-    category: 'Category C',
-    tier: 'C',
-    jersey_number: 10,
-    stats: { matches: 20, total_points: 148, raid_points: 141, tackle_points: 7, super_10s: 4, super_raids: 5 },
-    achievements: ['Breakout Iranian sensation Season 10', 'Asian Games Silver Medalist'],
-  },
-  {
-    id: 'pkl-036',
-    name: 'Parteek Dahiya',
-    role: 'Raider',
-    position_detail: 'Raider',
-    team: 'Gujarat Giants',
-    team_code: 'GG',
-    nationality: 'India',
-    home_state: 'Haryana',
-    base_price: 1300000,
-    category: 'Category C',
-    tier: 'C',
-    jersey_number: 9,
-    stats: { matches: 42, total_points: 310, raid_points: 295, tackle_points: 15, super_10s: 12, super_raids: 9 },
-    achievements: ['Nephew of Deepak Hooda', 'Gujarat Giants dynamic match-winner'],
-  },
-
-  // --- Category D / Talented Bench & Utility Players (Base Price: ₹9L) ---
-  {
-    id: 'pkl-037',
-    name: 'Shivam Patare',
-    role: 'Raider',
-    position_detail: 'Raider',
-    team: 'Haryana Steelers',
-    team_code: 'HAR',
-    nationality: 'India',
-    home_state: 'Maharashtra',
-    base_price: 900000,
-    category: 'Category D',
-    tier: 'C',
-    jersey_number: 16,
-    stats: { matches: 23, total_points: 116, raid_points: 116, tackle_points: 0, super_10s: 3, super_raids: 3 },
-    achievements: ['Season 10 Finalist with Haryana Steelers'],
-  },
-  {
-    id: 'pkl-038',
-    name: 'Bhavani Rajput',
-    role: 'Raider',
-    position_detail: 'Raider',
-    team: 'UP Yoddhas',
-    team_code: 'UP',
-    nationality: 'India',
-    home_state: 'Madhya Pradesh',
-    base_price: 900000,
-    category: 'Category D',
-    tier: 'C',
-    jersey_number: 15,
-    stats: { matches: 54, total_points: 172, raid_points: 164, tackle_points: 8, super_10s: 2, super_raids: 4 },
-    achievements: ['Reliable secondary raider', 'Quick hand touch asset'],
-  },
-  {
-    id: 'pkl-039',
-    name: 'Harendra Kumar',
-    role: 'Defender',
-    position_detail: 'Left Cover',
-    team: 'UP Yoddhas',
-    team_code: 'UP',
-    nationality: 'India',
-    home_state: 'Uttar Pradesh',
-    base_price: 900000,
-    category: 'Category D',
-    tier: 'C',
-    jersey_number: 6,
-    stats: { matches: 62, total_points: 104, raid_points: 0, tackle_points: 104, high_5s: 2, tackle_success_rate: 42 },
-    achievements: ['Solid defensive cover stalwart'],
-  },
-  {
-    id: 'pkl-040',
-    name: 'Akshit Dhull',
-    role: 'Raider',
-    position_detail: 'Raider',
-    team: 'Bengaluru Bulls',
-    team_code: 'BB',
-    nationality: 'India',
-    home_state: 'Haryana',
-    base_price: 900000,
-    category: 'Category D',
-    tier: 'C',
-    jersey_number: 21,
-    stats: { matches: 15, total_points: 61, raid_points: 59, tackle_points: 2, super_10s: 1, super_raids: 2 },
-    achievements: ['Exciting young raiding talent'],
-  },
-  {
-    id: 'pkl-041',
-    name: 'Sumit Sangwan',
-    role: 'Defender',
-    position_detail: 'Left Corner',
-    team: 'UP Yoddhas',
-    team_code: 'UP',
-    nationality: 'India',
-    home_state: 'Haryana',
-    base_price: 2000000,
-    category: 'Category B',
-    tier: 'B',
-    jersey_number: 5,
-    stats: { matches: 89, total_points: 254, raid_points: 0, tackle_points: 254, high_5s: 15, tackle_success_rate: 51 },
-    achievements: ['Nitesh-Sumit Legendary Corner Pair', 'Consistent 60+ tackle points per season'],
-  },
-  {
-    id: 'pkl-042',
-    name: 'Rahul Chaudhari',
-    role: 'Raider',
-    position_detail: 'Raider',
-    team: 'Jaipur Pink Panthers',
-    team_code: 'JPP',
-    nationality: 'India',
-    home_state: 'Uttar Pradesh',
-    base_price: 2000000,
-    category: 'Category B',
-    tier: 'B',
-    jersey_number: 1,
-    stats: { matches: 154, total_points: 1100, raid_points: 1045, tackle_points: 55, super_10s: 42, super_raids: 25 },
-    achievements: ['Poster Boy of PKL', 'Season 9 PKL Champion', 'First player to reach 500, 700 & 800 raid points'],
-  },
-  {
-    id: 'pkl-043',
-    name: 'Deepak Niwas Hooda',
-    role: 'All-Rounder',
-    position_detail: 'All-Rounder',
-    team: 'Bengal Warriorz',
-    team_code: 'BW',
-    nationality: 'India',
-    home_state: 'Haryana',
-    base_price: 2000000,
-    category: 'Category B',
-    tier: 'B',
-    jersey_number: 5,
-    stats: { matches: 157, total_points: 1020, raid_points: 920, tackle_points: 100, super_10s: 35, super_raids: 18 },
-    achievements: ['Former Indian National Team Captain', 'Over 1000 Total PKL Points'],
-  },
-  {
-    id: 'pkl-044',
-    name: 'Ajay Thakur',
-    role: 'Raider',
-    position_detail: 'Raider',
-    team: 'Dabang Delhi K.C.',
-    team_code: 'DEL',
-    nationality: 'India',
-    home_state: 'Himachal Pradesh',
-    base_price: 2000000,
-    category: 'Category B',
-    tier: 'B',
-    jersey_number: 11,
-    stats: { matches: 120, total_points: 816, raid_points: 794, tackle_points: 22, super_10s: 29, super_raids: 18 },
-    achievements: ['World Cup 2016 Hero', 'Padma Shri & Arjuna Awardee', 'Legendary Frog Jump Raider'],
-  },
-  {
-    id: 'pkl-045',
-    name: 'Anup Kumar',
-    role: 'Raider',
-    position_detail: 'Raider',
-    team: 'U Mumba',
-    team_code: 'MUM',
-    nationality: 'India',
-    home_state: 'Haryana',
-    base_price: 3000000,
-    category: 'Category A',
-    tier: 'A',
-    jersey_number: 3,
-    stats: { matches: 91, total_points: 596, raid_points: 527, tackle_points: 69, super_10s: 13, super_raids: 10 },
-    achievements: ['Captain Cool', 'PKL Season 2 Champion Captain', 'Bonus Point Master & Icon'],
-  },
-  {
-    id: 'pkl-046',
-    name: 'Dharmaraj Cheralathan',
-    role: 'Defender',
-    position_detail: 'Right Corner',
-    team: 'Patna Pirates',
-    team_code: 'PAT',
-    nationality: 'India',
-    home_state: 'Tamil Nadu',
-    base_price: 2000000,
-    category: 'Category B',
-    tier: 'B',
-    jersey_number: 9,
-    stats: { matches: 123, total_points: 289, raid_points: 25, tackle_points: 264, high_5s: 12, tackle_success_rate: 49 },
-    achievements: ['Anna of Kabaddi', 'PKL Season 4 Champion Captain', 'Played into his mid-40s as a defensive rock'],
-  },
-  {
-    id: 'pkl-047',
-    name: 'Sandeep Narwal',
-    role: 'All-Rounder',
-    position_detail: 'Right Corner',
-    team: 'UP Yoddhas',
-    team_code: 'UP',
-    nationality: 'India',
-    home_state: 'Haryana',
-    base_price: 2000000,
-    category: 'Category B',
-    tier: 'B',
-    jersey_number: 2,
-    stats: { matches: 156, total_points: 640, raid_points: 280, tackle_points: 360, high_5s: 18, super_raids: 6 },
-    achievements: ['The Beast', 'PKL Season 8 Champion with Dabang Delhi', 'Fierce Dash & Block Master'],
-  },
-  {
-    id: 'pkl-048',
-    name: 'Monu Goyat',
-    role: 'Raider',
-    position_detail: 'Raider',
-    team: 'Telugu Titans',
-    team_code: 'TEL',
-    nationality: 'India',
-    home_state: 'Haryana',
-    base_price: 2000000,
-    category: 'Category B',
-    tier: 'B',
-    jersey_number: 20,
-    stats: { matches: 100, total_points: 605, raid_points: 566, tackle_points: 39, super_10s: 19, super_raids: 12 },
-    achievements: ['PKL Season 5 Champion with Patna Pirates', 'Historic ₹1.51Cr Bid Season 6'],
-  },
-  {
-    id: 'pkl-049',
-    name: 'Narender Kandola',
-    role: 'Raider',
-    position_detail: 'Raider',
-    team: 'Tamil Thalaivas',
-    team_code: 'TAM',
-    nationality: 'India',
-    home_state: 'Haryana',
-    base_price: 2000000,
-    category: 'Category B',
-    tier: 'B',
-    jersey_number: 14,
-    stats: { matches: 44, total_points: 435, raid_points: 429, tackle_points: 6, super_10s: 26, super_raids: 11 },
-    achievements: ['New Young Player of Season 9 (243 Pts)', 'Tamil Thalaivas Spearhead'],
-  },
-  {
-    id: 'pkl-050',
-    name: 'Sagar Rathee',
-    role: 'Defender',
-    position_detail: 'Right Corner',
-    team: 'Tamil Thalaivas',
-    team_code: 'TAM',
-    nationality: 'India',
-    home_state: 'Haryana',
-    base_price: 2000000,
-    category: 'Category B',
-    tier: 'B',
-    jersey_number: 7,
-    stats: { matches: 70, total_points: 223, raid_points: 0, tackle_points: 223, high_5s: 17, tackle_success_rate: 54 },
-    achievements: ['Tamil Thalaivas Captain', 'Second Most Tackle Points Season 8 (82 Pts)'],
-  },
-  {
-    id: 'pkl-051',
-    name: 'Abinesh Nadarajan',
-    role: 'Defender',
-    position_detail: 'Right Cover',
-    team: 'Puneri Paltan',
-    team_code: 'PUN',
-    nationality: 'India',
-    home_state: 'Tamil Nadu',
-    base_price: 2000000,
-    category: 'Category B',
-    tier: 'B',
-    jersey_number: 17,
-    stats: { matches: 62, total_points: 154, raid_points: 0, tackle_points: 154, high_5s: 7, tackle_success_rate: 49 },
-    achievements: ['PKL Champion Season 10', 'Best Right Cover Season 10', 'Asian Games Gold Medalist'],
-  },
-  {
-    id: 'pkl-052',
-    name: 'Pankaj Mohite',
-    role: 'Raider',
-    position_detail: 'Raider',
-    team: 'Puneri Paltan',
-    team_code: 'PUN',
-    nationality: 'India',
-    home_state: 'Maharashtra',
-    base_price: 1300000,
-    category: 'Category C',
-    tier: 'C',
-    jersey_number: 11,
-    stats: { matches: 64, total_points: 310, raid_points: 298, tackle_points: 12, super_10s: 8, super_raids: 9 },
-    achievements: ['PKL Season 10 Final Man of the Match (9 Pts)', 'Clutch Raider'],
-  },
-  {
-    id: 'pkl-053',
-    name: 'Nitin Kumar',
-    role: 'Raider',
-    position_detail: 'Raider',
-    team: 'Bengal Warriorz',
-    team_code: 'BW',
-    nationality: 'India',
-    home_state: 'Haryana',
-    base_price: 1300000,
-    category: 'Category C',
-    tier: 'C',
-    jersey_number: 18,
-    stats: { matches: 20, total_points: 169, raid_points: 169, tackle_points: 0, super_10s: 8, super_raids: 6 },
-    achievements: ['Breakout Raider of Season 10', 'Sensational Debut Season (169 Pts)'],
-  },
-  {
-    id: 'pkl-054',
-    name: 'Vaibhav Garje',
-    role: 'Defender',
-    position_detail: 'Right Cover',
-    team: 'Bengal Warriorz',
-    team_code: 'BW',
-    nationality: 'India',
-    home_state: 'Maharashtra',
-    base_price: 1300000,
-    category: 'Category C',
-    tier: 'C',
-    jersey_number: 2,
-    stats: { matches: 40, total_points: 83, raid_points: 0, tackle_points: 83, high_5s: 2, tackle_success_rate: 44 },
-    achievements: ['Key Defensive Cover for Bengal Warriorz'],
-  },
-  {
-    id: 'pkl-055',
-    name: 'Vinay Tevathia',
-    role: 'Raider',
-    position_detail: 'Raider',
-    team: 'Haryana Steelers',
-    team_code: 'HAR',
-    nationality: 'India',
-    home_state: 'Haryana',
-    base_price: 2000000,
-    category: 'Category B',
-    tier: 'B',
-    jersey_number: 10,
-    stats: { matches: 76, total_points: 448, raid_points: 432, tackle_points: 16, super_10s: 14, super_raids: 8 },
-    achievements: ['Top Raider for Haryana Steelers Season 10 Finalist'],
-  },
-  {
-    id: 'pkl-056',
-    name: 'Rahul Sethpal',
-    role: 'Defender',
-    position_detail: 'Right Corner',
-    team: 'Haryana Steelers',
-    team_code: 'HAR',
-    nationality: 'India',
-    home_state: 'Haryana',
-    base_price: 2000000,
-    category: 'Category B',
-    tier: 'B',
-    jersey_number: 22,
-    stats: { matches: 58, total_points: 149, raid_points: 0, tackle_points: 149, high_5s: 8, tackle_success_rate: 55 },
-    achievements: ['Super Tackle Specialist Season 10 (15 Super Tackles)', 'Season 10 Finalist'],
-  },
-  {
-    id: 'pkl-057',
-    name: 'Mohit Nandal',
-    role: 'Defender',
-    position_detail: 'Right Cover',
-    team: 'Haryana Steelers',
-    team_code: 'HAR',
-    nationality: 'India',
-    home_state: 'Haryana',
-    base_price: 2000000,
-    category: 'Category B',
-    tier: 'B',
-    jersey_number: 5,
-    stats: { matches: 66, total_points: 172, raid_points: 0, tackle_points: 172, high_5s: 9, tackle_success_rate: 51 },
-    achievements: ['Haryana Steelers Co-Captain', 'Unbreakable Cover Combo with Jaideep'],
-  },
-  {
-    id: 'pkl-058',
-    name: 'Vijay Malik',
-    role: 'All-Rounder',
-    position_detail: 'All-Rounder',
-    team: 'Telugu Titans',
-    team_code: 'TEL',
-    nationality: 'India',
-    home_state: 'Haryana',
-    base_price: 2000000,
-    category: 'Category B',
-    tier: 'B',
-    jersey_number: 4,
-    stats: { matches: 112, total_points: 488, raid_points: 410, tackle_points: 78, super_10s: 11, super_raids: 9 },
-    achievements: ['PKL Season 8 Champion (Dabang Delhi)', 'Finals MVP Hero'],
-  },
-  {
-    id: 'pkl-059',
-    name: 'Ankit Jaglan',
-    role: 'Defender',
-    position_detail: 'Left Corner',
-    team: 'Patna Pirates',
-    team_code: 'PAT',
-    nationality: 'India',
-    home_state: 'Haryana',
-    base_price: 2000000,
-    category: 'Category B',
-    tier: 'B',
-    jersey_number: 2,
-    stats: { matches: 23, total_points: 66, raid_points: 0, tackle_points: 66, high_5s: 4, tackle_success_rate: 52 },
-    achievements: ['Top Left Corner Season 10 for Patna Pirates', 'Patna Pirates Captain Season 11'],
-  },
-  {
-    id: 'pkl-060',
-    name: 'Sandeep Kumar',
-    role: 'Raider',
-    position_detail: 'Raider',
-    team: 'Patna Pirates',
-    team_code: 'PAT',
-    nationality: 'India',
-    home_state: 'Bihar',
-    base_price: 1300000,
-    category: 'Category C',
-    tier: 'C',
-    jersey_number: 7,
-    stats: { matches: 22, total_points: 98, raid_points: 96, tackle_points: 2, super_10s: 2, super_raids: 3 },
-    achievements: ['Local Bihar Hero for Patna Pirates', 'Crucial Do-or-Die Raider'],
-  },
-  {
-    id: 'pkl-061',
-    name: 'Lucky Sharma',
-    role: 'Defender',
-    position_detail: 'Right Corner',
-    team: 'Jaipur Pink Panthers',
-    team_code: 'JPP',
-    nationality: 'India',
-    home_state: 'Jammu & Kashmir',
-    base_price: 1300000,
-    category: 'Category C',
-    tier: 'C',
-    jersey_number: 14,
-    stats: { matches: 36, total_points: 68, raid_points: 0, tackle_points: 68, high_5s: 2, tackle_success_rate: 48 },
-    achievements: ['PKL Season 9 Champion', 'First J&K star in PKL starting 7'],
-  },
-  {
-    id: 'pkl-062',
-    name: 'Reza Mirbagheri',
-    role: 'Defender',
-    position_detail: 'Left Cover',
-    team: 'Jaipur Pink Panthers',
-    team_code: 'JPP',
-    nationality: 'Iran',
-    home_state: 'Yazd',
-    base_price: 2000000,
-    category: 'Category B',
-    tier: 'B',
-    jersey_number: 2,
-    stats: { matches: 40, total_points: 98, raid_points: 0, tackle_points: 98, high_5s: 5, tackle_success_rate: 52 },
-    achievements: ['PKL Season 9 Champion', 'Iranian National Team Pillar'],
-  },
-  {
-    id: 'pkl-063',
-    name: 'Ashish Malik',
-    role: 'Defender',
-    position_detail: 'Left Corner',
-    team: 'Dabang Delhi K.C.',
-    team_code: 'DEL',
-    nationality: 'India',
-    home_state: 'Haryana',
-    base_price: 1300000,
-    category: 'Category C',
-    tier: 'C',
-    jersey_number: 3,
-    stats: { matches: 21, total_points: 58, raid_points: 0, tackle_points: 58, high_5s: 3, tackle_success_rate: 49 },
-    achievements: ['Breakout Corner Defender for Dabang Delhi'],
-  },
-  {
-    id: 'pkl-064',
-    name: 'Vikrant',
-    role: 'Defender',
-    position_detail: 'Left Cover',
-    team: 'Dabang Delhi K.C.',
-    team_code: 'DEL',
-    nationality: 'India',
-    home_state: 'Haryana',
-    base_price: 900000,
-    category: 'Category D',
-    tier: 'C',
-    jersey_number: 20,
-    stats: { matches: 22, total_points: 46, raid_points: 0, tackle_points: 46, high_5s: 1, tackle_success_rate: 45 },
-    achievements: ['Aggressive Cover Defender for Delhi'],
-  },
-  {
-    id: 'pkl-065',
-    name: 'Rohit Gulia',
-    role: 'All-Rounder',
-    position_detail: 'All-Rounder',
-    team: 'Gujarat Giants',
-    team_code: 'GG',
-    nationality: 'India',
-    home_state: 'Haryana',
-    base_price: 2000000,
-    category: 'Category B',
-    tier: 'B',
-    jersey_number: 8,
-    stats: { matches: 104, total_points: 512, raid_points: 480, tackle_points: 32, super_10s: 12, super_raids: 8 },
-    achievements: ['Former Gujarat Giants Captain', 'Clutch 3rd Raid Specialist'],
-  },
-  {
-    id: 'pkl-066',
-    name: 'Balaji D',
-    role: 'Defender',
-    position_detail: 'Left Cover',
-    team: 'Gujarat Giants',
-    team_code: 'GG',
-    nationality: 'India',
-    home_state: 'Tamil Nadu',
-    base_price: 900000,
-    category: 'Category D',
-    tier: 'C',
-    jersey_number: 11,
-    stats: { matches: 48, total_points: 78, raid_points: 0, tackle_points: 78, high_5s: 2, tackle_success_rate: 43 },
-    achievements: ['Key Tackle Anchor for Giants'],
-  },
-  {
-    id: 'pkl-067',
-    name: 'Rinku Sharma',
-    role: 'Defender',
-    position_detail: 'Right Corner',
-    team: 'U Mumba',
-    team_code: 'MUM',
-    nationality: 'India',
-    home_state: 'Haryana',
-    base_price: 2000000,
-    category: 'Category B',
-    tier: 'B',
-    jersey_number: 5,
-    stats: { matches: 58, total_points: 172, raid_points: 0, tackle_points: 172, high_5s: 10, tackle_success_rate: 54 },
-    achievements: ['U Mumba Vice-Captain', 'Super Tackle Maestro (16 Super Tackles)'],
-  },
-  {
-    id: 'pkl-068',
-    name: 'Guman Singh Tanwar',
-    role: 'Raider',
-    position_detail: 'Raider',
-    team: 'U Mumba',
-    team_code: 'MUM',
-    nationality: 'India',
-    home_state: 'Haryana',
-    base_price: 2000000,
-    category: 'Category B',
-    tier: 'B',
-    jersey_number: 9,
-    stats: { matches: 52, total_points: 368, raid_points: 360, tackle_points: 8, super_10s: 16, super_raids: 11 },
-    achievements: ['Lead Raider U Mumba Season 9 & 10'],
-  },
-  {
-    id: 'pkl-069',
-    name: 'Surinder Singh',
-    role: 'Defender',
-    position_detail: 'Right Cover',
-    team: 'Bengaluru Bulls',
-    team_code: 'BB',
-    nationality: 'India',
-    home_state: 'Himachal Pradesh',
-    base_price: 2000000,
-    category: 'Category B',
-    tier: 'B',
-    jersey_number: 4,
-    stats: { matches: 122, total_points: 298, raid_points: 0, tackle_points: 298, high_5s: 11, tackle_success_rate: 47 },
-    achievements: ['Former U Mumba Captain', 'Fearless Dash Defender'],
-  },
-  {
-    id: 'pkl-070',
-    name: 'Rohit Kumar',
-    role: 'Raider',
-    position_detail: 'Raider',
-    team: 'Bengaluru Bulls',
-    team_code: 'BB',
-    nationality: 'India',
-    home_state: 'Delhi',
-    base_price: 2000000,
-    category: 'Category B',
-    tier: 'B',
-    jersey_number: 11,
-    stats: { matches: 105, total_points: 712, raid_points: 683, tackle_points: 29, super_10s: 28, super_raids: 15 },
-    achievements: ['PKL Season 6 Champion Captain (Bengaluru Bulls)', 'Season 3 MVP'],
-  },
-  {
-    id: 'pkl-071',
-    name: 'Ashu Singh',
-    role: 'Defender',
-    position_detail: 'Right Cover',
-    team: 'UP Yoddhas',
-    team_code: 'UP',
-    nationality: 'India',
-    home_state: 'Uttar Pradesh',
-    base_price: 1300000,
-    category: 'Category C',
-    tier: 'C',
-    jersey_number: 4,
-    stats: { matches: 84, total_points: 162, raid_points: 0, tackle_points: 162, high_5s: 6, tackle_success_rate: 46 },
-    achievements: ['Consistent Right Cover for UP Yoddhas across 4 seasons'],
-  },
-  {
-    id: 'pkl-072',
-    name: 'Gagana Gowda',
-    role: 'Raider',
-    position_detail: 'Raider',
-    team: 'UP Yoddhas',
-    team_code: 'UP',
-    nationality: 'India',
-    home_state: 'Karnataka',
-    base_price: 900000,
-    category: 'Category D',
-    tier: 'C',
-    jersey_number: 14,
-    stats: { matches: 18, total_points: 92, raid_points: 88, tackle_points: 4, super_10s: 3, super_raids: 2 },
-    achievements: ['Exciting young Karnataka raiding prodigy'],
-  },
-];
+export function getPklInitials(name: string): string {
+  if (!name) return '??';
+  const parts = name.trim().split(/\s+/);
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+  if (parts.length === 2) return (parts[0][0] + parts[1][0]).toUpperCase();
+  return (parts[0][0] + parts[1][0] + parts[parts.length - 1][0]).toUpperCase();
+}
 
 /**
- * Generate a dynamic SVG avatar for PKL players with the Electric Purple arena atmosphere
+ * Generates an inline procedural SVG avatar with 'PKL POOL' badge and franchise accent.
  */
-export function generatePklPlayerAvatarSvg(initials: string, number: number | null, color: string, name: string): string {
+export function generatePklPlayerAvatarSvg(
+  initials: string,
+  number: number | null | undefined,
+  color: string,
+  name: string
+): string {
   const numDisplay = number ? `#${number}` : '';
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 250" width="200" height="250">
     <defs>
-      <linearGradient id="bg_${initials}" x1="0%" y1="0%" x2="100%" y2="100%">
-        <stop offset="0%" stop-color="#181126" />
-        <stop offset="50%" stop-color="#100C1B" />
-        <stop offset="100%" stop-color="#08060D" />
+      <linearGradient id="pkl_bg_${initials}" x1="0%" y1="0%" x2="100%" y2="100%">
+        <stop offset="0%" stop-color="#14161D" />
+        <stop offset="50%" stop-color="#0E0F14" />
+        <stop offset="100%" stop-color="#07080A" />
       </linearGradient>
-      <radialGradient id="glow_${initials}" cx="50%" cy="30%" r="65%">
-        <stop offset="0%" stop-color="${color}" stop-opacity="0.45" />
-        <stop offset="100%" stop-color="#08060D" stop-opacity="0" />
+      <radialGradient id="pkl_glow_${initials}" cx="50%" cy="30%" r="60%">
+        <stop offset="0%" stop-color="${color}" stop-opacity="0.38" />
+        <stop offset="100%" stop-color="#07080A" stop-opacity="0" />
       </radialGradient>
-      <pattern id="mat_pattern" width="20" height="20" patternUnits="userSpaceOnUse">
-        <path d="M 20 0 L 0 0 0 20" fill="none" stroke="#A855F7" stroke-width="0.5" stroke-opacity="0.12" />
-      </pattern>
     </defs>
-    <rect width="200" height="250" rx="20" fill="url(#bg_${initials})" />
-    <rect width="200" height="250" rx="20" fill="url(#mat_pattern)" />
-    <rect width="200" height="250" rx="20" fill="url(#glow_${initials})" />
-    <rect x="2" y="2" width="196" height="246" rx="18" fill="none" stroke="${color}" stroke-width="1.5" stroke-opacity="0.55" />
-    <circle cx="100" cy="95" r="42" fill="#130D20" stroke="${color}" stroke-width="2.5" stroke-opacity="0.75" />
+    <rect width="200" height="250" rx="20" fill="url(#pkl_bg_${initials})" />
+    <rect width="200" height="250" rx="20" fill="url(#pkl_glow_${initials})" />
+    <rect x="2" y="2" width="196" height="246" rx="18" fill="none" stroke="${color}" stroke-width="1.5" stroke-opacity="0.45" />
+    <circle cx="100" cy="95" r="42" fill="#0C0D11" stroke="${color}" stroke-width="2" stroke-opacity="0.65" />
     <text x="100" y="105" font-family="-apple-system, BlinkMacSystemFont, Segoe UI, Roboto, sans-serif" font-size="28" font-weight="900" fill="#FFFFFF" text-anchor="middle" letter-spacing="1">${initials}</text>
-    <text x="100" y="160" font-family="-apple-system, BlinkMacSystemFont, Segoe UI, Roboto, sans-serif" font-size="13" font-weight="800" fill="#C084FC" text-anchor="middle" letter-spacing="2">PKL ARENA</text>
-    <text x="100" y="185" font-family="-apple-system, BlinkMacSystemFont, Segoe UI, Roboto, sans-serif" font-size="12" font-weight="700" fill="#A855F7" text-anchor="middle">${numDisplay}</text>
+    <text x="100" y="160" font-family="-apple-system, BlinkMacSystemFont, Segoe UI, Roboto, sans-serif" font-size="14" font-weight="800" fill="#EAB308" text-anchor="middle" letter-spacing="2">PKL POOL</text>
+    <text x="100" y="185" font-family="-apple-system, BlinkMacSystemFont, Segoe UI, Roboto, sans-serif" font-size="12" font-weight="700" fill="#8E92A4" text-anchor="middle">${numDisplay}</text>
   </svg>`;
   return `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`;
 }
 
-/**
- * Adapt a PKL player record into the unified Player interface so all shared UI & auction components accept it.
- */
-export function adaptPklPlayer(p: PKLPlayerRecord): Player {
-  const initials = p.name
-    .split(' ')
-    .filter(Boolean)
-    .slice(0, 2)
-    .map(n => n[0].toUpperCase())
-    .join('');
+export const RAW_PKL_PLAYERS: PklDatabaseRecord[] = rawPklPlayers as PklDatabaseRecord[];
 
-  const franchise = PKL_FRANCHISES.find(f => f.short_code === p.team_code) || {
-    id: p.team_code.toLowerCase(),
-    name: p.team,
-    short_code: p.team_code,
-    color: '#A855F7',
-  };
+// Fast lookup table for stats registry
+const STATS_MAP = (pklStatsData as any)?.players || {};
 
-  const isOverseas = p.nationality !== 'India';
+// Deterministic Legacy Mapping for pkl-001 through pkl-072
+export const LEGACY_PKL_ID_MAP: Record<string, string> = {
+  'pkl-001': 'k-154', // Pawan Sehrawat
+  'pkl-003': 'k-043', // Naveen Kumar
+  'pkl-004': 'k-098', // Fazel Atrachali
+  'pkl-005': 'k-174', // Mohammadreza Shadloui
+  'pkl-006': 'k-062', // Sunil Kumar
+  'pkl-007': 'k-061', // Arjun Deshwal
+  'pkl-008': 'k-116', // Sachin Tanwar
+  'pkl-009': 'k-063', // Surjeet Singh
+  'pkl-010': 'k-215', // Nitesh Kumar
+  'pkl-011': 'k-024', // Ashu Malik
+  'pkl-012': 'k-006', // Yogesh Dahiya
+  'pkl-013': 'k-001', // Ankush Rathee
+  'pkl-014': 'k-175', // Jaideep Dahiya
+  'pkl-015': 'k-004', // Saurabh Nandal / Lucky Kumar
+  'pkl-016': 'k-118', // Krishan Dhull
+  'pkl-017': 'k-081', // Rinku Sharma
+  'pkl-018': 'k-135', // Aslam Inamdar
+  'pkl-019': 'k-136', // Mohit Goyat
+  'pkl-020': 'k-025', // Vijay Malik
+  'pkl-021': 'k-176', // Rahul Sethpal
+  'pkl-023': 'k-079', // Maninder Singh
+  'pkl-025': 'k-213', // Guman Singh
+  'pkl-026': 'k-194', // Sagar Rathee
+  'pkl-028': 'k-002', // Akash Shinde
+  'pkl-029': 'k-177', // Mohit Nandal
+  'pkl-030': 'k-137', // Sanket Sawant
+  'pkl-031': 'k-044', // Ashish Malik
+  'pkl-032': 'k-117', // Devank Dalal
+  'pkl-033': 'k-064', // Reza Mirbagheri
+  'pkl-034': 'k-178', // Shivam Patare
+  'pkl-035': 'k-179', // Vinay
+  'pkl-036': 'k-195', // Narender Hoshiyar
+  'pkl-037': 'k-196', // Ajinkya Pawar
+  'pkl-038': 'k-214', // Bharat Hooda
+  'pkl-040': 'k-216', // Sumit Sangwan
+  'pkl-041': 'k-217', // Bhavani Rajput
+  'pkl-042': 'k-233', // Rakesh Sungroya
+  'pkl-043': 'k-234', // Parteek Dahiya
+  'pkl-047': 'k-235', // Sombir
+  'pkl-049': 'k-045', // Vikrant
+  'pkl-050': 'k-080', // Pranay Rane
+  'pkl-051': 'k-082', // Mayur Kadam
+  'pkl-052': 'k-099', // Manjeet
+  'pkl-053': 'k-100', // Amirmohammad Zafardanesh
+  'pkl-054': 'k-101', // Rinku
+  'pkl-055': 'k-102', // Sunil
+  'pkl-056': 'k-119', // Ayan Lohchab
+  'pkl-057': 'k-120', // Sandeep
+  'pkl-058': 'k-138', // Gaurav Khatri
+  'pkl-059': 'k-139', // Aman
+  'pkl-060': 'k-140', // Abinesh Nadarajan
+  'pkl-061': 'k-155', // Vijay Malik
+  'pkl-062': 'k-156', // Ankit
+  'pkl-063': 'k-157', // Sagar
+  'pkl-066': 'k-180', // Jaideep
+  'pkl-067': 'k-181', // Rahul
+  'pkl-068': 'k-197', // Himanshu
+  'pkl-071': 'k-218', // Surender
+};
+
+function adaptPklRecord(raw: PklDatabaseRecord): Player {
+  const initials = getPklInitials(raw.name);
+  const teamColor = PKL_TEAM_PALETTE[raw.team_code] || '#F97316';
+
+  const statsEntry = STATS_MAP[raw.id];
+  const seasonStats: PklRawStats | null = statsEntry?.season_12 || null;
+  const careerStats: PklRawStats | null = statsEntry?.career || null;
+
+  const { total_points, breakdown } = calculatePklPlayerPoints(
+    raw.role,
+    raw.tier,
+    seasonStats,
+    careerStats
+  );
+
+  const fallbackAvatar = generatePklPlayerAvatarSvg(
+    initials,
+    raw.jersey_number,
+    teamColor,
+    raw.name
+  );
+
+  const roleCode: PlayerRole =
+    raw.role === 'Raider' ? 'RAID' : raw.role === 'Defender' ? 'DEF' : 'AR';
 
   return {
-    id: p.id,
-    name: p.name,
-    role: p.role as any,
-    country: p.nationality,
-    home_state: p.home_state,
-    batting_style: p.position_detail,
-    bowling_style: `Kabaddi ${p.role}`,
-    base_price: p.base_price,
-    capped: true,
-    tier: p.tier,
+    id: raw.id,
+    name: raw.name,
+    player_name: raw.name,
+    card_text: raw.card_text,
+    jersey_number: raw.jersey_number ?? null,
+    team: raw.team,
+    team_code: raw.team_code,
+    country: raw.nationality,
+    nationality: raw.nationality,
+    home_state: raw.nationality === 'India' ? 'India' : raw.nationality,
+    role: roleCode,
+    batting_style: raw.position_detail, // Stores sub-position for display
+    bowling_style: raw.position_detail, // Stores sub-position for display
+    base_price: raw.base_price,
+    capped: raw.tier === 'A' || raw.tier === 'B',
+    tier: raw.tier as PlayerTier,
     initials,
-    category: (p.category === 'Category A' ? 'Marquee' : p.category === 'Category B' ? 'International Star' : p.category === 'Category C' ? 'Domestic Proven' : 'Emerging Talent') as PlayerCategory,
-    image_url: generatePklPlayerAvatarSvg(initials, p.jersey_number || null, franchise.color, p.name),
+    category: (raw.category === 'Category A'
+      ? 'Marquee'
+      : raw.category === 'Category B'
+      ? 'Domestic Proven'
+      : 'Emerging Talent') as PlayerCategory,
+    image_url: fallbackAvatar,
     has_photo: false,
-    player_points: Math.min(1000, Math.round((p.stats.total_points / 15) + (p.stats.matches * 2) + 200)),
-    achievements: p.achievements || [],
-    team: p.team,
-    team_code: p.team_code,
-    player_name: p.name,
-    nationality: p.nationality,
+    photo_source: 'Procedural PKL POOL Fallback',
+    player_points: total_points,
     stats_2026: {
       season: '2026',
-      source: 'Official PKL League Archive',
-      last_updated: '2026-11-01',
-      verification_status: 'verified',
-      stat_label: 'PKL Career Official Record',
-      matches: p.stats.matches,
-      innings: p.stats.matches,
-      runs: p.stats.raid_points,
-      highest_score: p.stats.super_10s || 0,
-      batting_average: p.stats.matches ? parseFloat((p.stats.raid_points / p.stats.matches).toFixed(1)) : 0,
-      strike_rate: 65.5,
-      fifties: p.stats.super_10s || 0,
-      hundreds: p.stats.high_5s || 0,
-      fours: p.stats.tackle_points,
-      sixes: p.stats.super_raids || 0,
-      wickets: p.stats.tackle_points,
-      economy_rate: p.stats.tackle_success_rate || 50,
+      source: 'Official PKL Match Center',
+      last_updated: '2026-11-22',
+      matches: seasonStats?.matches ?? careerStats?.matches ?? 0,
+      innings: 0,
+      runs: seasonStats?.raid_points ?? careerStats?.raid_points ?? 0,
+      highest_score: 0,
+      batting_average: 0,
+      strike_rate: 0,
+      fifties: 0,
+      hundreds: 0,
+      fours: 0,
+      sixes: 0,
+      wickets: seasonStats?.tackle_points ?? careerStats?.tackle_points ?? 0,
+      economy_rate: 0,
       bowling_average: 0,
-      best_bowling: `${p.stats.high_5s || 0} High 5s`,
+      best_bowling: '—',
       maidens: 0,
       dot_balls: 0,
-      catches: p.stats.tackle_points,
+      catches: 0,
       stumpings: 0,
-      player_points: Math.min(1000, Math.round((p.stats.total_points / 15) + (p.stats.matches * 2) + 200)),
+      player_points: total_points,
     },
+    data_status: raw.data_status as any,
+    achievements: [
+      `${raw.category} Star`,
+      raw.position_detail,
+      raw.team,
+    ],
   };
 }
 
-export const ALL_PKL_PLAYERS: Player[] = RAW_PKL_PLAYERS.map(adaptPklPlayer);
+export const ALL_PKL_PLAYERS: Player[] = RAW_PKL_PLAYERS.map(adaptPklRecord);
 
+/**
+ * Retrieves a PKL player by their canonical ID (k-xxx) or legacy ID (pkl-xxx).
+ */
 export function getPklPlayerById(id: string): Player | undefined {
+  if (!id) return undefined;
+  if (id.startsWith('k-')) {
+    return ALL_PKL_PLAYERS.find(p => p.id === id);
+  }
+  if (id.startsWith('pkl-')) {
+    const targetKId = LEGACY_PKL_ID_MAP[id];
+    if (targetKId) {
+      return ALL_PKL_PLAYERS.find(p => p.id === targetKId);
+    }
+  }
   return ALL_PKL_PLAYERS.find(p => p.id === id);
 }
 
@@ -1325,6 +279,6 @@ export function getPklPlayersByTeam(teamOrCode: string): Player[] {
 }
 
 export function getPklPlayersByRole(role: string): Player[] {
-  const query = role.toLowerCase();
-  return ALL_PKL_PLAYERS.filter(p => p.role.toLowerCase() === query);
+  const query = role.toUpperCase();
+  return ALL_PKL_PLAYERS.filter(p => (p.role || '').toUpperCase().includes(query));
 }
