@@ -18,19 +18,19 @@ describe('Unified Sports Auction Platform: IPL + PKL Architecture', () => {
     expect(kohli?.name).toContain('Kohli');
   });
 
-  it('loads authoritative 72 PKL players and 12 official franchises', () => {
-    expect(ALL_PKL_PLAYERS.length).toBe(72);
+  it('loads authoritative 235 PKL players and 12 official franchises', () => {
+    expect(ALL_PKL_PLAYERS.length).toBe(235);
     expect(PKL_FRANCHISES.length).toBe(12);
 
     const pawan = getPklPlayerById('pkl-001');
     expect(pawan).toBeDefined();
     expect(pawan?.name).toBe('Pawan Sehrawat');
-    expect(pawan?.role).toBe('Raider');
+    expect(pawan?.role).toBe('All-Rounder');
     expect(pawan?.base_price).toBe(3000000); // ₹30L
 
-    const pardeep = getPklPlayerById('pkl-002');
-    expect(pardeep).toBeDefined();
-    expect(pardeep?.name).toBe('Pardeep Narwal');
+    const shadloui = getPklPlayerById('pkl-004');
+    expect(shadloui).toBeDefined();
+    expect(shadloui?.name).toBe('Mohammadreza Shadloui');
 
     const fazel = getPklPlayerById('pkl-003');
     expect(fazel).toBeDefined();
@@ -75,6 +75,6 @@ describe('Unified Sports Auction Platform: IPL + PKL Architecture', () => {
     const pklRoom = rm.createRoom('PKLR01', 'PKL Pro Arena', 'host_2', 'Host Two', 'PKL');
     expect(pklRoom.settings.sport_type).toBe('PKL');
     expect(pklRoom.settings.purse).toBe(5_00_00_000);
-    expect(pklRoom.settings.selected_player_ids.length).toBe(72);
+    expect(pklRoom.settings.selected_player_ids.length).toBe(235);
   });
 });

@@ -118,7 +118,12 @@ export const FooterSection: React.FC = () => {
                 </li>
                 <li>
                   <Link href="/legal#disclaimer" className="hover:text-flare transition-colors">
-                    Disclaimer
+                    Credits & Disclaimer
+                  </Link>
+                </li>
+                <li>
+                  <Link href="/pkl-contact-sheet.html" target="_blank" className="hover:text-purple-400 transition-colors">
+                    PKL Photos Verification
                   </Link>
                 </li>
               </ul>

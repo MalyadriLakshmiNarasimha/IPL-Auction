@@ -1,10 +1,20 @@
 import rawPklPlayers from '../../pkl-players-database.json';
 import pklStatsData from './pkl-player-stats-registry.json';
-import { FranchiseIdentity, Player, PlayerRole, PlayerTier, PlayerCategory } from './types';
+import pklImagesData from './pkl-player-images.json';
+import { FranchiseIdentity, Player, PlayerRole, PlayerTier, PlayerCategory, PlayerImageEntry } from './types';
 import { calculatePklPlayerPoints, PklRawStats } from './pkl-scoring';
 
 export const PKL_DISCLAIMER =
   'Unofficial fan game. Virtual money only. Not affiliated with, endorsed by, or sponsored by Mashal Sports or Pro Kabaddi League.';
+
+export const PKL_PLAYER_IMAGES: Record<string, PlayerImageEntry> = pklImagesData as unknown as Record<
+  string,
+  PlayerImageEntry
+>;
+
+export function getPklPlayerImageEntry(playerId: string): PlayerImageEntry | undefined {
+  return PKL_PLAYER_IMAGES[playerId];
+}
 
 export interface PklDatabaseRecord {
   id: string;
@@ -103,66 +113,15 @@ export const RAW_PKL_PLAYERS: PklDatabaseRecord[] = rawPklPlayers as PklDatabase
 const STATS_MAP = (pklStatsData as any)?.players || {};
 
 // Deterministic Legacy Mapping for pkl-001 through pkl-072
-export const LEGACY_PKL_ID_MAP: Record<string, string> = {
-  'pkl-001': 'k-154', // Pawan Sehrawat
-  'pkl-003': 'k-043', // Naveen Kumar
-  'pkl-004': 'k-098', // Fazel Atrachali
-  'pkl-005': 'k-174', // Mohammadreza Shadloui
-  'pkl-006': 'k-062', // Sunil Kumar
-  'pkl-007': 'k-061', // Arjun Deshwal
-  'pkl-008': 'k-116', // Sachin Tanwar
-  'pkl-009': 'k-063', // Surjeet Singh
-  'pkl-010': 'k-215', // Nitesh Kumar
-  'pkl-011': 'k-024', // Ashu Malik
-  'pkl-012': 'k-006', // Yogesh Dahiya
-  'pkl-013': 'k-001', // Ankush Rathee
-  'pkl-014': 'k-175', // Jaideep Dahiya
-  'pkl-015': 'k-004', // Saurabh Nandal / Lucky Kumar
-  'pkl-016': 'k-118', // Krishan Dhull
-  'pkl-017': 'k-081', // Rinku Sharma
-  'pkl-018': 'k-135', // Aslam Inamdar
-  'pkl-019': 'k-136', // Mohit Goyat
-  'pkl-020': 'k-025', // Vijay Malik
-  'pkl-021': 'k-176', // Rahul Sethpal
-  'pkl-023': 'k-079', // Maninder Singh
-  'pkl-025': 'k-213', // Guman Singh
-  'pkl-026': 'k-194', // Sagar Rathee
-  'pkl-028': 'k-002', // Akash Shinde
-  'pkl-029': 'k-177', // Mohit Nandal
-  'pkl-030': 'k-137', // Sanket Sawant
-  'pkl-031': 'k-044', // Ashish Malik
-  'pkl-032': 'k-117', // Devank Dalal
-  'pkl-033': 'k-064', // Reza Mirbagheri
-  'pkl-034': 'k-178', // Shivam Patare
-  'pkl-035': 'k-179', // Vinay
-  'pkl-036': 'k-195', // Narender Hoshiyar
-  'pkl-037': 'k-196', // Ajinkya Pawar
-  'pkl-038': 'k-214', // Bharat Hooda
-  'pkl-040': 'k-216', // Sumit Sangwan
-  'pkl-041': 'k-217', // Bhavani Rajput
-  'pkl-042': 'k-233', // Rakesh Sungroya
-  'pkl-043': 'k-234', // Parteek Dahiya
-  'pkl-047': 'k-235', // Sombir
-  'pkl-049': 'k-045', // Vikrant
-  'pkl-050': 'k-080', // Pranay Rane
-  'pkl-051': 'k-082', // Mayur Kadam
-  'pkl-052': 'k-099', // Manjeet
-  'pkl-053': 'k-100', // Amirmohammad Zafardanesh
-  'pkl-054': 'k-101', // Rinku
-  'pkl-055': 'k-102', // Sunil
-  'pkl-056': 'k-119', // Ayan Lohchab
-  'pkl-057': 'k-120', // Sandeep
-  'pkl-058': 'k-138', // Gaurav Khatri
-  'pkl-059': 'k-139', // Aman
-  'pkl-060': 'k-140', // Abinesh Nadarajan
-  'pkl-061': 'k-155', // Vijay Malik
-  'pkl-062': 'k-156', // Ankit
-  'pkl-063': 'k-157', // Sagar
-  'pkl-066': 'k-180', // Jaideep
-  'pkl-067': 'k-181', // Rahul
-  'pkl-068': 'k-197', // Himanshu
-  'pkl-071': 'k-218', // Surender
-};
+export const LEGACY_PKL_ID_MAP: Record<string, string> = (() => {
+  const map: Record<string, string> = {};
+  for (const p of (rawPklPlayers as PklDatabaseRecord[])) {
+    if (p.legacy_id) {
+      map[p.legacy_id] = p.id;
+    }
+  }
+  return map;
+})();
 
 function adaptPklRecord(raw: PklDatabaseRecord): Player {
   const initials = getPklInitials(raw.name);
@@ -200,7 +159,7 @@ function adaptPklRecord(raw: PklDatabaseRecord): Player {
     country: raw.nationality,
     nationality: raw.nationality,
     home_state: raw.nationality === 'India' ? 'India' : raw.nationality,
-    role: roleCode,
+    role: raw.role as PlayerRole,
     batting_style: raw.position_detail, // Stores sub-position for display
     bowling_style: raw.position_detail, // Stores sub-position for display
     base_price: raw.base_price,
@@ -212,9 +171,32 @@ function adaptPklRecord(raw: PklDatabaseRecord): Player {
       : raw.category === 'Category B'
       ? 'Domestic Proven'
       : 'Emerging Talent') as PlayerCategory,
-    image_url: fallbackAvatar,
-    has_photo: false,
-    photo_source: 'Procedural PKL POOL Fallback',
+    image_url: (() => {
+      const photosEnabled = process.env.NEXT_PUBLIC_PKL_PHOTOS !== 'off';
+      if (!photosEnabled) return fallbackAvatar;
+      const imgEntry = PKL_PLAYER_IMAGES[raw.id];
+      if (imgEntry && imgEntry.verificationStatus === 'verified' && imgEntry.imagePath) {
+        const imageBaseUrl = process.env.NEXT_PUBLIC_PKL_IMAGE_BASE_URL || '';
+        return imageBaseUrl
+          ? `${imageBaseUrl.replace(/\/$/, '')}/${raw.id}.webp`
+          : imgEntry.imagePath;
+      }
+      return fallbackAvatar;
+    })(),
+    has_photo: (() => {
+      const photosEnabled = process.env.NEXT_PUBLIC_PKL_PHOTOS !== 'off';
+      if (!photosEnabled) return false;
+      const imgEntry = PKL_PLAYER_IMAGES[raw.id];
+      return Boolean(imgEntry && imgEntry.verificationStatus === 'verified' && imgEntry.imagePath);
+    })(),
+    photo_source: (() => {
+      const photosEnabled = process.env.NEXT_PUBLIC_PKL_PHOTOS !== 'off';
+      if (!photosEnabled) return 'Procedural PKL POOL Fallback';
+      const imgEntry = PKL_PLAYER_IMAGES[raw.id];
+      return imgEntry && imgEntry.verificationStatus === 'verified' && imgEntry.imagePath
+        ? imgEntry.sourceName
+        : 'Procedural PKL POOL Fallback';
+    })(),
     player_points: total_points,
     stats_2026: {
       season: '2026',

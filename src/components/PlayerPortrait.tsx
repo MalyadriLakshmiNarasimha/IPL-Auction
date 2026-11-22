@@ -5,6 +5,7 @@ import React, { useState, useEffect } from 'react';
 import { Player } from '@/shared/types';
 import { Zap } from 'lucide-react';
 import playerImagesMap from '@/shared/player-images.json';
+import pklPlayerImagesMap from '@/shared/pkl-player-images.json';
 
 export interface PlayerPortraitProps {
   player: Player | null | undefined;
@@ -28,6 +29,11 @@ interface CentralImageMeta {
 }
 
 const CENTRAL_MAPPING: Record<string, CentralImageMeta> = playerImagesMap as unknown as Record<
+  string,
+  CentralImageMeta
+>;
+
+const PKL_MAPPING: Record<string, CentralImageMeta> = pklPlayerImagesMap as unknown as Record<
   string,
   CentralImageMeta
 >;
@@ -59,13 +65,25 @@ export const PlayerPortrait: React.FC<PlayerPortraitProps> = ({
     );
   }
 
+  const isPkl = Boolean(player.id?.startsWith('k-'));
+  const pklPhotosEnabled = process.env.NEXT_PUBLIC_PKL_PHOTOS !== 'off';
+
   // Lookup in central mapping by stable player ID
-  const imageMeta = player.id ? CENTRAL_MAPPING[player.id] : null;
+  const imageMeta = player.id
+    ? isPkl
+      ? pklPhotosEnabled
+        ? PKL_MAPPING[player.id]
+        : null
+      : CENTRAL_MAPPING[player.id]
+    : null;
+
   const isVerifiedInCentral = Boolean(
     imageMeta?.verificationStatus === 'verified' && imageMeta?.imagePath
   );
   const photoUrl = isVerifiedInCentral ? imageMeta!.imagePath : player.image_url;
-  const hasValidPhoto = Boolean(photoUrl && !imgError && (isVerifiedInCentral || player.has_photo));
+  const hasValidPhoto = Boolean(
+    photoUrl && !imgError && (isVerifiedInCentral || player.has_photo) && (!isPkl || pklPhotosEnabled)
+  );
 
   const roleColor = (() => {
     const r = (player.role || '').toUpperCase();
@@ -73,6 +91,8 @@ export const PlayerPortrait: React.FC<PlayerPortraitProps> = ({
     if (r.startsWith('BOWL')) return '#4C8DFF';
     if (r.startsWith('ALL') || r === 'AR') return '#2FCB8F';
     if (r.startsWith('WICKET') || r === 'WK') return '#A56BFF';
+    if (r.startsWith('RAID')) return '#F97316';
+    if (r.startsWith('DEF')) return '#3B82F6';
     return '#FF7A1A';
   })();
 

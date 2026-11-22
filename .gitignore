@@ -23,3 +23,8 @@ npm-debug.log*
 __pycache__/
 *.py[cod]
 *.zip
+cache/
+
+# PKL Player Portraits (do not commit directly to public repo; hosted or deployed via asset pipeline)
+public/images/pkl-players/
+

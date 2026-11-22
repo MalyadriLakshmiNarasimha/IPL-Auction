@@ -184,17 +184,15 @@ export function validateAuctionStart(
       ? settings.selected_player_ids.length
       : totalAvailablePlayersCount;
 
-  // Validate maximum allowable managers based on floor(pool size / squad size)
-  const maxManagersAllowed = Math.floor(poolCount / settings.squad_size);
-  if (activeParticipants.length > maxManagersAllowed) {
-    return {
-      valid: false,
-      reason: `Room capacity exceeded: maximum allowed managers for this pool (${poolCount} players) and squad size (${settings.squad_size}) is ${maxManagersAllowed}. Currently ${activeParticipants.length} active managers.`,
-    };
-  }
-
   const minPoolRequired = activeParticipants.length * settings.squad_size;
   if (poolCount < minPoolRequired || poolCount === 0) {
+    if (settings.sport_type === 'PKL') {
+      const maxManagersAllowed = Math.floor(poolCount / settings.squad_size);
+      return {
+        valid: false,
+        reason: `Room capacity exceeded: maximum allowed managers for this pool (${poolCount} players) and squad size (${settings.squad_size}) is ${maxManagersAllowed}. Currently ${activeParticipants.length} active managers.`,
+      };
+    }
     return {
       valid: false,
       reason: `Pool requires at least ${minPoolRequired} players (${poolCount} selected).`,

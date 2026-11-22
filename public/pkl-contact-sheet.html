@@ -1,0 +1,4209 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PKL Player Photos Contact Sheet — Visual Verification QA</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: #07080C;
+      color: #E2E8F0;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+      padding: 24px;
+    }
+    header {
+      max-width: 1400px;
+      margin: 0 auto 24px auto;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+      padding-bottom: 16px;
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: space-between;
+      align-items: center;
+      gap: 16px;
+    }
+    h1 {
+      font-size: 22px;
+      font-weight: 800;
+      color: #F8FAFC;
+      letter-spacing: -0.02em;
+    }
+    .subtitle {
+      font-size: 13px;
+      color: #94A3B8;
+      margin-top: 4px;
+    }
+    .filter-bar {
+      display: flex;
+      gap: 12px;
+      align-items: center;
+    }
+    input, select {
+      background: #13151F;
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      color: #F8FAFC;
+      padding: 8px 12px;
+      border-radius: 8px;
+      font-size: 13px;
+    }
+    .grid {
+      max-width: 1400px;
+      margin: 0 auto;
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+      gap: 16px;
+    }
+    .player-card {
+      background: #0E1017;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 12px;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      transition: transform 0.15s ease, border-color 0.15s ease;
+    }
+    .player-card:hover {
+      transform: translateY(-3px);
+      border-color: rgba(234, 179, 8, 0.4);
+    }
+    .card-img-wrap {
+      position: relative;
+      width: 100%;
+      aspect-ratio: 4/5;
+      background: linear-gradient(180deg, #161824 0%, #0B0C12 100%);
+      display: flex;
+      align-items: flex-end;
+      justify-content: center;
+      overflow: hidden;
+    }
+    .card-img-wrap img {
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+      object-position: bottom center;
+    }
+    .tier-badge {
+      position: absolute;
+      top: 8px;
+      right: 8px;
+      padding: 2px 7px;
+      border-radius: 6px;
+      font-size: 10px;
+      font-weight: 800;
+      text-transform: uppercase;
+    }
+    .tier-A { background: rgba(234, 179, 8, 0.25); color: #FACC15; border: 1px solid #FACC15; }
+    .tier-B { background: rgba(59, 130, 246, 0.25); color: #60A5FA; border: 1px solid #60A5FA; }
+    .tier-C { background: rgba(16, 185, 129, 0.25); color: #34D399; border: 1px solid #34D399; }
+    .tier-D { background: rgba(148, 163, 184, 0.25); color: #CBD5E1; border: 1px solid #94A3B8; }
+    .id-badge {
+      position: absolute;
+      top: 8px;
+      left: 8px;
+      background: rgba(0, 0, 0, 0.6);
+      color: #94A3B8;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-size: 10px;
+      font-weight: 700;
+      backdrop-filter: blur(4px);
+    }
+    .card-info {
+      padding: 10px;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+    .player-name {
+      font-size: 13px;
+      font-weight: 700;
+      color: #F8FAFC;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .player-team {
+      font-size: 11px;
+      color: #94A3B8;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .player-meta {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-top: 4px;
+    }
+    .role-pill {
+      font-size: 10px;
+      font-weight: 700;
+      border: 1px solid;
+      padding: 1px 6px;
+      border-radius: 4px;
+      max-width: 100px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .price {
+      font-size: 11px;
+      font-weight: 800;
+      color: #FACC15;
+    }
+    .source-info {
+      font-size: 9px;
+      color: #64748B;
+      margin-top: 4px;
+      text-align: right;
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div>
+      <h1>PKL Official Player Photos Contact Sheet</h1>
+      <div class="subtitle">235 Verified Squad Players &bull; Official WebP 600x750 &bull; 100% Visual Coverage</div>
+    </div>
+    <div class="filter-bar">
+      <input type="text" id="search" placeholder="Search player name..." onkeyup="filterCards()" />
+      <select id="teamFilter" onchange="filterCards()">
+        <option value="">All Teams (12)</option>
+        <option value="Bengal Warriorz">Bengal Warriorz</option>
+        <option value="Bengaluru Bulls">Bengaluru Bulls</option>
+        <option value="Dabang Delhi K.C.">Dabang Delhi K.C.</option>
+        <option value="Gujarat Giants">Gujarat Giants</option>
+        <option value="Haryana Steelers">Haryana Steelers</option>
+        <option value="Jaipur Pink Panthers">Jaipur Pink Panthers</option>
+        <option value="Patna Pirates">Patna Pirates</option>
+        <option value="Puneri Paltan">Puneri Paltan</option>
+        <option value="Tamil Thalaivas">Tamil Thalaivas</option>
+        <option value="Telugu Titans">Telugu Titans</option>
+        <option value="U Mumba">U Mumba</option>
+        <option value="UP Yoddhas">UP Yoddhas</option>
+      </select>
+    </div>
+  </header>
+
+  <main class="grid" id="cardGrid">
+    
+    <div class="player-card" data-team="Bengaluru Bulls" data-role="Defender" data-tier="A">
+      <div class="card-img-wrap">
+        <img src="/images/pkl-players/k-001.webp" alt="Ankush Rathee" loading="lazy" />
+        <span class="tier-badge tier-A">Tier A</span>
+        <span class="id-badge">k-001</span>
+      </div>
+      <div class="card-info">
+        <div class="player-name">Ankush Rathee</div>
+        <div class="player-team">Bengaluru Bulls</div>
+        <div class="player-meta">
+          <span class="role-pill" style="border-color: #3B82F6; color: #3B82F6;">Left Corner</span>
+          <span class="price">₹30L</span>
+        </div>
+        <div class="source-info">Source: 160x240 Official Asset</div>
+      </div>
+    </div>
+    
+    <div class="player-card" data-team="Bengaluru Bulls" data-role="Raider" data-tier="B">
+      <div class="card-img-wrap">
+        <img src="/images/pkl-players/k-002.webp" alt="Akash Shinde" loading="lazy" />
+        <span class="tier-badge tier-B">Tier B</span>
+        <span class="id-badge">k-002</span>
+      </div>
+      <div class="card-info">
+        <div class="player-name">Akash Shinde</div>
+        <div class="player-team">Bengaluru Bulls</div>
+        <div class="player-meta">
+          <span class="role-pill" style="border-color: #F97316; color: #F97316;">Raider</span>
+          <span class="price">₹20L</span>
+        </div>
+        <div class="source-info">Source: 160x240 Official Asset</div>
+      </div>
+    </div>
+    
+    <div class="player-card" data-team="Bengaluru Bulls" data-role="Raider" data-tier="C">
+      <div class="card-img-wrap">
+        <img src="/images/pkl-players/k-003.webp" alt="Pankaj" loading="lazy" />
+        <span class="tier-badge tier-C">Tier C</span>
+        <span class="id-badge">k-003</span>
+      </div>
+      <div class="card-info">
+        <div class="player-name">Pankaj</div>
+        <div class="player-team">Bengaluru Bulls</div>
+        <div class="player-meta">
+          <span class="role-pill" style="border-color: #F97316; color: #F97316;">Raider</span>
+          <span class="price">₹13L</span>
+        </div>
+        <div class="source-info">Source: 160x240 Official Asset</div>
+      </div>
+    </div>
+    
+    <div class="player-card" data-team="Bengaluru Bulls" data-role="Defender" data-tier="B">
+      <div class="card-img-wrap">
+        <img src="/images/pkl-players/k-004.webp" alt="Lucky Kumar" loading="lazy" />
+        <span class="tier-badge tier-B">Tier B</span>
+        <span class="id-badge">k-004</span>
+      </div>
+      <div class="card-info">
+        <div class="player-name">Lucky Kumar</div>
+        <div class="player-team">Bengaluru Bulls</div>
+        <div class="player-meta">
+          <span class="role-pill" style="border-color: #3B82F6; color: #3B82F6;">Right Corner</span>
+          <span class="price">₹20L</span>
+        </div>
+        <div class="source-info">Source: 160x240 Official Asset</div>
+      </div>
+    </div>
+    
+    <div class="player-card" data-team="Bengaluru Bulls" data-role="Defender" data-tier="B">
+      <div class="card-img-wrap">
+        <img src="/images/pkl-players/k-005.webp" alt="Sanjay" loading="lazy" />
+        <span class="tier-badge tier-B">Tier B</span>
+        <span class="id-badge">k-005</span>
+      </div>
+      <div class="card-info">
+        <div class="player-name">Sanjay</div>
+        <div class="player-team">Bengaluru Bulls</div>
+        <div class="player-meta">
+          <span class="role-pill" style="border-color: #3B82F6; color: #3B82F6;">Right Cover</span>
+          <span class="price">₹20L</span>
+        </div>
+        <div class="source-info">Source: 160x240 Official Asset</div>
+      </div>
+    </div>
+    
+    <div class="player-card" data-team="Bengaluru Bulls" data-role="Defender" data-tier="C">
+      <div class="card-img-wrap">
+        <img src="/images/pkl-players/k-006.webp" alt="Yogesh" loading="lazy" />
+        <span class="tier-badge tier-C">Tier C</span>
+        <span class="id-badge">k-006</span>
+      </div>
+      <div class="card-info">
+        <div class="player-name">Yogesh</div>
+        <div class="player-team">Bengaluru Bulls</div>
+        <div class="player-meta">
+          <span class="role-pill" style="border-color: #3B82F6; color: #3B82F6;">Right Corner</span>
+          <span class="price">₹13L</span>
+        </div>
+        <div class="source-info">Source: 160x240 Official Asset</div>
+      </div>
+    </div>
+    
+    <div class="player-card" data-team="Bengaluru Bulls" data-role="All-Rounder" data-tier="D">
+      <div class="card-img-wrap">
+        <img src="/images/pkl-players/k-007.webp" alt="Chandranaik M" loading="lazy" />
+        <span class="tier-badge tier-D">Tier D</span>
+        <span class="id-badge">k-007</span>
+      </div>
+      <div class="card-info">
+        <div class="player-name">Chandranaik M</div>
+        <div class="player-team">Bengaluru Bulls</div>
+        <div class="player-meta">
+          <span class="role-pill" style="border-color: #10B981; color: #10B981;">All-Rounder</span>
+          <span class="price">₹9L</span>
+        </div>
+        <div class="source-info">Source: 160x240 Official Asset</div>
+      </div>
+    </div>
+    
+    <div class="player-card" data-team="Bengaluru Bulls" data-role="Raider" data-tier="D">
+      <div class="card-img-wrap">
+        <img src="/images/pkl-players/k-008.webp" alt="Aashish Malik" loading="lazy" />
+        <span class="tier-badge tier-D">Tier D</span>
+        <span class="id-badge">k-008</span>
+      </div>
+      <div class="card-info">
+        <div class="player-name">Aashish Malik</div>
+        <div class="player-team">Bengaluru Bulls</div>
+        <div class="player-meta">
+          <span class="role-pill" style="border-color: #F97316; color: #F97316;">Raider</span>
+          <span class="price">₹9L</span>
+        </div>
+        <div class="source-info">Source: 160x240 Official Asset</div>
+      </div>
+    </div>
+    
+    <div class="player-card" data-team="Bengaluru Bulls" data-role="Raider" data-tier="C">
+      <div class="card-img-wrap">
+        <img src="/images/pkl-players/k-009.webp" alt="Ganesha Hanamantagol" loading="lazy" />
+        <span class="tier-badge tier-C">Tier C</span>
+        <span class="id-badge">k-009</span>
+      </div>
+      <div class="card-info">
+        <div class="player-name">Ganesha Hanamantagol</div>
+        <div class="player-team">Bengaluru Bulls</div>
+        <div class="player-meta">
+          <span class="role-pill" style="border-color: #F97316; color: #F97316;">Raider</span>
+          <span class="price">₹13L</span>
+        </div>
+        <div class="source-info">Source: 160x240 Official Asset</div>
+      </div>
+    </div>
+    
+    <div class="player-card" data-team="Bengaluru Bulls" data-role="Raider" data-tier="D">
+      <div class="card-img-wrap">
+        <img src="/images/pkl-players/k-010.webp" alt="Mahipal" loading="lazy" />
+        <span class="tier-badge tier-D">Tier D</span>
+        <span class="id-badge">k-010</span>
+      </div>
+      <div class="card-info">
+        <div class="player-name">Mahipal</div>
+        <div class="player-team">Bengaluru Bulls</div>
+        <div class="player-meta">
+          <span class="role-pill" style="border-color: #F97316; color: #F97316;">Raider</span>
+          <span class="price">₹9L</span>
+        </div>
+        <div class="source-info">Source: 160x240 Official Asset</div>
+      </div>
+    </div>
+    
+    <div class="player-card" data-team="Bengaluru Bulls" data-role="Raider" data-tier="D">
+      <div class="card-img-wrap">
+        <img src="/images/pkl-players/k-011.webp" alt="Manjeet Thakur" loading="lazy" />
+        <span class="tier-badge tier-D">Tier D</span>
+        <span class="id-badge">k-011</span>
+      </div>
+      <div class="card-info">
+        <div class="player-name">Manjeet Thakur</div>
+        <div class="player-team">Bengaluru Bulls</div>
+        <div class="player-meta">
+          <span class="role-pill" style="border-color: #F97316; color: #F97316;">Raider</span>
+          <span class="price">₹9L</span>
+        </div>
+        <div class="source-info">Source: 160x240 Official Asset</div>
+      </div>
+    </div>
+    
+    <div class="player-card" data-team="Bengaluru Bulls" data-role="Raider" data-tier="C">
+      <div class="card-img-wrap">
+        <img src="/images/pkl-players/k-012.webp" alt="Shubham Bitake" loading="lazy" />
+        <span class="tier-badge tier-C">Tier C</span>
+        <span class="id-badge">k-012</span>
+      </div>
+      <div class="card-info">
+        <div class="player-name">Shubham Bitake</div>
+        <div class="player-team">Bengaluru Bulls</div>
+        <div class="player-meta">
+          <span class="role-pill" style="border-color: #F97316; color: #F97316;">Raider</span>
+          <span class="price">₹13L</span>
+        </div>
+        <div class="source-info">Source: 160x240 Official Asset</div>
+      </div>
+    </div>
+    
+    <div class="player-card" data-team="Bengaluru Bulls" data-role="Defender" data-tier="D">
+      <div class="card-img-wrap">
+        <img src="/images/pkl-players/k-013.webp" alt="Deepak Sankar" loading="lazy" />
+        <span class="tier-badge tier-D">Tier D</span>
+        <span class="id-badge">k-013</span>
+      </div>
+      <div class="card-info">
+        <div class="player-name">Deepak Sankar</div>
+        <div class="player-team">Bengaluru Bulls</div>
+        <div class="player-meta">
+          <span class="role-pill" style="border-color: #3B82F6; color: #3B82F6;">Left Cover</span>
+          <span class="price">₹9L</span>
+        </div>
+        <div class="source-info">Source: 160x240 Official Asset</div>
+      </div>
+    </div>
+    
+    <div class="player-card" data-team="Bengaluru Bulls" data-role="Defender" data-tier="D">
+      <div class="card-img-wrap">
+        <img src="/images/pkl-players/k-014.webp" alt="Manish" loading="lazy" />
+        <span class="tier-badge tier-D">Tier D</span>
+        <span class="id-badge">k-014</span>
+      </div>
+      <div class="card-info">
+        <div class="player-name">Manish</div>
+        <div class="player-team">Bengaluru Bulls</div>
+        <div class="player-meta">
+          <span class="role-pill" style="border-color: #3B82F6; color: #3B82F6;">Left Cover</span>
+          <span class="price">₹9L</span>
+        </div>
+        <div class="source-info">Source: 160x240 Official Asset</div>
+      </div>
+    </div>
+    
+    <div class="player-card" data-team="Bengaluru Bulls" data-role="Defender" data-tier="C">
+      <div class="card-img-wrap">
+        <img src="/images/pkl-players/k-015.webp" alt="Satyappa Matti" loading="lazy" />
+        <span class="tier-badge tier-C">Tier C</span>
+        <span class="id-badge">k-015</span>
+      </div>
+      <div class="card-info">
+        <div class="player-name">Satyappa Matti</div>
+        <div class="player-team">Bengaluru Bulls</div>
+        <div class="player-meta">
+          <span class="role-pill" style="border-color: #3B82F6; color: #3B82F6;">Left Corner</span>
+          <span class="price">₹13L</span>
+        </div>
+        <div class="source-info">Source: 160x240 Official Asset</div>
+      </div>
+    </div>
+    
+    <div class="player-card" data-team="Bengaluru Bulls" data-role="Defender" data-tier="D">
+      <div class="card-img-wrap">
+        <img src="/images/pkl-players/k-016.webp" alt="Shubham Rahate" loading="lazy" />
+        <span class="tier-badge tier-D">Tier D</span>
+        <span class="id-badge">k-016</span>
+      </div>
+      <div class="card-info">
+        <div class="player-name">Shubham Rahate</div>
+        <div class="player-team">Bengaluru Bulls</div>
+        <div class="player-meta">
+          <span class="role-pill" style="border-color: #3B82F6; color: #3B82F6;">Left Cover</span>
+          <span class="price">₹9L</span>
+        </div>
+        <div class="source-info">Source: 160x240 Official Asset</div>
+      </div>
+    </div>
+    
+    <div class="player-card" data-team="Bengaluru Bulls" data-role="All-Rounder" data-tier="B">
+      <div class="card-img-wrap">
+        <img src="/images/pkl-players/k-017.webp" alt="Ahmad Reza Asgari" loading="lazy" />
+        <span class="tier-badge tier-B">Tier B</span>
+        <span class="id-badge">k-017</span>
+      </div>
+      <div class="card-info">
+        <div class="player-name">Ahmad Reza Asgari</div>
+        <div class="player-team">Bengaluru Bulls</div>
+        <div class="player-meta">
+          <span class="role-pill" style="border-color: #10B981; color: #10B981;">All-Rounder</span>
+          <span class="price">₹20L</span>
+        </div>
+        <div class="source-info">Source: 160x240 Official Asset</div>
+      </div>
+    </div>
+    
+    <div class="player-card" data-team="Bengaluru Bulls" data-role="All-Rounder" data-tier="B">
+      <div class="card-img-wrap">
+        <img src="/images/pkl-players/k-018.webp" alt="Alireza Mirzaian" loading="lazy" />
+        <span class="tier-badge tier-B">Tier B</span>
+        <span class="id-badge">k-018</span>
+      </div>
+      <div class="card-info">
+        <div class="player-name">Alireza Mirzaian</div>
+        <div class="player-team">Bengaluru Bulls</div>
+        <div class="player-meta">
+          <span class="role-pill" style="border-color: #10B981; color: #10B981;">All-Rounder</span>
+          <span class="price">₹20L</span>
+        </div>
+        <div class="source-info">Source: 160x240 Official Asset</div>
+      </div>
+    </div>
+    
+    <div class="player-card" data-team="Bengaluru Bulls" data-role="All-Rounder" data-tier="D">
+      <div class="card-img-wrap">
+        <img src="/images/pkl-players/k-019.webp" alt="Amit Thakur" loading="lazy" />
+        <span class="tier-badge tier-D">Tier D</span>
+        <span class="id-badge">k-019</span>
+      </div>
+      <div class="card-info">
+        <div class="player-name">Amit Thakur</div>
+        <div class="player-team">Bengaluru Bulls</div>
+        <div class="player-meta">
+          <span class="role-pill" style="border-color: #10B981; color: #10B981;">All-Rounder</span>
+          <span class="price">₹9L</span>
+        </div>
+        <div class="source-info">Source: 160x240 Official Asset</div>
+      </div>
+    </div>
+    
+    <div class="player-card" data-team="Bengaluru Bulls" data-role="All-Rounder" data-tier="D">
+      <div class="card-img-wrap">
+        <img src="/images/pkl-players/k-020.webp" alt="Dheeraj" loading="lazy" />
+        <span class="tier-badge tier-D">Tier D</span>
+        <span class="id-badge">k-020</span>
+      </div>
+      <div class="card-info">
+        <div class="player-name">Dheeraj</div>
+        <div class="player-team">Bengaluru Bulls</div>
+        <div class="player-meta">
+          <span class="role-pill" style="border-color: #10B981; color: #10B981;">All-Rounder</span>
+          <span class="price">₹9L</span>
+        </div>
+        <div class="source-info">Source: 160x240 Official Asset</div>
+      </div>
+    </div>
+    
+    <div class="player-card" data-team="Bengaluru Bulls" data-role="All-Rounder" data-tier="C">
+      <div class="card-img-wrap">
+        <img src="/images/pkl-players/k-021.webp" alt="Jitender Yadav" loading="lazy" />
+        <span class="tier-badge tier-C">Tier C</span>
+        <span class="id-badge">k-021</span>
+      </div>
+      <div class="card-info">
+        <div class="player-name">Jitender Yadav</div>
+        <div class="player-team">Bengaluru Bulls</div>
+        <div class="player-meta">
+          <span class="role-pill" style="border-color: #10B981; color: #10B981;">All-Rounder</span>
+          <span class="price">₹13L</span>
+        </div>
+        <div class="source-info">Source: 160x240 Official Asset</div>
+      </div>
+    </div>
+    
+    <div class="player-card" data-team="Bengaluru Bulls" data-role="All-Rounder" data-tier="A">
+      <div class="card-img-wrap">
+        <img src="/images/pkl-players/k-022.webp" alt="Sachin" loading="lazy" />
+        <span class="tier-badge tier-A">Tier A</span>
+        <span class="id-badge">k-022</span>
+      </div>
+      <div class="card-info">
+        <div class="player-name">Sachin</div>
+        <div class="player-team">Bengaluru Bulls</div>
+        <div class="player-meta">
+          <span class="role-pill" style="border-color: #10B981; color: #10B981;">All-Rounder</span>
+          <span class="price">₹30L</span>
+        </div>
+        <div class="source-info">Source: 160x240 Official Asset</div>
+      </div>
+    </div>
+    
+    <div class="player-card" data-team="Bengaluru Bulls" data-role="All-Rounder" data-tier="D">
+      <div class="card-img-wrap">
+        <img src="/images/pkl-players/k-023.webp" alt="Sahil Rane" loading="lazy" />
+        <span class="tier-badge tier-D">Tier D</span>
+        <span class="id-badge">k-023</span>
+      </div>
+      <div class="card-info">
+        <div class="player-name">Sahil Rane</div>
+        <div class="player-team">Bengaluru Bulls</div>
+        <div class="player-meta">
+          <span class="role-pill" style="border-color: #10B981; color: #10B981;">All-Rounder</span>
+          <span class="price">₹9L</span>
+        </div>
+        <div class="source-info">Source: 160x240 Official Asset</div>
+      </div>
+    </div>
+    
+    <div class="player-card" data-team="Dabang Delhi K.C." data-role="Raider" data-tier="A">
+      <div class="card-img-wrap">
+        <img src="/images/pkl-players/k-024.webp" alt="Ashu Malik" loading="lazy" />
+        <span class="tier-badge tier-A">Tier A</span>
+        <span class="id-badge">k-024</span>
+      </div>
+      <div class="card-info">
+        <div class="player-name">Ashu Malik</div>
+        <div class="player-team">Dabang Delhi K.C.</div>
+        <div class="player-meta">
+          <span class="role-pill" style="border-color: #F97316; color: #F97316;">Raider</span>
+          <span class="price">₹30L</span>
+        </div>
+        <div class="source-info">Source: 160x240 Official Asset</div>
+      </div>
+    </div>
+    
+    <div class="player-card" data-team="Dabang Delhi K.C." data-role="Defender" data-tier="B">
+      <div class="card-img-wrap">
+        <img src="/images/pkl-players/k-025.webp" alt="Sandeep" loading="lazy" />
+        <span class="tier-badge tier-B">Tier B</span>
+        <span class="id-badge">k-025</span>
+      </div>
+      <div class="card-info">
+        <div class="player-name">Sandeep</div>
+        <div class="player-team">Dabang Delhi K.C.</div>
+        <div class="player-meta">
+          <span class="role-pill" style="border-color: #3B82F6; color: #3B82F6;">Left Corner</span>
+          <span class="price">₹20L</span>
+        </div>
+        <div class="source-info">Source: 160x240 Official Asset</div>
+      </div>
+    </div>
+    
+    <div class="player-card" data-team="Dabang Delhi K.C." data-role="Raider" data-tier="D">
+      <div class="card-img-wrap">
+        <img src="/images/pkl-players/k-026.webp" alt="Mohit" loading="lazy" />
+        <span class="tier-badge tier-D">Tier D</span>
+        <span class="id-badge">k-026</span>
+      </div>
+      <div class="card-info">
+        <div class="player-name">Mohit</div>
+        <div class="player-team">Dabang Delhi K.C.</div>
+        <div class="player-meta">
+          <span class="role-pill" style="border-color: #F97316; color: #F97316;">Raider</span>
+          <span class="price">₹9L</span>
+        </div>
+        <div class="source-info">Source: 160x240 Official Asset</div>
+      </div>
+    </div>
+    
+    <div class="player-card" data-team="Dabang Delhi K.C." data-role="Defender" data-tier="C">
+      <div class="card-img-wrap">
+        <img src="/images/pkl-players/k-027.webp" alt="Gaurav Chhillar" loading="lazy" />
+        <span class="tier-badge tier-C">Tier C</span>
+        <span class="id-badge">k-027</span>
+      </div>
+      <div class="card-info">
+        <div class="player-name">Gaurav Chhillar</div>
+        <div class="player-team">Dabang Delhi K.C.</div>
+        <div class="player-meta">
+          <span class="role-pill" style="border-color: #3B82F6; color: #3B82F6;">Right Corner</span>
+          <span class="price">₹13L</span>
+        </div>
+        <div class="source-info">Source: 160x240 Official Asset</div>
+      </div>
+    </div>
+    
+    <div class="player-card" data-team="Dabang Delhi K.C." data-role="Raider" data-tier="A">
+      <div class="card-img-wrap">
+        <img src="/images/pkl-players/k-028.webp" alt="Ajinkya Pawar" loading="lazy" />
+        <span class="tier-badge tier-A">Tier A</span>
+        <span class="id-badge">k-028</span>
+      </div>
+      <div class="card-info">
+        <div class="player-name">Ajinkya Pawar</div>
+        <div class="player-team">Dabang Delhi K.C.</div>
+        <div class="player-meta">
+          <span class="role-pill" style="border-color: #F97316; color: #F97316;">Raider</span>
+          <span class="price">₹30L</span>
+        </div>
+        <div class="source-info">Source: 160x240 Official Asset</div>
+      </div>
+    </div>
+    
+    <div class="player-card" data-team="Dabang Delhi K.C." data-role="Raider" data-tier="D">
+      <div class="card-img-wrap">
+        <img src="/images/pkl-players/k-029.webp" alt="Akshit" loading="lazy" />
+        <span class="tier-badge tier-D">Tier D</span>
+        <span class="id-badge">k-029</span>
+      </div>
+      <div class="card-info">
+        <div class="player-name">Akshit</div>
+        <div class="player-team">Dabang Delhi K.C.</div>
+        <div class="player-meta">
+          <span class="role-pill" style="border-color: #F97316; color: #F97316;">Raider</span>
+          <span class="price">₹9L</span>
+        </div>
+        <div class="source-info">Source: 160x240 Official Asset</div>
+      </div>
+    </div>
+    
+    <div class="player-card" data-team="Dabang Delhi K.C." data-role="Defender" data-tier="A">
+      <div class="card-img-wrap">
+        <img src="/images/pkl-players/k-030.webp" alt="Surjeet Singh" loading="lazy" />
+        <span class="tier-badge tier-A">Tier A</span>
+        <span class="id-badge">k-030</span>
+      </div>
+      <div class="card-info">
+        <div class="player-name">Surjeet Singh</div>
+        <div class="player-team">Dabang Delhi K.C.</div>
+        <div class="player-meta">
+          <span class="role-pill" style="border-color: #3B82F6; color: #3B82F6;">Right Cover</span>
+          <span class="price">₹30L</span>
+        </div>
+        <div class="source-info">Source: 160x240 Official Asset</div>
+      </div>
+    </div>
+    
+    <div class="player-card" data-team="Dabang Delhi K.C." data-role="Defender" data-tier="A">
+      <div class="card-img-wrap">
+        <img src="/images/pkl-players/k-031.webp" alt="Saurabh Nandal" loading="lazy" />
+        <span class="tier-badge tier-A">Tier A</span>
+        <span class="id-badge">k-031</span>
+      </div>
+      <div class="card-info">
+        <div class="player-name">Saurabh Nandal</div>
+        <div class="player-team">Dabang Delhi K.C.</div>
+        <div class="player-meta">
+          <span class="role-pill" style="border-color: #3B82F6; color: #3B82F6;">Right Corner</span>
+          <span class="price">₹30L</span>
+        </div>
+        <div class="source-info">Source: 160x240 Official Asset</div>
+      </div>
+    </div>
+    
+    <div class="player-card" data-team="Dabang Delhi K.C." data-role="Defender" data-tier="A">
+      <div class="card-img-wrap">
+        <img src="/images/pkl-players/k-032.webp" alt="Fazel Atrachali" loading="lazy" />
+        <span class="tier-badge tier-A">Tier A</span>
+        <span class="id-badge">k-032</span>
+      </div>
+      <div class="card-info">
+        <div class="player-name">Fazel Atrachali</div>
+        <div class="player-team">Dabang Delhi K.C.</div>
+        <div class="player-meta">
+          <span class="role-pill" style="border-color: #3B82F6; color: #3B82F6;">Left Corner</span>
+          <span class="price">₹30L</span>
+        </div>
+        <div class="source-info">Source: 160x240 Official Asset</div>
+      </div>
+    </div>
+    
+    <div class="player-card" data-team="Dabang Delhi K.C." data-role="Defender" data-tier="C">
+      <div class="card-img-wrap">
+        <img src="/images/pkl-players/k-033.webp" alt="Amir Hossein Bastami" loading="lazy" />
+        <span class="tier-badge tier-C">Tier C</span>
+        <span class="id-badge">k-033</span>
+      </div>
+      <div class="card-info">
+        <div class="player-name">Amir Hossein Bastami</div>
+        <div class="player-team">Dabang Delhi K.C.</div>
+        <div class="player-meta">
+          <span class="role-pill" style="border-color: #3B82F6; color: #3B82F6;">Left Corner</span>
+          <span class="price">₹13L</span>
+        </div>
+        <div class="source-info">Source: 160x240 Official Asset</div>
+      </div>
+    </div>
+    
+    <div class="player-card" data-team="Dabang Delhi K.C." data-role="Raider" data-tier="D">
+      <div class="card-img-wrap">
+        <img src="/images/pkl-players/k-034.webp" alt="Anil Gurjar" loading="lazy" />
+        <span class="tier-badge tier-D">Tier D</span>
+        <span class="id-badge">k-034</span>
+      </div>
+      <div class="card-info">
+        <div class="player-name">Anil Gurjar</div>
+        <div class="player-team">Dabang Delhi K.C.</div>
+        <div class="player-meta">
+          <span class="role-pill" style="border-color: #F97316; color: #F97316;">Raider</span>
+          <span class="price">₹9L</span>
+        </div>
+        <div class="source-info">Source: 160x240 Official Asset</div>
+      </div>
+    </div>
+    
+    <div class="player-card" data-team="Dabang Delhi K.C." data-role="Raider" data-tier="D">
+      <div class="card-img-wrap">
+        <img src="/images/pkl-players/k-035.webp" alt="Neeraj Narwal" loading="lazy" />
+        <span class="tier-badge tier-D">Tier D</span>
+        <span class="id-badge">k-035</span>
+      </div>
+      <div class="card-info">
+        <div class="player-name">Neeraj Narwal</div>
+        <div class="player-team">Dabang Delhi K.C.</div>
+        <div class="player-meta">
+          <span class="role-pill" style="border-color: #F97316; color: #F97316;">Raider</span>
+          <span class="price">₹9L</span>
+        </div>
+        <div class="source-info">Source: 160x240 Official Asset</div>
+      </div>
+    </div>
+    
+    <div class="player-card" data-team="Dabang Delhi K.C." data-role="Raider" data-tier="C">
+      <div class="card-img-wrap">
+        <img src="/images/pkl-players/k-036.webp" alt="Vijay" loading="lazy" />
+        <span class="tier-badge tier-C">Tier C</span>
+        <span class="id-badge">k-036</span>
+      </div>
+      <div class="card-info">
+        <div class="player-name">Vijay</div>
+        <div class="player-team">Dabang Delhi K.C.</div>
+        <div class="player-meta">
+          <span class="role-pill" style="border-color: #F97316; color: #F97316;">Raider</span>
+          <span class="price">₹13L</span>
+        </div>
+        <div class="source-info">Source: 160x240 Official Asset</div>
+      </div>
+    </div>
+    
+    <div class="player-card" data-team="Dabang Delhi K.C." data-role="Defender" data-tier="D">
+      <div class="card-img-wrap">
+        <img src="/images/pkl-players/k-037.webp" alt="Anurag" loading="lazy" />
+        <span class="tier-badge tier-D">Tier D</span>
+        <span class="id-badge">k-037</span>
+      </div>
+      <div class="card-info">
+        <div class="player-name">Anurag</div>
+        <div class="player-team">Dabang Delhi K.C.</div>
+        <div class="player-meta">
+          <span class="role-pill" style="border-color: #3B82F6; color: #3B82F6;">Left Corner</span>
+          <span class="price">₹9L</span>
+        </div>
+        <div class="source-info">Source: 160x240 Official Asset</div>
+      </div>
+    </div>
+    
+    <div class="player-card" data-team="Dabang Delhi K.C." data-role="Defender" data-tier="D">
+      <div class="card-img-wrap">
+        <img src="/images/pkl-players/k-038.webp" alt="Mohit Narwal" loading="lazy" />
+        <span class="tier-badge tier-D">Tier D</span>
+        <span class="id-badge">k-038</span>
+      </div>
+      <div class="card-info">
+        <div class="player-name">Mohit Narwal</div>
+        <div class="player-team">Dabang Delhi K.C.</div>
+        <div class="player-meta">
+          <span class="role-pill" style="border-color: #3B82F6; color: #3B82F6;">Right Cover</span>
+          <span class="price">₹9L</span>
+        </div>
+        <div class="source-info">Source: 160x240 Official Asset</div>
+      </div>
+    </div>
+    
+    <div class="player-card" data-team="Dabang Delhi K.C." data-role="Defender" data-tier="C">
+      <div class="card-img-wrap">
+        <img src="/images/pkl-players/k-039.webp" alt="Raman Singh" loading="lazy" />
+        <span class="tier-badge tier-C">Tier C</span>
+        <span class="id-badge">k-039</span>
+      </div>
+      <div class="card-info">
+        <div class="player-name">Raman Singh</div>
+        <div class="player-team">Dabang Delhi K.C.</div>
+        <div class="player-meta">
+          <span class="role-pill" style="border-color: #3B82F6; color: #3B82F6;">Left Cover</span>
+          <span class="price">₹13L</span>
+        </div>
+        <div class="source-info">Source: 160x240 Official Asset</div>
+      </div>
+    </div>
+    
+    <div class="player-card" data-team="Dabang Delhi K.C." data-role="All-Rounder" data-tier="D">
+      <div class="card-img-wrap">
+        <img src="/images/pkl-players/k-040.webp" alt="Amit" loading="lazy" />
+        <span class="tier-badge tier-D">Tier D</span>
+        <span class="id-badge">k-040</span>
+      </div>
+      <div class="card-info">
+        <div class="player-name">Amit</div>
+        <div class="player-team">Dabang Delhi K.C.</div>
+        <div class="player-meta">
+          <span class="role-pill" style="border-color: #10B981; color: #10B981;">All-Rounder</span>
+          <span class="price">₹9L</span>
+        </div>
+        <div class="source-info">Source: 160x240 Official Asset</div>
+      </div>
+    </div>
+    
+    <div class="player-card" data-team="Dabang Delhi K.C." data-role="All-Rounder" data-tier="D">
+      <div class="card-img-wrap">
+        <img src="/images/pkl-players/k-041.webp" alt="Arkam Shaikh" loading="lazy" />
+        <span class="tier-badge tier-D">Tier D</span>
+        <span class="id-badge">k-041</span>
+      </div>
+      <div class="card-info">
+        <div class="player-name">Arkam Shaikh</div>
+        <div class="player-team">Dabang Delhi K.C.</div>
+        <div class="player-meta">
+          <span class="role-pill" style="border-color: #10B981; color: #10B981;">All-Rounder</span>
+          <span class="price">₹9L</span>
+        </div>
+        <div class="source-info">Source: 160x240 Official Asset</div>
+      </div>
+    </div>
+    
+    <div class="player-card" data-team="Dabang Delhi K.C." data-role="All-Rounder" data-tier="C">
+      <div class="card-img-wrap">
+        <img src="/images/pkl-players/k-042.webp" alt="Ashish Sangwan" loading="lazy" />
+        <span class="tier-badge tier-C">Tier C</span>
+        <span class="id-badge">k-042</span>
+      </div>
+      <div class="card-info">
+        <div class="player-name">Ashish Sangwan</div>
+        <div class="player-team">Dabang Delhi K.C.</div>
+        <div class="player-meta">
+          <span class="role-pill" style="border-color: #10B981; color: #10B981;">All-Rounder</span>
+          <span class="price">₹13L</span>
+        </div>
+        <div class="source-info">Source: 160x240 Official Asset</div>
+      </div>
+    </div>
+    
+    <div class="player-card" data-team="Dabang Delhi K.C." data-role="All-Rounder" data-tier="D">
+      <div class="card-img-wrap">
+        <img src="/images/pkl-players/k-043.webp" alt="Naveen" loading="lazy" />
+        <span class="tier-badge tier-D">Tier D</span>
+        <span class="id-badge">k-043</span>
+      </div>
+      <div class="card-info">
+        <div class="player-name">Naveen</div>
+        <div class="player-team">Dabang Delhi K.C.</div>
+        <div class="player-meta">
+          <span class="role-pill" style="border-color: #10B981; color: #10B981;">All-Rounder</span>
+          <span class="price">₹9L</span>
+        </div>
+        <div class="source-info">Source: 160x240 Official Asset</div>
+      </div>
+    </div>
+    
+    <div class="player-card" data-team="Jaipur Pink Panthers" data-role="All-Rounder" data-tier="D">
+      <div class="card-img-wrap">
+        <img src="/images/pkl-players/k-044.webp" alt="Nitin Rawal" loading="lazy" />
+        <span class="tier-badge tier-D">Tier D</span>
+        <span class="id-badge">k-044</span>
+      </div>
+      <div class="card-info">
+        <div class="player-name">Nitin Rawal</div>
+        <div class="player-team">Jaipur Pink Panthers</div>
+        <div class="player-meta">
+          <span class="role-pill" style="border-color: #10B981; color: #10B981;">All-Rounder</span>
+          <span class="price">₹9L</span>
+        </div>
+        <div class="source-info">Source: 160x240 Official Asset</div>
+      </div>
+    </div>
+    
+    <div class="player-card" data-team="Jaipur Pink Panthers" data-role="Defender" data-tier="C">
+      <div class="card-img-wrap">
+        <img src="/images/pkl-players/k-045.webp" alt="Reza Mirbagheri" loading="lazy" />
+        <span class="tier-badge tier-C">Tier C</span>
+        <span class="id-badge">k-045</span>
+      </div>
+      <div class="card-info">
+        <div class="player-name">Reza Mirbagheri</div>
+        <div class="player-team">Jaipur Pink Panthers</div>
+        <div class="player-meta">
+          <span class="role-pill" style="border-color: #3B82F6; color: #3B82F6;">Left Cover</span>
+          <span class="price">₹13L</span>
+        </div>
+        <div class="source-info">Source: 160x240 Official Asset</div>
+      </div>
+    </div>
+    
+    <div class="player-card" data-team="Jaipur Pink Panthers" data-role="Raider" data-tier="D">
+      <div class="card-img-wrap">
+        <img src="/images/pkl-players/k-046.webp" alt="Sombir Mehra" loading="lazy" />
+        <span class="tier-badge tier-D">Tier D</span>
+        <span class="id-badge">k-046</span>
+      </div>
+      <div class="card-info">
+        <div class="player-name">Sombir Mehra</div>
+        <div class="player-team">Jaipur Pink Panthers</div>
+        <div class="player-meta">
+          <span class="role-pill" style="border-color: #F97316; color: #F97316;">Raider</span>
+          <span class="price">₹9L</span>
+        </div>
+        <div class="source-info">Source: 160x240 Official Asset</div>
+      </div>
+    </div>
+    
+    <div class="player-card" data-team="Jaipur Pink Panthers" data-role="Defender" data-tier="D">
+      <div class="card-img-wrap">
+        <img src="/images/pkl-players/k-047.webp" alt="Abhishek KS" loading="lazy" />
+        <span class="tier-badge tier-D">Tier D</span>
+        <span class="id-badge">k-047</span>
+      </div>
+      <div class="card-info">
+        <div class="player-name">Abhishek KS</div>
+        <div class="player-team">Jaipur Pink Panthers</div>
+        <div class="player-meta">
+          <span class="role-pill" style="border-color: #3B82F6; color: #3B82F6;">Left Cover</span>
+          <span class="price">₹9L</span>
+        </div>
+        <div class="source-info">Source: 160x240 Official Asset</div>
+      </div>
+    </div>
+    
+    <div class="player-card" data-team="Jaipur Pink Panthers" data-role="Defender" data-tier="C">
+      <div class="card-img-wrap">
+        <img src="/images/pkl-players/k-048.webp" alt="Ronak Singh" loading="lazy" />
+        <span class="tier-badge tier-C">Tier C</span>
+        <span class="id-badge">k-048</span>
+      </div>
+      <div class="card-info">
+        <div class="player-name">Ronak Singh</div>
+        <div class="player-team">Jaipur Pink Panthers</div>
+        <div class="player-meta">
+          <span class="role-pill" style="border-color: #3B82F6; color: #3B82F6;">Right Corner</span>
+          <span class="price">₹13L</span>
+        </div>
+        <div class="source-info">Source: 160x240 Official Asset</div>
+      </div>
+    </div>
+    
+    <div class="player-card" data-team="Jaipur Pink Panthers" data-role="Raider" data-tier="D">
+      <div class="card-img-wrap">
+        <img src="/images/pkl-players/k-049.webp" alt="Ritik Sharma" loading="lazy" />
+        <span class="tier-badge tier-D">Tier D</span>
+        <span class="id-badge">k-049</span>
+      </div>
+      <div class="card-info">
+        <div class="player-name">Ritik Sharma</div>
+        <div class="player-team">Jaipur Pink Panthers</div>
+        <div class="player-meta">
+          <span class="role-pill" style="border-color: #F97316; color: #F97316;">Raider</span>
+          <span class="price">₹9L</span>
+        </div>
+        <div class="source-info">Source: 160x240 Official Asset</div>
+      </div>
+    </div>
+    
+    <div class="player-card" data-team="Jaipur Pink Panthers" data-role="Raider" data-tier="D">
+      <div class="card-img-wrap">
+        <img src="/images/pkl-players/k-050.webp" alt="Vinay" loading="lazy" />
+        <span class="tier-badge tier-D">Tier D</span>
+        <span class="id-badge">k-050</span>
+      </div>
+      <div class="card-info">
+        <div class="player-name">Vinay</div>
+        <div class="player-team">Jaipur Pink Panthers</div>
+        <div class="player-meta">
+          <span class="role-pill" style="border-color: #F97316; color: #F97316;">Raider</span>
+          <span class="price">₹9L</span>
+        </div>
+        <div class="source-info">Source: 160x240 Official Asset</div>
+      </div>
+    </div>
+    
+    <div class="player-card" data-team="Jaipur Pink Panthers" data-role="Defender" data-tier="C">
+      <div class="card-img-wrap">
+        <img src="/images/pkl-players/k-051.webp" alt="Mohit" loading="lazy" />
+        <span class="tier-badge tier-C">Tier C</span>
+        <span class="id-badge">k-051</span>
+      </div>
+      <div class="card-info">
+        <div class="player-name">Mohit</div>
+        <div class="player-team">Jaipur Pink Panthers</div>
+        <div class="player-meta">
+          <span class="role-pill" style="border-color: #3B82F6; color: #3B82F6;">Right Cover</span>
+          <span class="price">₹13L</span>
+        </div>
+        <div class="source-info">Source: 160x240 Official Asset</div>
+      </div>
+    </div>
+    
+    <div class="player-card" data-team="Jaipur Pink Panthers" data-role="Raider" data-tier="B">
+      <div class="card-img-wrap">
+        <img src="/images/pkl-players/k-052.webp" alt="Ali Samadi" loading="lazy" />
+        <span class="tier-badge tier-B">Tier B</span>
+        <span class="id-badge">k-052</span>
+      </div>
+      <div class="card-info">
+        <div class="player-name">Ali Samadi</div>
+        <div class="player-team">Jaipur Pink Panthers</div>
+        <div class="player-meta">
+          <span class="role-pill" style="border-color: #F97316; color: #F97316;">Raider</span>
+          <span class="price">₹20L</span>
+        </div>
+        <div class="source-info">Source: 160x240 Official Asset</div>
+      </div>
+    </div>
+    
+    <div class="player-card" data-team="Jaipur Pink Panthers" data-role="Raider" data-tier="D">
+      <div class="card-img-wrap">
+        <img src="/images/pkl-players/k-053.webp" alt="Meetu" loading="lazy" />
+        <span class="tier-badge tier-D">Tier D</span>
+        <span class="id-badge">k-053</span>
+      </div>
+      <div class="card-info">
+        <div class="player-name">Meetu</div>
+        <div class="player-team">Jaipur Pink Panthers</div>
+        <div class="player-meta">
+          <span class="role-pill" style="border-color: #F97316; color: #F97316;">Raider</span>
+          <span class="price">₹9L</span>
+        </div>
+        <div class="source-info">Source: 160x240 Official Asset</div>
+      </div>
+    </div>
+    
+    <div class="player-card" data-team="Jaipur Pink Panthers" data-role="Raider" data-tier="B">
+      <div class="card-img-wrap">
+        <img src="/images/pkl-players/k-054.webp" alt="Nitin Kumar" loading="lazy" />
+        <span class="tier-badge tier-B">Tier B</span>
+        <span class="id-badge">k-054</span>
+      </div>
+      <div class="card-info">
+        <div class="player-name">Nitin Kumar</div>
+        <div class="player-team">Jaipur Pink Panthers</div>
+        <div class="player-meta">
+          <span class="role-pill" style="border-color: #F97316; color: #F97316;">Raider</span>
+          <span class="price">₹20L</span>
+        </div>
+        <div class="source-info">Source: 160x240 Official Asset</div>
+      </div>
+    </div>
+    
+    <div class="player-card" data-team="Jaipur Pink Panthers" data-role="Raider" data-tier="D">
+      <div class="card-img-wrap">
+        <img src="/images/pkl-players/k-055.webp" alt="Parvinder" loading="lazy" />
+        <span class="tier-badge tier-D">Tier D</span>
+        <span class="id-badge">k-055</span>
+      </div>
+      <div class="card-info">
+        <div class="player-name">Parvinder</div>
+        <div class="player-team">Jaipur Pink Panthers</div>
+        <div class="player-meta">
+          <span class="role-pill" style="border-color: #F97316; color: #F97316;">Raider</span>
+          <span class="price">₹9L</span>
+        </div>
+        <div class="source-info">Source: 328x473 Official Asset</div>
+      </div>
+    </div>
+    
+    <div class="player-card" data-team="Jaipur Pink Panthers" data-role="Raider" data-tier="D">
+      <div class="card-img-wrap">
+        <img src="/images/pkl-players/k-056.webp" alt="Sahil" loading="lazy" />
+        <span class="tier-badge tier-D">Tier D</span>
+        <span class="id-badge">k-056</span>
+      </div>
+      <div class="card-info">
+        <div class="player-name">Sahil</div>
+        <div class="player-team">Jaipur Pink Panthers</div>
+        <div class="player-meta">
+          <span class="role-pill" style="border-color: #F97316; color: #F97316;">Raider</span>
+          <span class="price">₹9L</span>
+        </div>
+        <div class="source-info">Source: 160x240 Official Asset</div>
+      </div>
+    </div>
+    
+    <div class="player-card" data-team="Jaipur Pink Panthers" data-role="Raider" data-tier="C">
+      <div class="card-img-wrap">
+        <img src="/images/pkl-players/k-057.webp" alt="Uday Kumar Parte" loading="lazy" />
+        <span class="tier-badge tier-C">Tier C</span>
+        <span class="id-badge">k-057</span>
+      </div>
+      <div class="card-info">
+        <div class="player-name">Uday Kumar Parte</div>
+        <div class="player-team">Jaipur Pink Panthers</div>
+        <div class="player-meta">
+          <span class="role-pill" style="border-color: #F97316; color: #F97316;">Raider</span>
+          <span class="price">₹13L</span>
+        </div>
+        <div class="source-info">Source: 160x240 Official Asset</div>
+      </div>
+    </div>
+    
+    <div class="player-card" data-team="Jaipur Pink Panthers" data-role="Defender" data-tier="D">
+      <div class="card-img-wrap">
+        <img src="/images/pkl-players/k-058.webp" alt="Aashish Kumar" loading="lazy" />
+        <span class="tier-badge tier-D">Tier D</span>
+        <span class="id-badge">k-058</span>
+      </div>
+      <div class="card-info">
+        <div class="player-name">Aashish Kumar</div>
+        <div class="player-team">Jaipur Pink Panthers</div>
+        <div class="player-meta">
+          <span class="role-pill" style="border-color: #3B82F6; color: #3B82F6;">Left Cover</span>
+          <span class="price">₹9L</span>
+        </div>
+        <div class="source-info">Source: 160x240 Official Asset</div>
+      </div>
+    </div>
+    
+    <div class="player-card" data-team="Jaipur Pink Panthers" data-role="Defender" data-tier="D">
+      <div class="card-img-wrap">
+        <img src="/images/pkl-players/k-059.webp" alt="Aryan Kumar" loading="lazy" />
+        <span class="tier-badge tier-D">Tier D</span>
+        <span class="id-badge">k-059</span>
+      </div>
+      <div class="card-info">
+        <div class="player-name">Aryan Kumar</div>
+        <div class="player-team">Jaipur Pink Panthers</div>
+        <div class="player-meta">
+          <span class="role-pill" style="border-color: #3B82F6; color: #3B82F6;">Left Cover</span>
+          <span class="price">₹9L</span>
+        </div>
+        <div class="source-info">Source: 160x240 Official Asset</div>
+      </div>
+    </div>
+    
+    <div class="player-card" data-team="Jaipur Pink Panthers" data-role="Defender" data-tier="C">
+      <div class="card-img-wrap">
+        <img src="/images/pkl-players/k-060.webp" alt="Deepanshu Khatri" loading="lazy" />
+        <span class="tier-badge tier-C">Tier C</span>
+        <span class="id-badge">k-060</span>
+      </div>
+      <div class="card-info">
+        <div class="player-name">Deepanshu Khatri</div>
+        <div class="player-team">Jaipur Pink Panthers</div>
+        <div class="player-meta">
+          <span class="role-pill" style="border-color: #3B82F6; color: #3B82F6;">Right Corner</span>
+          <span class="price">₹13L</span>
+        </div>
+        <div class="source-info">Source: 160x240 Official Asset</div>
+      </div>
+    </div>
+    
+    <div class="player-card" data-team="Jaipur Pink Panthers" data-role="Defender" data-tier="D">
+      <div class="card-img-wrap">
+        <img src="/images/pkl-players/k-061.webp" alt="Sahil Deswal" loading="lazy" />
+        <span class="tier-badge tier-D">Tier D</span>
+        <span class="id-badge">k-061</span>
+      </div>
+      <div class="card-info">
+        <div class="player-name">Sahil Deswal</div>
+        <div class="player-team">Jaipur Pink Panthers</div>
+        <div class="player-meta">
+          <span class="role-pill" style="border-color: #3B82F6; color: #3B82F6;">Left Corner</span>
+          <span class="price">₹9L</span>
+        </div>
+        <div class="source-info">Source: 160x240 Official Asset</div>
+      </div>
+    </div>
+    
+    <div class="player-card" data-team="Bengal Warriorz" data-role="Raider" data-tier="D">
+      <div class="card-img-wrap">
+        <img src="/images/pkl-players/k-062.webp" alt="Devank" loading="lazy" />
+        <span class="tier-badge tier-D">Tier D</span>
+        <span class="id-badge">k-062</span>
+      </div>
+      <div class="card-info">
+        <div class="player-name">Devank</div>
+        <div class="player-team">Bengal Warriorz</div>
+        <div class="player-meta">
+          <span class="role-pill" style="border-color: #F97316; color: #F97316;">Raider</span>
+          <span class="price">₹9L</span>
+        </div>
+        <div class="source-info">Source: 160x240 Official Asset</div>
+      </div>
+    </div>
+    
+    <div class="player-card" data-team="Bengal Warriorz" data-role="Defender" data-tier="A">
+      <div class="card-img-wrap">
+        <img src="/images/pkl-players/k-063.webp" alt="Nitesh Kumar" loading="lazy" />
+        <span class="tier-badge tier-A">Tier A</span>
+        <span class="id-badge">k-063</span>
+      </div>
+      <div class="card-info">
+        <div class="player-name">Nitesh Kumar</div>
+        <div class="player-team">Bengal Warriorz</div>
+        <div class="player-meta">
+          <span class="role-pill" style="border-color: #3B82F6; color: #3B82F6;">Right Corner</span>
+          <span class="price">₹30L</span>
+        </div>
+        <div class="source-info">Source: 160x240 Official Asset</div>
+      </div>
+    </div>
+    
+    <div class="player-card" data-team="Bengal Warriorz" data-role="Raider" data-tier="D">
+      <div class="card-img-wrap">
+        <img src="/images/pkl-players/k-064.webp" alt="Vishwas S" loading="lazy" />
+        <span class="tier-badge tier-D">Tier D</span>
+        <span class="id-badge">k-064</span>
+      </div>
+      <div class="card-info">
+        <div class="player-name">Vishwas S</div>
+        <div class="player-team">Bengal Warriorz</div>
+        <div class="player-meta">
+          <span class="role-pill" style="border-color: #F97316; color: #F97316;">Raider</span>
+          <span class="price">₹9L</span>
+        </div>
+        <div class="source-info">Source: 160x240 Official Asset</div>
+      </div>
+    </div>
+    
+    <div class="player-card" data-team="Bengal Warriorz" data-role="Raider" data-tier="D">
+      <div class="card-img-wrap">
+        <img src="/images/pkl-players/k-065.webp" alt="Sushil Kambrekar" loading="lazy" />
+        <span class="tier-badge tier-D">Tier D</span>
+        <span class="id-badge">k-065</span>
+      </div>
+      <div class="card-info">
+        <div class="player-name">Sushil Kambrekar</div>
+        <div class="player-team">Bengal Warriorz</div>
+        <div class="player-meta">
+          <span class="role-pill" style="border-color: #F97316; color: #F97316;">Raider</span>
+          <span class="price">₹9L</span>
+        </div>
+        <div class="source-info">Source: 160x240 Official Asset</div>
+      </div>
+    </div>
+    
+    <div class="player-card" data-team="Bengal Warriorz" data-role="Defender" data-tier="B">
+      <div class="card-img-wrap">
+        <img src="/images/pkl-players/k-066.webp" alt="Manjeet" loading="lazy" />
+        <span class="tier-badge tier-B">Tier B</span>
+        <span class="id-badge">k-066</span>
+      </div>
+      <div class="card-info">
+        <div class="player-name">Manjeet</div>
+        <div class="player-team">Bengal Warriorz</div>
+        <div class="player-meta">
+          <span class="role-pill" style="border-color: #3B82F6; color: #3B82F6;">Right Cover</span>
+          <span class="price">₹20L</span>
+        </div>
+        <div class="source-info">Source: 160x240 Official Asset</div>
+      </div>
+    </div>
+    
+    <div class="player-card" data-team="Bengal Warriorz" data-role="Defender" data-tier="D">
+      <div class="card-img-wrap">
+        <img src="/images/pkl-players/k-067.webp" alt="Deep Kumar" loading="lazy" />
+        <span class="tier-badge tier-D">Tier D</span>
+        <span class="id-badge">k-067</span>
+      </div>
+      <div class="card-info">
+        <div class="player-name">Deep Kumar</div>
+        <div class="player-team">Bengal Warriorz</div>
+        <div class="player-meta">
+          <span class="role-pill" style="border-color: #3B82F6; color: #3B82F6;">Left Cover</span>
+          <span class="price">₹9L</span>
+        </div>
+        <div class="source-info">Source: 160x240 Official Asset</div>
+      </div>
+    </div>
+    
+    <div class="player-card" data-team="Bengal Warriorz" data-role="Defender" data-tier="D">
+      <div class="card-img-wrap">
+        <img src="/images/pkl-players/k-068.webp" alt="Yash Malik" loading="lazy" />
+        <span class="tier-badge tier-D">Tier D</span>
+        <span class="id-badge">k-068</span>
+      </div>
+      <div class="card-info">
+        <div class="player-name">Yash Malik</div>
+        <div class="player-team">Bengal Warriorz</div>
+        <div class="player-meta">
+          <span class="role-pill" style="border-color: #3B82F6; color: #3B82F6;">Right Corner</span>
+          <span class="price">₹9L</span>
+        </div>
+        <div class="source-info">Source: 160x240 Official Asset</div>
+      </div>
+    </div>
+    
+    <div class="player-card" data-team="Bengal Warriorz" data-role="Defender" data-tier="C">
+      <div class="card-img-wrap">
+        <img src="/images/pkl-players/k-069.webp" alt="Parteek" loading="lazy" />
+        <span class="tier-badge tier-C">Tier C</span>
+        <span class="id-badge">k-069</span>
+      </div>
+      <div class="card-info">
+        <div class="player-name">Parteek</div>
+        <div class="player-team">Bengal Warriorz</div>
+        <div class="player-meta">
+          <span class="role-pill" style="border-color: #3B82F6; color: #3B82F6;">Left Corner</span>
+          <span class="price">₹13L</span>
+        </div>
+        <div class="source-info">Source: 160x240 Official Asset</div>
+      </div>
+    </div>
+    
+    <div class="player-card" data-team="Bengal Warriorz" data-role="Raider" data-tier="B">
+      <div class="card-img-wrap">
+        <img src="/images/pkl-players/k-070.webp" alt="Jang Kun Lee" loading="lazy" />
+        <span class="tier-badge tier-B">Tier B</span>
+        <span class="id-badge">k-070</span>
+      </div>
+      <div class="card-info">
+        <div class="player-name">Jang Kun Lee</div>
+        <div class="player-team">Bengal Warriorz</div>
+        <div class="player-meta">
+          <span class="role-pill" style="border-color: #F97316; color: #F97316;">Raider</span>
+          <span class="price">₹20L</span>
+        </div>
+        <div class="source-info">Source: 160x240 Official Asset</div>
+      </div>
+    </div>
+    
+    <div class="player-card" data-team="Bengal Warriorz" data-role="Raider" data-tier="D">
+      <div class="card-img-wrap">
+        <img src="/images/pkl-players/k-071.webp" alt="Himanshu Narwal" loading="lazy" />
+        <span class="tier-badge tier-D">Tier D</span>
+        <span class="id-badge">k-071</span>
+      </div>
+      <div class="card-info">
+        <div class="player-name">Himanshu Narwal</div>
+        <div class="player-team">Bengal Warriorz</div>
+        <div class="player-meta">
+          <span class="role-pill" style="border-color: #F97316; color: #F97316;">Raider</span>
+          <span class="price">₹9L</span>
+        </div>
+        <div class="source-info">Source: 160x240 Official Asset</div>
+      </div>
+    </div>
+    
+    <div class="player-card" data-team="Bengal Warriorz" data-role="Raider" data-tier="C">
+      <div class="card-img-wrap">
+        <img src="/images/pkl-players/k-072.webp" alt="Manprit" loading="lazy" />
+        <span class="tier-badge tier-C">Tier C</span>
+        <span class="id-badge">k-072</span>
+      </div>
+      <div class="card-info">
+        <div class="player-name">Manprit</div>
+        <div class="player-team">Bengal Warriorz</div>
+        <div class="player-meta">
+          <span class="role-pill" style="border-color: #F97316; color: #F97316;">Raider</span>
+          <span class="price">₹13L</span>
+        </div>
+        <div class="source-info">Source: 160x240 Official Asset</div>
+      </div>
+    </div>
+    
+    <div class="player-card" data-team="Bengal Warriorz" data-role="Raider" data-tier="C">
+      <div class="card-img-wrap">
+        <img src="/images/pkl-players/k-073.webp" alt="Omid Mohammadshah" loading="lazy" />
+        <span class="tier-badge tier-C">Tier C</span>
+        <span class="id-badge">k-073</span>
+      </div>
+      <div class="card-info">
+        <div class="player-name">Omid Mohammadshah</div>
+        <div class="player-team">Bengal Warriorz</div>
+        <div class="player-meta">
+          <span class="role-pill" style="border-color: #F97316; color: #F97316;">Raider</span>
+          <span class="price">₹13L</span>
+        </div>
+        <div class="source-info">Source: 160x240 Official Asset</div>
+      </div>
+    </div>
+    
+    <div class="player-card" data-team="Bengal Warriorz" data-role="Raider" data-tier="D">
+      <div class="card-img-wrap">
+        <img src="/images/pkl-players/k-074.webp" alt="Punit Kumar" loading="lazy" />
+        <span class="tier-badge tier-D">Tier D</span>
+        <span class="id-badge">k-074</span>
+      </div>
+      <div class="card-info">
+        <div class="player-name">Punit Kumar</div>
+        <div class="player-team">Bengal Warriorz</div>
+        <div class="player-meta">
+          <span class="role-pill" style="border-color: #F97316; color: #F97316;">Raider</span>
+          <span class="price">₹9L</span>
+        </div>
+        <div class="source-info">Source: 160x240 Official Asset</div>
+      </div>
+    </div>
+    
+    <div class="player-card" data-team="Bengal Warriorz" data-role="Raider" data-tier="C">
+      <div class="card-img-wrap">
+        <img src="/images/pkl-players/k-075.webp" alt="Rachit Yadav" loading="lazy" />
+        <span class="tier-badge tier-C">Tier C</span>
+        <span class="id-badge">k-075</span>
+      </div>
+      <div class="card-info">
+        <div class="player-name">Rachit Yadav</div>
+        <div class="player-team">Bengal Warriorz</div>
+        <div class="player-meta">
+          <span class="role-pill" style="border-color: #F97316; color: #F97316;">Raider</span>
+          <span class="price">₹13L</span>
+        </div>
+        <div class="source-info">Source: 160x240 Official Asset</div>
+      </div>
+    </div>
+    
+    <div class="player-card" data-team="Bengal Warriorz" data-role="Defender" data-tier="D">
+      <div class="card-img-wrap">
+        <img src="/images/pkl-players/k-076.webp" alt="Phool Chandra" loading="lazy" />
+        <span class="tier-badge tier-D">Tier D</span>
+        <span class="id-badge">k-076</span>
+      </div>
+      <div class="card-info">
+        <div class="player-name">Phool Chandra</div>
+        <div class="player-team">Bengal Warriorz</div>
+        <div class="player-meta">
+          <span class="role-pill" style="border-color: #3B82F6; color: #3B82F6;">Right Cover</span>
+          <span class="price">₹9L</span>
+        </div>
+        <div class="source-info">Source: 328x473 Official Asset</div>
+      </div>
+    </div>
+    
+    <div class="player-card" data-team="Bengal Warriorz" data-role="Defender" data-tier="D">
+      <div class="card-img-wrap">
+        <img src="/images/pkl-players/k-077.webp" alt="Amandeep Kajal" loading="lazy" />
+        <span class="tier-badge tier-D">Tier D</span>
+        <span class="id-badge">k-077</span>
+      </div>
+      <div class="card-info">
+        <div class="player-name">Amandeep Kajal</div>
+        <div class="player-team">Bengal Warriorz</div>
+        <div class="player-meta">
+          <span class="role-pill" style="border-color: #3B82F6; color: #3B82F6;">Left Corner</span>
+          <span class="price">₹9L</span>
+        </div>
+        <div class="source-info">Source: 160x240 Official Asset</div>
+      </div>
+    </div>
+    
+    <div class="player-card" data-team="Bengal Warriorz" data-role="Defender" data-tier="C">
+      <div class="card-img-wrap">
+        <img src="/images/pkl-players/k-078.webp" alt="Ankit" loading="lazy" />
+        <span class="tier-badge tier-C">Tier C</span>
+        <span class="id-badge">k-078</span>
+      </div>
+      <div class="card-info">
+        <div class="player-name">Ankit</div>
+        <div class="player-team">Bengal Warriorz</div>
+        <div class="player-meta">
+          <span class="role-pill" style="border-color: #3B82F6; color: #3B82F6;">Right Cover</span>
+          <span class="price">₹13L</span>
+        </div>
+        <div class="source-info">Source: 160x240 Official Asset</div>
+      </div>
+    </div>
+    
+    <div class="player-card" data-team="Bengal Warriorz" data-role="Defender" data-tier="B">
+      <div class="card-img-wrap">
+        <img src="/images/pkl-players/k-079.webp" alt="Ashish" loading="lazy" />
+        <span class="tier-badge tier-B">Tier B</span>
+        <span class="id-badge">k-079</span>
+      </div>
+      <div class="card-info">
+        <div class="player-name">Ashish</div>
+        <div class="player-team">Bengal Warriorz</div>
+        <div class="player-meta">
+          <span class="role-pill" style="border-color: #3B82F6; color: #3B82F6;">Left Cover</span>
+          <span class="price">₹20L</span>
+        </div>
+        <div class="source-info">Source: 160x240 Official Asset</div>
+      </div>
+    </div>
+    
+    <div class="player-card" data-team="Bengal Warriorz" data-role="Defender" data-tier="D">
+      <div class="card-img-wrap">
+        <img src="/images/pkl-players/k-080.webp" alt="Harander" loading="lazy" />
+        <span class="tier-badge tier-D">Tier D</span>
+        <span class="id-badge">k-080</span>
+      </div>
+      <div class="card-info">
+        <div class="player-name">Harander</div>
+        <div class="player-team">Bengal Warriorz</div>
+        <div class="player-meta">
+          <span class="role-pill" style="border-color: #3B82F6; color: #3B82F6;">Right Corner</span>
+          <span class="price">₹9L</span>
+        </div>
+        <div class="source-info">Source: 160x240 Official Asset</div>
+      </div>
+    </div>
+    
+    <div class="player-card" data-team="Bengal Warriorz" data-role="Defender" data-tier="C">
+      <div class="card-img-wrap">
+        <img src="/images/pkl-players/k-081.webp" alt="Sandeep Saini" loading="lazy" />
+        <span class="tier-badge tier-C">Tier C</span>
+        <span class="id-badge">k-081</span>
+      </div>
+      <div class="card-info">
+        <div class="player-name">Sandeep Saini</div>
+        <div class="player-team">Bengal Warriorz</div>
+        <div class="player-meta">
+          <span class="role-pill" style="border-color: #3B82F6; color: #3B82F6;">Left Corner</span>
+          <span class="price">₹13L</span>
+        </div>
+        <div class="source-info">Source: 160x240 Official Asset</div>
+      </div>
+    </div>
+    
+    <div class="player-card" data-team="Bengal Warriorz" data-role="All-Rounder" data-tier="D">
+      <div class="card-img-wrap">
+        <img src="/images/pkl-players/k-082.webp" alt="Moolchand Marko" loading="lazy" />
+        <span class="tier-badge tier-D">Tier D</span>
+        <span class="id-badge">k-082</span>
+      </div>
+      <div class="card-info">
+        <div class="player-name">Moolchand Marko</div>
+        <div class="player-team">Bengal Warriorz</div>
+        <div class="player-meta">
+          <span class="role-pill" style="border-color: #10B981; color: #10B981;">All-Rounder</span>
+          <span class="price">₹9L</span>
+        </div>
+        <div class="source-info">Source: 160x240 Official Asset</div>
+      </div>
+    </div>
+    
+    <div class="player-card" data-team="Bengal Warriorz" data-role="All-Rounder" data-tier="D">
+      <div class="card-img-wrap">
+        <img src="/images/pkl-players/k-083.webp" alt="Shivansh Thakur" loading="lazy" />
+        <span class="tier-badge tier-D">Tier D</span>
+        <span class="id-badge">k-083</span>
+      </div>
+      <div class="card-info">
+        <div class="player-name">Shivansh Thakur</div>
+        <div class="player-team">Bengal Warriorz</div>
+        <div class="player-meta">
+          <span class="role-pill" style="border-color: #10B981; color: #10B981;">All-Rounder</span>
+          <span class="price">₹9L</span>
+        </div>
+        <div class="source-info">Source: 160x240 Official Asset</div>
+      </div>
+    </div>
+    
+    <div class="player-card" data-team="U Mumba" data-role="Defender" data-tier="A">
+      <div class="card-img-wrap">
+        <img src="/images/pkl-players/k-084.webp" alt="Sunil Kumar" loading="lazy" />
+        <span class="tier-badge tier-A">Tier A</span>
+        <span class="id-badge">k-084</span>
+      </div>
+      <div class="card-info">
+        <div class="player-name">Sunil Kumar</div>
+        <div class="player-team">U Mumba</div>
+        <div class="player-meta">
+          <span class="role-pill" style="border-color: #3B82F6; color: #3B82F6;">Right Cover</span>
+          <span class="price">₹30L</span>
+        </div>
+        <div class="source-info">Source: 160x240 Official Asset</div>
+      </div>
+    </div>
+    
+    <div class="player-card" data-team="U Mumba" data-role="Defender" data-tier="D">
+      <div class="card-img-wrap">
+        <img src="/images/pkl-players/k-085.webp" alt="Parvesh Bhainswal" loading="lazy" />
+        <span class="tier-badge tier-D">Tier D</span>
+        <span class="id-badge">k-085</span>
+      </div>
+      <div class="card-info">
+        <div class="player-name">Parvesh Bhainswal</div>
+        <div class="player-team">U Mumba</div>
+        <div class="player-meta">
+          <span class="role-pill" style="border-color: #3B82F6; color: #3B82F6;">Left Cover</span>
+          <span class="price">₹9L</span>
+        </div>
+        <div class="source-info">Source: 160x240 Official Asset</div>
+      </div>
+    </div>
+    
+    <div class="player-card" data-team="U Mumba" data-role="Raider" data-tier="D">
+      <div class="card-img-wrap">
+        <img src="/images/pkl-players/k-086.webp" alt="Ajit Chouhan" loading="lazy" />
+        <span class="tier-badge tier-D">Tier D</span>
+        <span class="id-badge">k-086</span>
+      </div>
+      <div class="card-info">
+        <div class="player-name">Ajit Chouhan</div>
+        <div class="player-team">U Mumba</div>
+        <div class="player-meta">
+          <span class="role-pill" style="border-color: #F97316; color: #F97316;">Raider</span>
+          <span class="price">₹9L</span>
+        </div>
+        <div class="source-info">Source: 160x240 Official Asset</div>
+      </div>
+    </div>
+    
+    <div class="player-card" data-team="U Mumba" data-role="All-Rounder" data-tier="B">
+      <div class="card-img-wrap">
+        <img src="/images/pkl-players/k-087.webp" alt="Amirmohammad Zafardanesh" loading="lazy" />
+        <span class="tier-badge tier-B">Tier B</span>
+        <span class="id-badge">k-087</span>
+      </div>
+      <div class="card-info">
+        <div class="player-name">Amirmohammad Zafardanesh</div>
+        <div class="player-team">U Mumba</div>
+        <div class="player-meta">
+          <span class="role-pill" style="border-color: #10B981; color: #10B981;">All-Rounder</span>
+          <span class="price">₹20L</span>
+        </div>
+        <div class="source-info">Source: 160x240 Official Asset</div>
+      </div>
+    </div>
+    
+    <div class="player-card" data-team="U Mumba" data-role="Defender" data-tier="D">
+      <div class="card-img-wrap">
+        <img src="/images/pkl-players/k-088.webp" alt="Rinku" loading="lazy" />
+        <span class="tier-badge tier-D">Tier D</span>
+        <span class="id-badge">k-088</span>
+      </div>
+      <div class="card-info">
+        <div class="player-name">Rinku</div>
+        <div class="player-team">U Mumba</div>
+        <div class="player-meta">
+          <span class="role-pill" style="border-color: #3B82F6; color: #3B82F6;">Right Corner</span>
+          <span class="price">₹9L</span>
+        </div>
+        <div class="source-info">Source: 160x240 Official Asset</div>
+      </div>
+    </div>
+    
+    <div class="player-card" data-team="U Mumba" data-role="Defender" data-tier="D">
+      <div class="card-img-wrap">
+        <img src="/images/pkl-players/k-089.webp" alt="S Mukilan" loading="lazy" />
+        <span class="tier-badge tier-D">Tier D</span>
+        <span class="id-badge">k-089</span>
+      </div>
+      <div class="card-info">
+        <div class="player-name">S Mukilan</div>
+        <div class="player-team">U Mumba</div>
+        <div class="player-meta">
+          <span class="role-pill" style="border-color: #3B82F6; color: #3B82F6;">Left Corner</span>
+          <span class="price">₹9L</span>
+        </div>
+        <div class="source-info">Source: 160x240 Official Asset</div>
+      </div>
+    </div>
+    
+    <div class="player-card" data-team="U Mumba" data-role="Defender" data-tier="C">
+      <div class="card-img-wrap">
+        <img src="/images/pkl-players/k-090.webp" alt="Lokesh Ghosliya" loading="lazy" />
+        <span class="tier-badge tier-C">Tier C</span>
+        <span class="id-badge">k-090</span>
+      </div>
+      <div class="card-info">
+        <div class="player-name">Lokesh Ghosliya</div>
+        <div class="player-team">U Mumba</div>
+        <div class="player-meta">
+          <span class="role-pill" style="border-color: #3B82F6; color: #3B82F6;">Right Cover</span>
+          <span class="price">₹13L</span>
+        </div>
+        <div class="source-info">Source: 160x240 Official Asset</div>
+      </div>
+    </div>
+    
+    <div class="player-card" data-team="U Mumba" data-role="Raider" data-tier="D">
+      <div class="card-img-wrap">
+        <img src="/images/pkl-players/k-091.webp" alt="M Dhanasekar" loading="lazy" />
+        <span class="tier-badge tier-D">Tier D</span>
+        <span class="id-badge">k-091</span>
+      </div>
+      <div class="card-info">
+        <div class="player-name">M Dhanasekar</div>
+        <div class="player-team">U Mumba</div>
+        <div class="player-meta">
+          <span class="role-pill" style="border-color: #F97316; color: #F97316;">Raider</span>
+          <span class="price">₹9L</span>
+        </div>
+        <div class="source-info">Source: 328x473 Official Asset</div>
+      </div>
+    </div>
+    
+    <div class="player-card" data-team="U Mumba" data-role="Defender" data-tier="D">
+      <div class="card-img-wrap">
+        <img src="/images/pkl-players/k-092.webp" alt="Deepak Kundu" loading="lazy" />
+        <span class="tier-badge tier-D">Tier D</span>
+        <span class="id-badge">k-092</span>
+      </div>
+      <div class="card-info">
+        <div class="player-name">Deepak Kundu</div>
+        <div class="player-team">U Mumba</div>
+        <div class="player-meta">
+          <span class="role-pill" style="border-color: #3B82F6; color: #3B82F6;">Left Corner</span>
+          <span class="price">₹9L</span>
+        </div>
+        <div class="source-info">Source: 160x240 Official Asset</div>
+      </div>
+    </div>
+    
+    <div class="player-card" data-team="U Mumba" data-role="Raider" data-tier="C">
+      <div class="card-img-wrap">
+        <img src="/images/pkl-players/k-093.webp" alt="Sathish Kannan" loading="lazy" />
+        <span class="tier-badge tier-C">Tier C</span>
+        <span class="id-badge">k-093</span>
+      </div>
+      <div class="card-info">
+        <div class="player-name">Sathish Kannan</div>
+        <div class="player-team">U Mumba</div>
+        <div class="player-meta">
+          <span class="role-pill" style="border-color: #F97316; color: #F97316;">Raider</span>
+          <span class="price">₹13L</span>
+        </div>
+        <div class="source-info">Source: 160x240 Official Asset</div>
+      </div>
+    </div>
+    
+    <div class="player-card" data-team="U Mumba" data-role="Raider" data-tier="D">
+      <div class="card-img-wrap">
+        <img src="/images/pkl-players/k-094.webp" alt="Abhimanyu Raghuvanshi" loading="lazy" />
+        <span class="tier-badge tier-D">Tier D</span>
+        <span class="id-badge">k-094</span>
+      </div>
+      <div class="card-info">
+        <div class="player-name">Abhimanyu Raghuvanshi</div>
+        <div class="player-team">U Mumba</div>
+        <div class="player-meta">
+          <span class="role-pill" style="border-color: #F97316; color: #F97316;">Raider</span>
+          <span class="price">₹9L</span>
+        </div>
+        <div class="source-info">Source: 160x240 Official Asset</div>
+      </div>
+    </div>
+    
+    <div class="player-card" data-team="U Mumba" data-role="Raider" data-tier="B">
+      <div class="card-img-wrap">
+        <img src="/images/pkl-players/k-095.webp" alt="Sandeep" loading="lazy" />
+        <span class="tier-badge tier-B">Tier B</span>
+        <span class="id-badge">k-095</span>
+      </div>
+      <div class="card-info">
+        <div class="player-name">Sandeep</div>
+        <div class="player-team">U Mumba</div>
+        <div class="player-meta">
+          <span class="role-pill" style="border-color: #F97316; color: #F97316;">Raider</span>
+          <span class="price">₹20L</span>
+        </div>
+        <div class="source-info">Source: 160x240 Official Asset</div>
+      </div>
+    </div>
+    
+    <div class="player-card" data-team="U Mumba" data-role="Defender" data-tier="C">
+      <div class="card-img-wrap">
+        <img src="/images/pkl-players/k-096.webp" alt="Ravi" loading="lazy" />
+        <span class="tier-badge tier-C">Tier C</span>
+        <span class="id-badge">k-096</span>
+      </div>
+      <div class="card-info">
+        <div class="player-name">Ravi</div>
+        <div class="player-team">U Mumba</div>
+        <div class="player-meta">
+          <span class="role-pill" style="border-color: #3B82F6; color: #3B82F6;">Right Corner</span>
+          <span class="price">₹13L</span>
+        </div>
+        <div class="source-info">Source: 160x240 Official Asset</div>
+      </div>
+    </div>
+    
+    <div class="player-card" data-team="U Mumba" data-role="Defender" data-tier="D">
+      <div class="card-img-wrap">
+        <img src="/images/pkl-players/k-097.webp" alt="Vijay Kumar" loading="lazy" />
+        <span class="tier-badge tier-D">Tier D</span>
+        <span class="id-badge">k-097</span>
+      </div>
+      <div class="card-info">
+        <div class="player-name">Vijay Kumar</div>
+        <div class="player-team">U Mumba</div>
+        <div class="player-meta">
+          <span class="role-pill" style="border-color: #3B82F6; color: #3B82F6;">Left Corner</span>
+          <span class="price">₹9L</span>
+        </div>
+        <div class="source-info">Source: 160x240 Official Asset</div>
+      </div>
+    </div>
+    
+    <div class="player-card" data-team="U Mumba" data-role="All-Rounder" data-tier="D">
+      <div class="card-img-wrap">
+        <img src="/images/pkl-players/k-098.webp" alt="Amarjeet Yadav" loading="lazy" />
+        <span class="tier-badge tier-D">Tier D</span>
+        <span class="id-badge">k-098</span>
+      </div>
+      <div class="card-info">
+        <div class="player-name">Amarjeet Yadav</div>
+        <div class="player-team">U Mumba</div>
+        <div class="player-meta">
+          <span class="role-pill" style="border-color: #10B981; color: #10B981;">All-Rounder</span>
+          <span class="price">₹9L</span>
+        </div>
+        <div class="source-info">Source: 160x240 Official Asset</div>
+      </div>
+    </div>
+    
+    <div class="player-card" data-team="U Mumba" data-role="All-Rounder" data-tier="C">
+      <div class="card-img-wrap">
+        <img src="/images/pkl-players/k-099.webp" alt="Anil" loading="lazy" />
+        <span class="tier-badge tier-C">Tier C</span>
+        <span class="id-badge">k-099</span>
+      </div>
+      <div class="card-info">
+        <div class="player-name">Anil</div>
+        <div class="player-team">U Mumba</div>
+        <div class="player-meta">
+          <span class="role-pill" style="border-color: #10B981; color: #10B981;">All-Rounder</span>
+          <span class="price">₹13L</span>
+        </div>
+        <div class="source-info">Source: 160x240 Official Asset</div>
+      </div>
+    </div>
+    
+    <div class="player-card" data-team="U Mumba" data-role="All-Rounder" data-tier="B">
+      <div class="card-img-wrap">
+        <img src="/images/pkl-players/k-100.webp" alt="Mohammad Ghorbani" loading="lazy" />
+        <span class="tier-badge tier-B">Tier B</span>
+        <span class="id-badge">k-100</span>
+      </div>
+      <div class="card-info">
+        <div class="player-name">Mohammad Ghorbani</div>
+        <div class="player-team">U Mumba</div>
+        <div class="player-meta">
+          <span class="role-pill" style="border-color: #10B981; color: #10B981;">All-Rounder</span>
+          <span class="price">₹20L</span>
+        </div>
+        <div class="source-info">Source: 160x240 Official Asset</div>
+      </div>
+    </div>
+    
+    <div class="player-card" data-team="U Mumba" data-role="All-Rounder" data-tier="D">
+      <div class="card-img-wrap">
+        <img src="/images/pkl-players/k-101.webp" alt="Sachin Narwal" loading="lazy" />
+        <span class="tier-badge tier-D">Tier D</span>
+        <span class="id-badge">k-101</span>
+      </div>
+      <div class="card-info">
+        <div class="player-name">Sachin Narwal</div>
+        <div class="player-team">U Mumba</div>
+        <div class="player-meta">
+          <span class="role-pill" style="border-color: #10B981; color: #10B981;">All-Rounder</span>
+          <span class="price">₹9L</span>
+        </div>
+        <div class="source-info">Source: 328x473 Official Asset</div>
+      </div>
+    </div>
+    
+    <div class="player-card" data-team="Patna Pirates" data-role="All-Rounder" data-tier="C">
+      <div class="card-img-wrap">
+        <img src="/images/pkl-players/k-102.webp" alt="Ankit" loading="lazy" />
+        <span class="tier-badge tier-C">Tier C</span>
+        <span class="id-badge">k-102</span>
+      </div>
+      <div class="card-info">
+        <div class="player-name">Ankit</div>
+        <div class="player-team">Patna Pirates</div>
+        <div class="player-meta">
+          <span class="role-pill" style="border-color: #10B981; color: #10B981;">All-Rounder</span>
+          <span class="price">₹13L</span>
+        </div>
+        <div class="source-info">Source: 160x240 Official Asset</div>
+      </div>
+    </div>
+    
+    <div class="player-card" data-team="Patna Pirates" data-role="Raider" data-tier="D">
+      <div class="card-img-wrap">
+        <img src="/images/pkl-players/k-103.webp" alt="Ayan" loading="lazy" />
+        <span class="tier-badge tier-D">Tier D</span>
+        <span class="id-badge">k-103</span>
+      </div>
+      <div class="card-info">
+        <div class="player-name">Ayan</div>
+        <div class="player-team">Patna Pirates</div>
+        <div class="player-meta">
+          <span class="role-pill" style="border-color: #F97316; color: #F97316;">Raider</span>
+          <span class="price">₹9L</span>
+        </div>
+        <div class="source-info">Source: 160x240 Official Asset</div>
+      </div>
+    </div>
+    
+    <div class="player-card" data-team="Patna Pirates" data-role="Raider" data-tier="A">
+      <div class="card-img-wrap">
+        <img src="/images/pkl-players/k-104.webp" alt="Maninder Singh" loading="lazy" />
+        <span class="tier-badge tier-A">Tier A</span>
+        <span class="id-badge">k-104</span>
+      </div>
+      <div class="card-info">
+        <div class="player-name">Maninder Singh</div>
+        <div class="player-team">Patna Pirates</div>
+        <div class="player-meta">
+          <span class="role-pill" style="border-color: #F97316; color: #F97316;">Raider</span>
+          <span class="price">₹30L</span>
+        </div>
+        <div class="source-info">Source: 160x240 Official Asset</div>
+      </div>
+    </div>
+    
+    <div class="player-card" data-team="Patna Pirates" data-role="Defender" data-tier="C">
+      <div class="card-img-wrap">
+        <img src="/images/pkl-players/k-105.webp" alt="Deepak" loading="lazy" />
+        <span class="tier-badge tier-C">Tier C</span>
+        <span class="id-badge">k-105</span>
+      </div>
+      <div class="card-info">
+        <div class="player-name">Deepak</div>
+        <div class="player-team">Patna Pirates</div>
+        <div class="player-meta">
+          <span class="role-pill" style="border-color: #3B82F6; color: #3B82F6;">Left Cover</span>
+          <span class="price">₹13L</span>
+        </div>
+        <div class="source-info">Source: 160x240 Official Asset</div>
+      </div>
+    </div>
+    
+    <div class="player-card" data-team="Patna Pirates" data-role="Defender" data-tier="D">
+      <div class="card-img-wrap">
+        <img src="/images/pkl-players/k-106.webp" alt="Navdeep" loading="lazy" />
+        <span class="tier-badge tier-D">Tier D</span>
+        <span class="id-badge">k-106</span>
+      </div>
+      <div class="card-info">
+        <div class="player-name">Navdeep</div>
+        <div class="player-team">Patna Pirates</div>
+        <div class="player-meta">
+          <span class="role-pill" style="border-color: #3B82F6; color: #3B82F6;">Right Cover</span>
+          <span class="price">₹9L</span>
+        </div>
+        <div class="source-info">Source: 160x240 Official Asset</div>
+      </div>
+    </div>
+    
+    <div class="player-card" data-team="Patna Pirates" data-role="Raider" data-tier="D">
+      <div class="card-img-wrap">
+        <img src="/images/pkl-players/k-107.webp" alt="Sudhakar M" loading="lazy" />
+        <span class="tier-badge tier-D">Tier D</span>
+        <span class="id-badge">k-107</span>
+      </div>
+      <div class="card-info">
+        <div class="player-name">Sudhakar M</div>
+        <div class="player-team">Patna Pirates</div>
+        <div class="player-meta">
+          <span class="role-pill" style="border-color: #F97316; color: #F97316;">Raider</span>
+          <span class="price">₹9L</span>
+        </div>
+        <div class="source-info">Source: 160x240 Official Asset</div>
+      </div>
+    </div>
+    
+    <div class="player-card" data-team="Patna Pirates" data-role="Raider" data-tier="C">
+      <div class="card-img-wrap">
+        <img src="/images/pkl-players/k-108.webp" alt="Deepak Jaglan" loading="lazy" />
+        <span class="tier-badge tier-C">Tier C</span>
+        <span class="id-badge">k-108</span>
+      </div>
+      <div class="card-info">
+        <div class="player-name">Deepak Jaglan</div>
+        <div class="player-team">Patna Pirates</div>
+        <div class="player-meta">
+          <span class="role-pill" style="border-color: #F97316; color: #F97316;">Raider</span>
+          <span class="price">₹13L</span>
+        </div>
+        <div class="source-info">Source: 160x240 Official Asset</div>
+      </div>
+    </div>
+    
+    <div class="player-card" data-team="Patna Pirates" data-role="Defender" data-tier="C">
+      <div class="card-img-wrap">
+        <img src="/images/pkl-players/k-109.webp" alt="Hamid Mirzaeinader" loading="lazy" />
+        <span class="tier-badge tier-C">Tier C</span>
+        <span class="id-badge">k-109</span>
+      </div>
+      <div class="card-info">
+        <div class="player-name">Hamid Mirzaeinader</div>
+        <div class="player-team">Patna Pirates</div>
+        <div class="player-meta">
+          <span class="role-pill" style="border-color: #3B82F6; color: #3B82F6;">Left Corner</span>
+          <span class="price">₹13L</span>
+        </div>
+        <div class="source-info">Source: 160x240 Official Asset</div>
+      </div>
+    </div>
+    
+    <div class="player-card" data-team="Patna Pirates" data-role="Defender" data-tier="D">
+      <div class="card-img-wrap">
+        <img src="/images/pkl-players/k-110.webp" alt="Sanket Sawant" loading="lazy" />
+        <span class="tier-badge tier-D">Tier D</span>
+        <span class="id-badge">k-110</span>
+      </div>
+      <div class="card-info">
+        <div class="player-name">Sanket Sawant</div>
+        <div class="player-team">Patna Pirates</div>
+        <div class="player-meta">
+          <span class="role-pill" style="border-color: #3B82F6; color: #3B82F6;">Right Cover</span>
+          <span class="price">₹9L</span>
+        </div>
+        <div class="source-info">Source: 160x240 Official Asset</div>
+      </div>
+    </div>
+    
+    <div class="player-card" data-team="Patna Pirates" data-role="Defender" data-tier="C">
+      <div class="card-img-wrap">
+        <img src="/images/pkl-players/k-111.webp" alt="Sombir" loading="lazy" />
+        <span class="tier-badge tier-C">Tier C</span>
+        <span class="id-badge">k-111</span>
+      </div>
+      <div class="card-info">
+        <div class="player-name">Sombir</div>
+        <div class="player-team">Patna Pirates</div>
+        <div class="player-meta">
+          <span class="role-pill" style="border-color: #3B82F6; color: #3B82F6;">Right Corner</span>
+          <span class="price">₹13L</span>
+        </div>
+        <div class="source-info">Source: 160x240 Official Asset</div>
+      </div>
+    </div>
+    
+    <div class="player-card" data-team="Patna Pirates" data-role="Defender" data-tier="B">
+      <div class="card-img-wrap">
+        <img src="/images/pkl-players/k-112.webp" alt="Amin Ghorbani" loading="lazy" />
+        <span class="tier-badge tier-B">Tier B</span>
+        <span class="id-badge">k-112</span>
+      </div>
+      <div class="card-info">
+        <div class="player-name">Amin Ghorbani</div>
+        <div class="player-team">Patna Pirates</div>
+        <div class="player-meta">
+          <span class="role-pill" style="border-color: #3B82F6; color: #3B82F6;">Right Corner</span>
+          <span class="price">₹20L</span>
+        </div>
+        <div class="source-info">Source: 160x240 Official Asset</div>
+      </div>
+    </div>
+    
+    <div class="player-card" data-team="Patna Pirates" data-role="Raider" data-tier="D">
+      <div class="card-img-wrap">
+        <img src="/images/pkl-players/k-113.webp" alt="Ankit Kumar Rana" loading="lazy" />
+        <span class="tier-badge tier-D">Tier D</span>
+        <span class="id-badge">k-113</span>
+      </div>
+      <div class="card-info">
+        <div class="player-name">Ankit Kumar Rana</div>
+        <div class="player-team">Patna Pirates</div>
+        <div class="player-meta">
+          <span class="role-pill" style="border-color: #F97316; color: #F97316;">Raider</span>
+          <span class="price">₹9L</span>
+        </div>
+        <div class="source-info">Source: 160x240 Official Asset</div>
+      </div>
+    </div>
+    
+    <div class="player-card" data-team="Patna Pirates" data-role="Raider" data-tier="C">
+      <div class="card-img-wrap">
+        <img src="/images/pkl-players/k-114.webp" alt="Mandeep Kumar" loading="lazy" />
+        <span class="tier-badge tier-C">Tier C</span>
+        <span class="id-badge">k-114</span>
+      </div>
+      <div class="card-info">
+        <div class="player-name">Mandeep Kumar</div>
+        <div class="player-team">Patna Pirates</div>
+        <div class="player-meta">
+          <span class="role-pill" style="border-color: #F97316; color: #F97316;">Raider</span>
+          <span class="price">₹13L</span>
+        </div>
+        <div class="source-info">Source: 160x240 Official Asset</div>
+      </div>
+    </div>
+    
+    <div class="player-card" data-team="Patna Pirates" data-role="Raider" data-tier="D">
+      <div class="card-img-wrap">
+        <img src="/images/pkl-players/k-115.webp" alt="Milan Dahiya" loading="lazy" />
+        <span class="tier-badge tier-D">Tier D</span>
+        <span class="id-badge">k-115</span>
+      </div>
+      <div class="card-info">
+        <div class="player-name">Milan Dahiya</div>
+        <div class="player-team">Patna Pirates</div>
+        <div class="player-meta">
+          <span class="role-pill" style="border-color: #F97316; color: #F97316;">Raider</span>
+          <span class="price">₹9L</span>
+        </div>
+        <div class="source-info">Source: 160x240 Official Asset</div>
+      </div>
+    </div>
+    
+    <div class="player-card" data-team="Patna Pirates" data-role="Raider" data-tier="D">
+      <div class="card-img-wrap">
+        <img src="/images/pkl-players/k-116.webp" alt="Sahil Patil" loading="lazy" />
+        <span class="tier-badge tier-D">Tier D</span>
+        <span class="id-badge">k-116</span>
+      </div>
+      <div class="card-info">
+        <div class="player-name">Sahil Patil</div>
+        <div class="player-team">Patna Pirates</div>
+        <div class="player-meta">
+          <span class="role-pill" style="border-color: #F97316; color: #F97316;">Raider</span>
+          <span class="price">₹9L</span>
+        </div>
+        <div class="source-info">Source: 160x240 Official Asset</div>
+      </div>
+    </div>
+    
+    <div class="player-card" data-team="Patna Pirates" data-role="Defender" data-tier="C">
+      <div class="card-img-wrap">
+        <img src="/images/pkl-players/k-117.webp" alt="Vaibhav Garje" loading="lazy" />
+        <span class="tier-badge tier-C">Tier C</span>
+        <span class="id-badge">k-117</span>
+      </div>
+      <div class="card-info">
+        <div class="player-name">Vaibhav Garje</div>
+        <div class="player-team">Patna Pirates</div>
+        <div class="player-meta">
+          <span class="role-pill" style="border-color: #3B82F6; color: #3B82F6;">Right Cover</span>
+          <span class="price">₹13L</span>
+        </div>
+        <div class="source-info">Source: 328x473 Official Asset</div>
+      </div>
+    </div>
+    
+    <div class="player-card" data-team="Patna Pirates" data-role="Defender" data-tier="D">
+      <div class="card-img-wrap">
+        <img src="/images/pkl-players/k-118.webp" alt="Ashish Birwal" loading="lazy" />
+        <span class="tier-badge tier-D">Tier D</span>
+        <span class="id-badge">k-118</span>
+      </div>
+      <div class="card-info">
+        <div class="player-name">Ashish Birwal</div>
+        <div class="player-team">Patna Pirates</div>
+        <div class="player-meta">
+          <span class="role-pill" style="border-color: #3B82F6; color: #3B82F6;">Left Cover</span>
+          <span class="price">₹9L</span>
+        </div>
+        <div class="source-info">Source: 160x240 Official Asset</div>
+      </div>
+    </div>
+    
+    <div class="player-card" data-team="Patna Pirates" data-role="Defender" data-tier="D">
+      <div class="card-img-wrap">
+        <img src="/images/pkl-players/k-119.webp" alt="Balaji D" loading="lazy" />
+        <span class="tier-badge tier-D">Tier D</span>
+        <span class="id-badge">k-119</span>
+      </div>
+      <div class="card-info">
+        <div class="player-name">Balaji D</div>
+        <div class="player-team">Patna Pirates</div>
+        <div class="player-meta">
+          <span class="role-pill" style="border-color: #3B82F6; color: #3B82F6;">Left Cover</span>
+          <span class="price">₹9L</span>
+        </div>
+        <div class="source-info">Source: 160x240 Official Asset</div>
+      </div>
+    </div>
+    
+    <div class="player-card" data-team="Patna Pirates" data-role="Defender" data-tier="C">
+      <div class="card-img-wrap">
+        <img src="/images/pkl-players/k-120.webp" alt="Saurabh Narwal" loading="lazy" />
+        <span class="tier-badge tier-C">Tier C</span>
+        <span class="id-badge">k-120</span>
+      </div>
+      <div class="card-info">
+        <div class="player-name">Saurabh Narwal</div>
+        <div class="player-team">Patna Pirates</div>
+        <div class="player-meta">
+          <span class="role-pill" style="border-color: #3B82F6; color: #3B82F6;">Right Corner</span>
+          <span class="price">₹13L</span>
+        </div>
+        <div class="source-info">Source: 328x473 Official Asset</div>
+      </div>
+    </div>
+    
+    <div class="player-card" data-team="Puneri Paltan" data-role="All-Rounder" data-tier="A">
+      <div class="card-img-wrap">
+        <img src="/images/pkl-players/k-121.webp" alt="Aslam Inamdar" loading="lazy" />
+        <span class="tier-badge tier-A">Tier A</span>
+        <span class="id-badge">k-121</span>
+      </div>
+      <div class="card-info">
+        <div class="player-name">Aslam Inamdar</div>
+        <div class="player-team">Puneri Paltan</div>
+        <div class="player-meta">
+          <span class="role-pill" style="border-color: #10B981; color: #10B981;">All-Rounder</span>
+          <span class="price">₹30L</span>
+        </div>
+        <div class="source-info">Source: 160x240 Official Asset</div>
+      </div>
+    </div>
+    
+    <div class="player-card" data-team="Puneri Paltan" data-role="Raider" data-tier="D">
+      <div class="card-img-wrap">
+        <img src="/images/pkl-players/k-122.webp" alt="Pankaj Mohite" loading="lazy" />
+        <span class="tier-badge tier-D">Tier D</span>
+        <span class="id-badge">k-122</span>
+      </div>
+      <div class="card-info">
+        <div class="player-name">Pankaj Mohite</div>
+        <div class="player-team">Puneri Paltan</div>
+        <div class="player-meta">
+          <span class="role-pill" style="border-color: #F97316; color: #F97316;">Raider</span>
+          <span class="price">₹9L</span>
+        </div>
+        <div class="source-info">Source: 160x240 Official Asset</div>
+      </div>
+    </div>
+    
+    <div class="player-card" data-team="Puneri Paltan" data-role="Defender" data-tier="C">
+      <div class="card-img-wrap">
+        <img src="/images/pkl-players/k-123.webp" alt="Gaurav Khatri" loading="lazy" />
+        <span class="tier-badge tier-C">Tier C</span>
+        <span class="id-badge">k-123</span>
+      </div>
+      <div class="card-info">
+        <div class="player-name">Gaurav Khatri</div>
+        <div class="player-team">Puneri Paltan</div>
+        <div class="player-meta">
+          <span class="role-pill" style="border-color: #3B82F6; color: #3B82F6;">Right Corner</span>
+          <span class="price">₹13L</span>
+        </div>
+        <div class="source-info">Source: 160x240 Official Asset</div>
+      </div>
+    </div>
+    
+    <div class="player-card" data-team="Puneri Paltan" data-role="Raider" data-tier="A">
+      <div class="card-img-wrap">
+        <img src="/images/pkl-players/k-124.webp" alt="Sachin" loading="lazy" />
+        <span class="tier-badge tier-A">Tier A</span>
+        <span class="id-badge">k-124</span>
+      </div>
+      <div class="card-info">
+        <div class="player-name">Sachin</div>
+        <div class="player-team">Puneri Paltan</div>
+        <div class="player-meta">
+          <span class="role-pill" style="border-color: #F97316; color: #F97316;">Raider</span>
+          <span class="price">₹30L</span>
+        </div>
+        <div class="source-info">Source: 160x240 Official Asset</div>
+      </div>
+    </div>
+    
+    <div class="player-card" data-team="Puneri Paltan" data-role="Raider" data-tier="A">
+      <div class="card-img-wrap">
+        <img src="/images/pkl-players/k-125.webp" alt="Mohit Goyat" loading="lazy" />
+        <span class="tier-badge tier-A">Tier A</span>
+        <span class="id-badge">k-125</span>
+      </div>
+      <div class="card-info">
+        <div class="player-name">Mohit Goyat</div>
+        <div class="player-team">Puneri Paltan</div>
+        <div class="player-meta">
+          <span class="role-pill" style="border-color: #F97316; color: #F97316;">Raider</span>
+          <span class="price">₹30L</span>
+        </div>
+        <div class="source-info">Source: 160x240 Official Asset</div>
+      </div>
+    </div>
+    
+    <div class="player-card" data-team="Puneri Paltan" data-role="Defender" data-tier="C">
+      <div class="card-img-wrap">
+        <img src="/images/pkl-players/k-126.webp" alt="Abinesh Nadarajan" loading="lazy" />
+        <span class="tier-badge tier-C">Tier C</span>
+        <span class="id-badge">k-126</span>
+      </div>
+      <div class="card-info">
+        <div class="player-name">Abinesh Nadarajan</div>
+        <div class="player-team">Puneri Paltan</div>
+        <div class="player-meta">
+          <span class="role-pill" style="border-color: #3B82F6; color: #3B82F6;">Right Cover</span>
+          <span class="price">₹13L</span>
+        </div>
+        <div class="source-info">Source: 160x240 Official Asset</div>
+      </div>
+    </div>
+    
+    <div class="player-card" data-team="Puneri Paltan" data-role="Defender" data-tier="D">
+      <div class="card-img-wrap">
+        <img src="/images/pkl-players/k-127.webp" alt="Mohd Amaan" loading="lazy" />
+        <span class="tier-badge tier-D">Tier D</span>
+        <span class="id-badge">k-127</span>
+      </div>
+      <div class="card-info">
+        <div class="player-name">Mohd Amaan</div>
+        <div class="player-team">Puneri Paltan</div>
+        <div class="player-meta">
+          <span class="role-pill" style="border-color: #3B82F6; color: #3B82F6;">Left Cover</span>
+          <span class="price">₹9L</span>
+        </div>
+        <div class="source-info">Source: 160x240 Official Asset</div>
+      </div>
+    </div>
+    
+    <div class="player-card" data-team="Puneri Paltan" data-role="Defender" data-tier="D">
+      <div class="card-img-wrap">
+        <img src="/images/pkl-players/k-128.webp" alt="Dadaso Pujari" loading="lazy" />
+        <span class="tier-badge tier-D">Tier D</span>
+        <span class="id-badge">k-128</span>
+      </div>
+      <div class="card-info">
+        <div class="player-name">Dadaso Pujari</div>
+        <div class="player-team">Puneri Paltan</div>
+        <div class="player-meta">
+          <span class="role-pill" style="border-color: #3B82F6; color: #3B82F6;">Right Corner</span>
+          <span class="price">₹9L</span>
+        </div>
+        <div class="source-info">Source: 160x240 Official Asset</div>
+      </div>
+    </div>
+    
+    <div class="player-card" data-team="Puneri Paltan" data-role="Raider" data-tier="C">
+      <div class="card-img-wrap">
+        <img src="/images/pkl-players/k-129.webp" alt="Aditya Shinde" loading="lazy" />
+        <span class="tier-badge tier-C">Tier C</span>
+        <span class="id-badge">k-129</span>
+      </div>
+      <div class="card-info">
+        <div class="player-name">Aditya Shinde</div>
+        <div class="player-team">Puneri Paltan</div>
+        <div class="player-meta">
+          <span class="role-pill" style="border-color: #F97316; color: #F97316;">Raider</span>
+          <span class="price">₹13L</span>
+        </div>
+        <div class="source-info">Source: 160x240 Official Asset</div>
+      </div>
+    </div>
+    
+    <div class="player-card" data-team="Puneri Paltan" data-role="Raider" data-tier="B">
+      <div class="card-img-wrap">
+        <img src="/images/pkl-players/k-130.webp" alt="Mohammad Nabibakhsh" loading="lazy" />
+        <span class="tier-badge tier-B">Tier B</span>
+        <span class="id-badge">k-130</span>
+      </div>
+      <div class="card-info">
+        <div class="player-name">Mohammad Nabibakhsh</div>
+        <div class="player-team">Puneri Paltan</div>
+        <div class="player-meta">
+          <span class="role-pill" style="border-color: #F97316; color: #F97316;">Raider</span>
+          <span class="price">₹20L</span>
+        </div>
+        <div class="source-info">Source: 160x240 Official Asset</div>
+      </div>
+    </div>
+    
+    <div class="player-card" data-team="Puneri Paltan" data-role="Defender" data-tier="D">
+      <div class="card-img-wrap">
+        <img src="/images/pkl-players/k-131.webp" alt="Vishal Bhardwaj" loading="lazy" />
+        <span class="tier-badge tier-D">Tier D</span>
+        <span class="id-badge">k-131</span>
+      </div>
+      <div class="card-info">
+        <div class="player-name">Vishal Bhardwaj</div>
+        <div class="player-team">Puneri Paltan</div>
+        <div class="player-meta">
+          <span class="role-pill" style="border-color: #3B82F6; color: #3B82F6;">Left Cover</span>
+          <span class="price">₹9L</span>
+        </div>
+        <div class="source-info">Source: 160x240 Official Asset</div>
+      </div>
+    </div>
+    
+    <div class="player-card" data-team="Puneri Paltan" data-role="Raider" data-tier="C">
+      <div class="card-img-wrap">
+        <img src="/images/pkl-players/k-132.webp" alt="Stuwart Singh" loading="lazy" />
+        <span class="tier-badge tier-C">Tier C</span>
+        <span class="id-badge">k-132</span>
+      </div>
+      <div class="card-info">
+        <div class="player-name">Stuwart Singh</div>
+        <div class="player-team">Puneri Paltan</div>
+        <div class="player-meta">
+          <span class="role-pill" style="border-color: #F97316; color: #F97316;">Raider</span>
+          <span class="price">₹13L</span>
+        </div>
+        <div class="source-info">Source: 160x240 Official Asset</div>
+      </div>
+    </div>
+    
+    <div class="player-card" data-team="Puneri Paltan" data-role="Raider" data-tier="D">
+      <div class="card-img-wrap">
+        <img src="/images/pkl-players/k-133.webp" alt="Abhishek Gunge" loading="lazy" />
+        <span class="tier-badge tier-D">Tier D</span>
+        <span class="id-badge">k-133</span>
+      </div>
+      <div class="card-info">
+        <div class="player-name">Abhishek Gunge</div>
+        <div class="player-team">Puneri Paltan</div>
+        <div class="player-meta">
+          <span class="role-pill" style="border-color: #F97316; color: #F97316;">Raider</span>
+          <span class="price">₹9L</span>
+        </div>
+        <div class="source-info">Source: 160x240 Official Asset</div>
+      </div>
+    </div>
+    
+    <div class="player-card" data-team="Puneri Paltan" data-role="Raider" data-tier="B">
+      <div class="card-img-wrap">
+        <img src="/images/pkl-players/k-134.webp" alt="Milad Mohajer" loading="lazy" />
+        <span class="tier-badge tier-B">Tier B</span>
+        <span class="id-badge">k-134</span>
+      </div>
+      <div class="card-info">
+        <div class="player-name">Milad Mohajer</div>
+        <div class="player-team">Puneri Paltan</div>
+        <div class="player-meta">
+          <span class="role-pill" style="border-color: #F97316; color: #F97316;">Raider</span>
+          <span class="price">₹20L</span>
+        </div>
+        <div class="source-info">Source: 160x240 Official Asset</div>
+      </div>
+    </div>
+    
+    <div class="player-card" data-team="Puneri Paltan" data-role="Defender" data-tier="B">
+      <div class="card-img-wrap">
+        <img src="/images/pkl-players/k-135.webp" alt="Rakesh" loading="lazy" />
+        <span class="tier-badge tier-B">Tier B</span>
+        <span class="id-badge">k-135</span>
+      </div>
+      <div class="card-info">
+        <div class="player-name">Rakesh</div>
+        <div class="player-team">Puneri Paltan</div>
+        <div class="player-meta">
+          <span class="role-pill" style="border-color: #3B82F6; color: #3B82F6;">Left Cover</span>
+          <span class="price">₹20L</span>
+        </div>
+        <div class="source-info">Source: 160x240 Official Asset</div>
+      </div>
+    </div>
+    
+    <div class="player-card" data-team="Puneri Paltan" data-role="Defender" data-tier="D">
+      <div class="card-img-wrap">
+        <img src="/images/pkl-players/k-136.webp" alt="Rohan Tupare" loading="lazy" />
+        <span class="tier-badge tier-D">Tier D</span>
+        <span class="id-badge">k-136</span>
+      </div>
+      <div class="card-info">
+        <div class="player-name">Rohan Tupare</div>
+        <div class="player-team">Puneri Paltan</div>
+        <div class="player-meta">
+          <span class="role-pill" style="border-color: #3B82F6; color: #3B82F6;">Right Corner</span>
+          <span class="price">₹9L</span>
+        </div>
+        <div class="source-info">Source: 160x240 Official Asset</div>
+      </div>
+    </div>
+    
+    <div class="player-card" data-team="Puneri Paltan" data-role="Defender" data-tier="D">
+      <div class="card-img-wrap">
+        <img src="/images/pkl-players/k-137.webp" alt="Sanjay Enania" loading="lazy" />
+        <span class="tier-badge tier-D">Tier D</span>
+        <span class="id-badge">k-137</span>
+      </div>
+      <div class="card-info">
+        <div class="player-name">Sanjay Enania</div>
+        <div class="player-team">Puneri Paltan</div>
+        <div class="player-meta">
+          <span class="role-pill" style="border-color: #3B82F6; color: #3B82F6;">Right Cover</span>
+          <span class="price">₹9L</span>
+        </div>
+        <div class="source-info">Source: 160x240 Official Asset</div>
+      </div>
+    </div>
+    
+    <div class="player-card" data-team="Puneri Paltan" data-role="Defender" data-tier="C">
+      <div class="card-img-wrap">
+        <img src="/images/pkl-players/k-138.webp" alt="Vaibhav Rabade" loading="lazy" />
+        <span class="tier-badge tier-C">Tier C</span>
+        <span class="id-badge">k-138</span>
+      </div>
+      <div class="card-info">
+        <div class="player-name">Vaibhav Rabade</div>
+        <div class="player-team">Puneri Paltan</div>
+        <div class="player-meta">
+          <span class="role-pill" style="border-color: #3B82F6; color: #3B82F6;">Right Cover</span>
+          <span class="price">₹13L</span>
+        </div>
+        <div class="source-info">Source: 160x240 Official Asset</div>
+      </div>
+    </div>
+    
+    <div class="player-card" data-team="Puneri Paltan" data-role="All-Rounder" data-tier="D">
+      <div class="card-img-wrap">
+        <img src="/images/pkl-players/k-139.webp" alt="Gurdeep" loading="lazy" />
+        <span class="tier-badge tier-D">Tier D</span>
+        <span class="id-badge">k-139</span>
+      </div>
+      <div class="card-info">
+        <div class="player-name">Gurdeep</div>
+        <div class="player-team">Puneri Paltan</div>
+        <div class="player-meta">
+          <span class="role-pill" style="border-color: #10B981; color: #10B981;">All-Rounder</span>
+          <span class="price">₹9L</span>
+        </div>
+        <div class="source-info">Source: 160x240 Official Asset</div>
+      </div>
+    </div>
+    
+    <div class="player-card" data-team="Telugu Titans" data-role="All-Rounder" data-tier="B">
+      <div class="card-img-wrap">
+        <img src="/images/pkl-players/k-140.webp" alt="Vijay Malik" loading="lazy" />
+        <span class="tier-badge tier-B">Tier B</span>
+        <span class="id-badge">k-140</span>
+      </div>
+      <div class="card-info">
+        <div class="player-name">Vijay Malik</div>
+        <div class="player-team">Telugu Titans</div>
+        <div class="player-meta">
+          <span class="role-pill" style="border-color: #10B981; color: #10B981;">All-Rounder</span>
+          <span class="price">₹20L</span>
+        </div>
+        <div class="source-info">Source: 160x240 Official Asset</div>
+      </div>
+    </div>
+    
+    <div class="player-card" data-team="Telugu Titans" data-role="Defender" data-tier="C">
+      <div class="card-img-wrap">
+        <img src="/images/pkl-players/k-141.webp" alt="Ajit Pawar" loading="lazy" />
+        <span class="tier-badge tier-C">Tier C</span>
+        <span class="id-badge">k-141</span>
+      </div>
+      <div class="card-info">
+        <div class="player-name">Ajit Pawar</div>
+        <div class="player-team">Telugu Titans</div>
+        <div class="player-meta">
+          <span class="role-pill" style="border-color: #3B82F6; color: #3B82F6;">Left Corner</span>
+          <span class="price">₹13L</span>
+        </div>
+        <div class="source-info">Source: 160x240 Official Asset</div>
+      </div>
+    </div>
+    
+    <div class="player-card" data-team="Telugu Titans" data-role="Defender" data-tier="D">
+      <div class="card-img-wrap">
+        <img src="/images/pkl-players/k-142.webp" alt="Shubham Shinde" loading="lazy" />
+        <span class="tier-badge tier-D">Tier D</span>
+        <span class="id-badge">k-142</span>
+      </div>
+      <div class="card-info">
+        <div class="player-name">Shubham Shinde</div>
+        <div class="player-team">Telugu Titans</div>
+        <div class="player-meta">
+          <span class="role-pill" style="border-color: #3B82F6; color: #3B82F6;">Right Cover</span>
+          <span class="price">₹9L</span>
+        </div>
+        <div class="source-info">Source: 160x240 Official Asset</div>
+      </div>
+    </div>
+    
+    <div class="player-card" data-team="Telugu Titans" data-role="All-Rounder" data-tier="D">
+      <div class="card-img-wrap">
+        <img src="/images/pkl-players/k-143.webp" alt="Bharat" loading="lazy" />
+        <span class="tier-badge tier-D">Tier D</span>
+        <span class="id-badge">k-143</span>
+      </div>
+      <div class="card-info">
+        <div class="player-name">Bharat</div>
+        <div class="player-team">Telugu Titans</div>
+        <div class="player-meta">
+          <span class="role-pill" style="border-color: #10B981; color: #10B981;">All-Rounder</span>
+          <span class="price">₹9L</span>
+        </div>
+        <div class="source-info">Source: 160x240 Official Asset</div>
+      </div>
+    </div>
+    
+    <div class="player-card" data-team="Telugu Titans" data-role="Raider" data-tier="C">
+      <div class="card-img-wrap">
+        <img src="/images/pkl-players/k-144.webp" alt="Ashish Narwal" loading="lazy" />
+        <span class="tier-badge tier-C">Tier C</span>
+        <span class="id-badge">k-144</span>
+      </div>
+      <div class="card-info">
+        <div class="player-name">Ashish Narwal</div>
+        <div class="player-team">Telugu Titans</div>
+        <div class="player-meta">
+          <span class="role-pill" style="border-color: #F97316; color: #F97316;">Raider</span>
+          <span class="price">₹13L</span>
+        </div>
+        <div class="source-info">Source: 160x240 Official Asset</div>
+      </div>
+    </div>
+    
+    <div class="player-card" data-team="Telugu Titans" data-role="Defender" data-tier="D">
+      <div class="card-img-wrap">
+        <img src="/images/pkl-players/k-145.webp" alt="Sagar" loading="lazy" />
+        <span class="tier-badge tier-D">Tier D</span>
+        <span class="id-badge">k-145</span>
+      </div>
+      <div class="card-info">
+        <div class="player-name">Sagar</div>
+        <div class="player-team">Telugu Titans</div>
+        <div class="player-meta">
+          <span class="role-pill" style="border-color: #3B82F6; color: #3B82F6;">Left Corner</span>
+          <span class="price">₹9L</span>
+        </div>
+        <div class="source-info">Source: 160x240 Official Asset</div>
+      </div>
+    </div>
+    
+    <div class="player-card" data-team="Telugu Titans" data-role="Raider" data-tier="B">
+      <div class="card-img-wrap">
+        <img src="/images/pkl-players/k-146.webp" alt="Manjeet" loading="lazy" />
+        <span class="tier-badge tier-B">Tier B</span>
+        <span class="id-badge">k-146</span>
+      </div>
+      <div class="card-info">
+        <div class="player-name">Manjeet</div>
+        <div class="player-team">Telugu Titans</div>
+        <div class="player-meta">
+          <span class="role-pill" style="border-color: #F97316; color: #F97316;">Raider</span>
+          <span class="price">₹20L</span>
+        </div>
+        <div class="source-info">Source: 160x240 Official Asset</div>
+      </div>
+    </div>
+    
+    <div class="player-card" data-team="Telugu Titans" data-role="All-Rounder" data-tier="C">
+      <div class="card-img-wrap">
+        <img src="/images/pkl-players/k-147.webp" alt="Shankar Gadai" loading="lazy" />
+        <span class="tier-badge tier-C">Tier C</span>
+        <span class="id-badge">k-147</span>
+      </div>
+      <div class="card-info">
+        <div class="player-name">Shankar Gadai</div>
+        <div class="player-team">Telugu Titans</div>
+        <div class="player-meta">
+          <span class="role-pill" style="border-color: #10B981; color: #10B981;">All-Rounder</span>
+          <span class="price">₹13L</span>
+        </div>
+        <div class="source-info">Source: 160x240 Official Asset</div>
+      </div>
+    </div>
+    
+    <div class="player-card" data-team="Telugu Titans" data-role="Raider" data-tier="D">
+      <div class="card-img-wrap">
+        <img src="/images/pkl-players/k-148.webp" alt="Chetan Sahu" loading="lazy" />
+        <span class="tier-badge tier-D">Tier D</span>
+        <span class="id-badge">k-148</span>
+      </div>
+      <div class="card-info">
+        <div class="player-name">Chetan Sahu</div>
+        <div class="player-team">Telugu Titans</div>
+        <div class="player-meta">
+          <span class="role-pill" style="border-color: #F97316; color: #F97316;">Raider</span>
+          <span class="price">₹9L</span>
+        </div>
+        <div class="source-info">Source: 160x240 Official Asset</div>
+      </div>
+    </div>
+    
+    <div class="player-card" data-team="Telugu Titans" data-role="Raider" data-tier="D">
+      <div class="card-img-wrap">
+        <img src="/images/pkl-players/k-149.webp" alt="Nitin" loading="lazy" />
+        <span class="tier-badge tier-D">Tier D</span>
+        <span class="id-badge">k-149</span>
+      </div>
+      <div class="card-info">
+        <div class="player-name">Nitin</div>
+        <div class="player-team">Telugu Titans</div>
+        <div class="player-meta">
+          <span class="role-pill" style="border-color: #F97316; color: #F97316;">Raider</span>
+          <span class="price">₹9L</span>
+        </div>
+        <div class="source-info">Source: 160x240 Official Asset</div>
+      </div>
+    </div>
+    
+    <div class="player-card" data-team="Telugu Titans" data-role="Raider" data-tier="C">
+      <div class="card-img-wrap">
+        <img src="/images/pkl-players/k-150.webp" alt="Rohit Singh" loading="lazy" />
+        <span class="tier-badge tier-C">Tier C</span>
+        <span class="id-badge">k-150</span>
+      </div>
+      <div class="card-info">
+        <div class="player-name">Rohit Singh</div>
+        <div class="player-team">Telugu Titans</div>
+        <div class="player-meta">
+          <span class="role-pill" style="border-color: #F97316; color: #F97316;">Raider</span>
+          <span class="price">₹13L</span>
+        </div>
+        <div class="source-info">Source: 160x240 Official Asset</div>
+      </div>
+    </div>
+    
+    <div class="player-card" data-team="Telugu Titans" data-role="Raider" data-tier="D">
+      <div class="card-img-wrap">
+        <img src="/images/pkl-players/k-151.webp" alt="Praful Zaware" loading="lazy" />
+        <span class="tier-badge tier-D">Tier D</span>
+        <span class="id-badge">k-151</span>
+      </div>
+      <div class="card-info">
+        <div class="player-name">Praful Zaware</div>
+        <div class="player-team">Telugu Titans</div>
+        <div class="player-meta">
+          <span class="role-pill" style="border-color: #F97316; color: #F97316;">Raider</span>
+          <span class="price">₹9L</span>
+        </div>
+        <div class="source-info">Source: 160x240 Official Asset</div>
+      </div>
+    </div>
+    
+    <div class="player-card" data-team="Telugu Titans" data-role="Raider" data-tier="D">
+      <div class="card-img-wrap">
+        <img src="/images/pkl-players/k-152.webp" alt="Jai Bhagwan" loading="lazy" />
+        <span class="tier-badge tier-D">Tier D</span>
+        <span class="id-badge">k-152</span>
+      </div>
+      <div class="card-info">
+        <div class="player-name">Jai Bhagwan</div>
+        <div class="player-team">Telugu Titans</div>
+        <div class="player-meta">
+          <span class="role-pill" style="border-color: #F97316; color: #F97316;">Raider</span>
+          <span class="price">₹9L</span>
+        </div>
+        <div class="source-info">Source: 160x240 Official Asset</div>
+      </div>
+    </div>
+    
+    <div class="player-card" data-team="Telugu Titans" data-role="Defender" data-tier="C">
+      <div class="card-img-wrap">
+        <img src="/images/pkl-players/k-153.webp" alt="Aman" loading="lazy" />
+        <span class="tier-badge tier-C">Tier C</span>
+        <span class="id-badge">k-153</span>
+      </div>
+      <div class="card-info">
+        <div class="player-name">Aman</div>
+        <div class="player-team">Telugu Titans</div>
+        <div class="player-meta">
+          <span class="role-pill" style="border-color: #3B82F6; color: #3B82F6;">Left Corner</span>
+          <span class="price">₹13L</span>
+        </div>
+        <div class="source-info">Source: 160x240 Official Asset</div>
+      </div>
+    </div>
+    
+    <div class="player-card" data-team="Telugu Titans" data-role="Defender" data-tier="B">
+      <div class="card-img-wrap">
+        <img src="/images/pkl-players/k-154.webp" alt="Amir Ejlali" loading="lazy" />
+        <span class="tier-badge tier-B">Tier B</span>
+        <span class="id-badge">k-154</span>
+      </div>
+      <div class="card-info">
+        <div class="player-name">Amir Ejlali</div>
+        <div class="player-team">Telugu Titans</div>
+        <div class="player-meta">
+          <span class="role-pill" style="border-color: #3B82F6; color: #3B82F6;">Right Cover</span>
+          <span class="price">₹20L</span>
+        </div>
+        <div class="source-info">Source: 160x240 Official Asset</div>
+      </div>
+    </div>
+    
+    <div class="player-card" data-team="Telugu Titans" data-role="Defender" data-tier="D">
+      <div class="card-img-wrap">
+        <img src="/images/pkl-players/k-155.webp" alt="Ankit" loading="lazy" />
+        <span class="tier-badge tier-D">Tier D</span>
+        <span class="id-badge">k-155</span>
+      </div>
+      <div class="card-info">
+        <div class="player-name">Ankit</div>
+        <div class="player-team">Telugu Titans</div>
+        <div class="player-meta">
+          <span class="role-pill" style="border-color: #3B82F6; color: #3B82F6;">Left Cover</span>
+          <span class="price">₹9L</span>
+        </div>
+        <div class="source-info">Source: 160x240 Official Asset</div>
+      </div>
+    </div>
+    
+    <div class="player-card" data-team="Telugu Titans" data-role="Defender" data-tier="C">
+      <div class="card-img-wrap">
+        <img src="/images/pkl-players/k-156.webp" alt="Avi Duhan" loading="lazy" />
+        <span class="tier-badge tier-C">Tier C</span>
+        <span class="id-badge">k-156</span>
+      </div>
+      <div class="card-info">
+        <div class="player-name">Avi Duhan</div>
+        <div class="player-team">Telugu Titans</div>
+        <div class="player-meta">
+          <span class="role-pill" style="border-color: #3B82F6; color: #3B82F6;">Right Corner</span>
+          <span class="price">₹13L</span>
+        </div>
+        <div class="source-info">Source: 160x240 Official Asset</div>
+      </div>
+    </div>
+    
+    <div class="player-card" data-team="Telugu Titans" data-role="Defender" data-tier="D">
+      <div class="card-img-wrap">
+        <img src="/images/pkl-players/k-157.webp" alt="Bantu Malik" loading="lazy" />
+        <span class="tier-badge tier-D">Tier D</span>
+        <span class="id-badge">k-157</span>
+      </div>
+      <div class="card-info">
+        <div class="player-name">Bantu Malik</div>
+        <div class="player-team">Telugu Titans</div>
+        <div class="player-meta">
+          <span class="role-pill" style="border-color: #3B82F6; color: #3B82F6;">Left Corner</span>
+          <span class="price">₹9L</span>
+        </div>
+        <div class="source-info">Source: 160x240 Official Asset</div>
+      </div>
+    </div>
+    
+    <div class="player-card" data-team="Telugu Titans" data-role="Defender" data-tier="D">
+      <div class="card-img-wrap">
+        <img src="/images/pkl-players/k-158.webp" alt="Rahul Dagar" loading="lazy" />
+        <span class="tier-badge tier-D">Tier D</span>
+        <span class="id-badge">k-158</span>
+      </div>
+      <div class="card-info">
+        <div class="player-name">Rahul Dagar</div>
+        <div class="player-team">Telugu Titans</div>
+        <div class="player-meta">
+          <span class="role-pill" style="border-color: #3B82F6; color: #3B82F6;">Right Cover</span>
+          <span class="price">₹9L</span>
+        </div>
+        <div class="source-info">Source: 160x240 Official Asset</div>
+      </div>
+    </div>
+    
+    <div class="player-card" data-team="Telugu Titans" data-role="All-Rounder" data-tier="C">
+      <div class="card-img-wrap">
+        <img src="/images/pkl-players/k-159.webp" alt="Ganesh Parki" loading="lazy" />
+        <span class="tier-badge tier-C">Tier C</span>
+        <span class="id-badge">k-159</span>
+      </div>
+      <div class="card-info">
+        <div class="player-name">Ganesh Parki</div>
+        <div class="player-team">Telugu Titans</div>
+        <div class="player-meta">
+          <span class="role-pill" style="border-color: #10B981; color: #10B981;">All-Rounder</span>
+          <span class="price">₹13L</span>
+        </div>
+        <div class="source-info">Source: 160x240 Official Asset</div>
+      </div>
+    </div>
+    
+    <div class="player-card" data-team="Haryana Steelers" data-role="Defender" data-tier="D">
+      <div class="card-img-wrap">
+        <img src="/images/pkl-players/k-160.webp" alt="Jaideep" loading="lazy" />
+        <span class="tier-badge tier-D">Tier D</span>
+        <span class="id-badge">k-160</span>
+      </div>
+      <div class="card-info">
+        <div class="player-name">Jaideep</div>
+        <div class="player-team">Haryana Steelers</div>
+        <div class="player-meta">
+          <span class="role-pill" style="border-color: #3B82F6; color: #3B82F6;">Left Cover</span>
+          <span class="price">₹9L</span>
+        </div>
+        <div class="source-info">Source: 160x240 Official Asset</div>
+      </div>
+    </div>
+    
+    <div class="player-card" data-team="Haryana Steelers" data-role="Raider" data-tier="D">
+      <div class="card-img-wrap">
+        <img src="/images/pkl-players/k-161.webp" alt="Vinay" loading="lazy" />
+        <span class="tier-badge tier-D">Tier D</span>
+        <span class="id-badge">k-161</span>
+      </div>
+      <div class="card-info">
+        <div class="player-name">Vinay</div>
+        <div class="player-team">Haryana Steelers</div>
+        <div class="player-meta">
+          <span class="role-pill" style="border-color: #F97316; color: #F97316;">Raider</span>
+          <span class="price">₹9L</span>
+        </div>
+        <div class="source-info">Source: 160x240 Official Asset</div>
+      </div>
+    </div>
+    
+    <div class="player-card" data-team="Haryana Steelers" data-role="Defender" data-tier="C">
+      <div class="card-img-wrap">
+        <img src="/images/pkl-players/k-162.webp" alt="Rahul" loading="lazy" />
+        <span class="tier-badge tier-C">Tier C</span>
+        <span class="id-badge">k-162</span>
+      </div>
+      <div class="card-info">
+        <div class="player-name">Rahul</div>
+        <div class="player-team">Haryana Steelers</div>
+        <div class="player-meta">
+          <span class="role-pill" style="border-color: #3B82F6; color: #3B82F6;">Right Corner</span>
+          <span class="price">₹13L</span>
+        </div>
+        <div class="source-info">Source: 160x240 Official Asset</div>
+      </div>
+    </div>
+    
+    <div class="player-card" data-team="Haryana Steelers" data-role="Raider" data-tier="D">
+      <div class="card-img-wrap">
+        <img src="/images/pkl-players/k-163.webp" alt="Shivam Patare" loading="lazy" />
+        <span class="tier-badge tier-D">Tier D</span>
+        <span class="id-badge">k-163</span>
+      </div>
+      <div class="card-info">
+        <div class="player-name">Shivam Patare</div>
+        <div class="player-team">Haryana Steelers</div>
+        <div class="player-meta">
+          <span class="role-pill" style="border-color: #F97316; color: #F97316;">Raider</span>
+          <span class="price">₹9L</span>
+        </div>
+        <div class="source-info">Source: 160x240 Official Asset</div>
+      </div>
+    </div>
+    
+    <div class="player-card" data-team="Haryana Steelers" data-role="All-Rounder" data-tier="D">
+      <div class="card-img-wrap">
+        <img src="/images/pkl-players/k-164.webp" alt="Sahil Narwal" loading="lazy" />
+        <span class="tier-badge tier-D">Tier D</span>
+        <span class="id-badge">k-164</span>
+      </div>
+      <div class="card-info">
+        <div class="player-name">Sahil Narwal</div>
+        <div class="player-team">Haryana Steelers</div>
+        <div class="player-meta">
+          <span class="role-pill" style="border-color: #10B981; color: #10B981;">All-Rounder</span>
+          <span class="price">₹9L</span>
+        </div>
+        <div class="source-info">Source: 160x240 Official Asset</div>
+      </div>
+    </div>
+    
+    <div class="player-card" data-team="Haryana Steelers" data-role="Raider" data-tier="C">
+      <div class="card-img-wrap">
+        <img src="/images/pkl-players/k-165.webp" alt="Vishal Tate" loading="lazy" />
+        <span class="tier-badge tier-C">Tier C</span>
+        <span class="id-badge">k-165</span>
+      </div>
+      <div class="card-info">
+        <div class="player-name">Vishal Tate</div>
+        <div class="player-team">Haryana Steelers</div>
+        <div class="player-meta">
+          <span class="role-pill" style="border-color: #F97316; color: #F97316;">Raider</span>
+          <span class="price">₹13L</span>
+        </div>
+        <div class="source-info">Source: 160x240 Official Asset</div>
+      </div>
+    </div>
+    
+    <div class="player-card" data-team="Haryana Steelers" data-role="Defender" data-tier="D">
+      <div class="card-img-wrap">
+        <img src="/images/pkl-players/k-166.webp" alt="Jaya Soorya" loading="lazy" />
+        <span class="tier-badge tier-D">Tier D</span>
+        <span class="id-badge">k-166</span>
+      </div>
+      <div class="card-info">
+        <div class="player-name">Jaya Soorya</div>
+        <div class="player-team">Haryana Steelers</div>
+        <div class="player-meta">
+          <span class="role-pill" style="border-color: #3B82F6; color: #3B82F6;">Right Cover</span>
+          <span class="price">₹9L</span>
+        </div>
+        <div class="source-info">Source: 160x240 Official Asset</div>
+      </div>
+    </div>
+    
+    <div class="player-card" data-team="Haryana Steelers" data-role="Defender" data-tier="D">
+      <div class="card-img-wrap">
+        <img src="/images/pkl-players/k-167.webp" alt="N Manikandan" loading="lazy" />
+        <span class="tier-badge tier-D">Tier D</span>
+        <span class="id-badge">k-167</span>
+      </div>
+      <div class="card-info">
+        <div class="player-name">N Manikandan</div>
+        <div class="player-team">Haryana Steelers</div>
+        <div class="player-meta">
+          <span class="role-pill" style="border-color: #3B82F6; color: #3B82F6;">Left Cover</span>
+          <span class="price">₹9L</span>
+        </div>
+        <div class="source-info">Source: 160x240 Official Asset</div>
+      </div>
+    </div>
+    
+    <div class="player-card" data-team="Haryana Steelers" data-role="Raider" data-tier="B">
+      <div class="card-img-wrap">
+        <img src="/images/pkl-players/k-168.webp" alt="Ghanshyam Magar" loading="lazy" />
+        <span class="tier-badge tier-B">Tier B</span>
+        <span class="id-badge">k-168</span>
+      </div>
+      <div class="card-info">
+        <div class="player-name">Ghanshyam Magar</div>
+        <div class="player-team">Haryana Steelers</div>
+        <div class="player-meta">
+          <span class="role-pill" style="border-color: #F97316; color: #F97316;">Raider</span>
+          <span class="price">₹20L</span>
+        </div>
+        <div class="source-info">Source: 160x240 Official Asset</div>
+      </div>
+    </div>
+    
+    <div class="player-card" data-team="Haryana Steelers" data-role="Raider" data-tier="D">
+      <div class="card-img-wrap">
+        <img src="/images/pkl-players/k-169.webp" alt="Vikas Jadhav" loading="lazy" />
+        <span class="tier-badge tier-D">Tier D</span>
+        <span class="id-badge">k-169</span>
+      </div>
+      <div class="card-info">
+        <div class="player-name">Vikas Jadhav</div>
+        <div class="player-team">Haryana Steelers</div>
+        <div class="player-meta">
+          <span class="role-pill" style="border-color: #F97316; color: #F97316;">Raider</span>
+          <span class="price">₹9L</span>
+        </div>
+        <div class="source-info">Source: 160x240 Official Asset</div>
+      </div>
+    </div>
+    
+    <div class="player-card" data-team="Haryana Steelers" data-role="Defender" data-tier="D">
+      <div class="card-img-wrap">
+        <img src="/images/pkl-players/k-170.webp" alt="Hardeep" loading="lazy" />
+        <span class="tier-badge tier-D">Tier D</span>
+        <span class="id-badge">k-170</span>
+      </div>
+      <div class="card-info">
+        <div class="player-name">Hardeep</div>
+        <div class="player-team">Haryana Steelers</div>
+        <div class="player-meta">
+          <span class="role-pill" style="border-color: #3B82F6; color: #3B82F6;">Right Cover</span>
+          <span class="price">₹9L</span>
+        </div>
+        <div class="source-info">Source: 160x240 Official Asset</div>
+      </div>
+    </div>
+    
+    <div class="player-card" data-team="Haryana Steelers" data-role="All-Rounder" data-tier="C">
+      <div class="card-img-wrap">
+        <img src="/images/pkl-players/k-171.webp" alt="Ashish Narwal" loading="lazy" />
+        <span class="tier-badge tier-C">Tier C</span>
+        <span class="id-badge">k-171</span>
+      </div>
+      <div class="card-info">
+        <div class="player-name">Ashish Narwal</div>
+        <div class="player-team">Haryana Steelers</div>
+        <div class="player-meta">
+          <span class="role-pill" style="border-color: #10B981; color: #10B981;">All-Rounder</span>
+          <span class="price">₹13L</span>
+        </div>
+        <div class="source-info">Source: 160x240 Official Asset</div>
+      </div>
+    </div>
+    
+    <div class="player-card" data-team="Haryana Steelers" data-role="Defender" data-tier="D">
+      <div class="card-img-wrap">
+        <img src="/images/pkl-players/k-172.webp" alt="Rahul Ahri" loading="lazy" />
+        <span class="tier-badge tier-D">Tier D</span>
+        <span class="id-badge">k-172</span>
+      </div>
+      <div class="card-info">
+        <div class="player-name">Rahul Ahri</div>
+        <div class="player-team">Haryana Steelers</div>
+        <div class="player-meta">
+          <span class="role-pill" style="border-color: #3B82F6; color: #3B82F6;">Right Corner</span>
+          <span class="price">₹9L</span>
+        </div>
+        <div class="source-info">Source: 160x240 Official Asset</div>
+      </div>
+    </div>
+    
+    <div class="player-card" data-team="Haryana Steelers" data-role="Raider" data-tier="D">
+      <div class="card-img-wrap">
+        <img src="/images/pkl-players/k-173.webp" alt="Mayank Saini" loading="lazy" />
+        <span class="tier-badge tier-D">Tier D</span>
+        <span class="id-badge">k-173</span>
+      </div>
+      <div class="card-info">
+        <div class="player-name">Mayank Saini</div>
+        <div class="player-team">Haryana Steelers</div>
+        <div class="player-meta">
+          <span class="role-pill" style="border-color: #F97316; color: #F97316;">Raider</span>
+          <span class="price">₹9L</span>
+        </div>
+        <div class="source-info">Source: 160x240 Official Asset</div>
+      </div>
+    </div>
+    
+    <div class="player-card" data-team="Haryana Steelers" data-role="Raider" data-tier="B">
+      <div class="card-img-wrap">
+        <img src="/images/pkl-players/k-174.webp" alt="Sha Mohammed Shahan" loading="lazy" />
+        <span class="tier-badge tier-B">Tier B</span>
+        <span class="id-badge">k-174</span>
+      </div>
+      <div class="card-info">
+        <div class="player-name">Sha Mohammed Shahan</div>
+        <div class="player-team">Haryana Steelers</div>
+        <div class="player-meta">
+          <span class="role-pill" style="border-color: #F97316; color: #F97316;">Raider</span>
+          <span class="price">₹20L</span>
+        </div>
+        <div class="source-info">Source: 328x473 Official Asset</div>
+      </div>
+    </div>
+    
+    <div class="player-card" data-team="Haryana Steelers" data-role="Defender" data-tier="D">
+      <div class="card-img-wrap">
+        <img src="/images/pkl-players/k-175.webp" alt="Ankit Dhull" loading="lazy" />
+        <span class="tier-badge tier-D">Tier D</span>
+        <span class="id-badge">k-175</span>
+      </div>
+      <div class="card-info">
+        <div class="player-name">Ankit Dhull</div>
+        <div class="player-team">Haryana Steelers</div>
+        <div class="player-meta">
+          <span class="role-pill" style="border-color: #3B82F6; color: #3B82F6;">Left Cover</span>
+          <span class="price">₹9L</span>
+        </div>
+        <div class="source-info">Source: 160x240 Official Asset</div>
+      </div>
+    </div>
+    
+    <div class="player-card" data-team="Haryana Steelers" data-role="Defender" data-tier="D">
+      <div class="card-img-wrap">
+        <img src="/images/pkl-players/k-176.webp" alt="Neeraj" loading="lazy" />
+        <span class="tier-badge tier-D">Tier D</span>
+        <span class="id-badge">k-176</span>
+      </div>
+      <div class="card-info">
+        <div class="player-name">Neeraj</div>
+        <div class="player-team">Haryana Steelers</div>
+        <div class="player-meta">
+          <span class="role-pill" style="border-color: #3B82F6; color: #3B82F6;">Right Cover</span>
+          <span class="price">₹9L</span>
+        </div>
+        <div class="source-info">Source: 328x473 Official Asset</div>
+      </div>
+    </div>
+    
+    <div class="player-card" data-team="Haryana Steelers" data-role="Defender" data-tier="C">
+      <div class="card-img-wrap">
+        <img src="/images/pkl-players/k-177.webp" alt="Ritik Radheyshyam" loading="lazy" />
+        <span class="tier-badge tier-C">Tier C</span>
+        <span class="id-badge">k-177</span>
+      </div>
+      <div class="card-info">
+        <div class="player-name">Ritik Radheyshyam</div>
+        <div class="player-team">Haryana Steelers</div>
+        <div class="player-meta">
+          <span class="role-pill" style="border-color: #3B82F6; color: #3B82F6;">Left Corner</span>
+          <span class="price">₹13L</span>
+        </div>
+        <div class="source-info">Source: 160x240 Official Asset</div>
+      </div>
+    </div>
+    
+    <div class="player-card" data-team="Haryana Steelers" data-role="Defender" data-tier="A">
+      <div class="card-img-wrap">
+        <img src="/images/pkl-players/k-178.webp" alt="Sachin" loading="lazy" />
+        <span class="tier-badge tier-A">Tier A</span>
+        <span class="id-badge">k-178</span>
+      </div>
+      <div class="card-info">
+        <div class="player-name">Sachin</div>
+        <div class="player-team">Haryana Steelers</div>
+        <div class="player-meta">
+          <span class="role-pill" style="border-color: #3B82F6; color: #3B82F6;">Right Cover</span>
+          <span class="price">₹30L</span>
+        </div>
+        <div class="source-info">Source: 160x240 Official Asset</div>
+      </div>
+    </div>
+    
+    <div class="player-card" data-team="Haryana Steelers" data-role="Defender" data-tier="D">
+      <div class="card-img-wrap">
+        <img src="/images/pkl-players/k-179.webp" alt="Zubair" loading="lazy" />
+        <span class="tier-badge tier-D">Tier D</span>
+        <span class="id-badge">k-179</span>
+      </div>
+      <div class="card-info">
+        <div class="player-name">Zubair</div>
+        <div class="player-team">Haryana Steelers</div>
+        <div class="player-meta">
+          <span class="role-pill" style="border-color: #3B82F6; color: #3B82F6;">Left Cover</span>
+          <span class="price">₹9L</span>
+        </div>
+        <div class="source-info">Source: 160x240 Official Asset</div>
+      </div>
+    </div>
+    
+    <div class="player-card" data-team="Tamil Thalaivas" data-role="Raider" data-tier="A">
+      <div class="card-img-wrap">
+        <img src="/images/pkl-players/k-180.webp" alt="Arjun Deshwal" loading="lazy" />
+        <span class="tier-badge tier-A">Tier A</span>
+        <span class="id-badge">k-180</span>
+      </div>
+      <div class="card-info">
+        <div class="player-name">Arjun Deshwal</div>
+        <div class="player-team">Tamil Thalaivas</div>
+        <div class="player-meta">
+          <span class="role-pill" style="border-color: #F97316; color: #F97316;">Raider</span>
+          <span class="price">₹30L</span>
+        </div>
+        <div class="source-info">Source: 160x240 Official Asset</div>
+      </div>
+    </div>
+    
+    <div class="player-card" data-team="Tamil Thalaivas" data-role="Raider" data-tier="D">
+      <div class="card-img-wrap">
+        <img src="/images/pkl-players/k-181.webp" alt="Narender Kandola" loading="lazy" />
+        <span class="tier-badge tier-D">Tier D</span>
+        <span class="id-badge">k-181</span>
+      </div>
+      <div class="card-info">
+        <div class="player-name">Narender Kandola</div>
+        <div class="player-team">Tamil Thalaivas</div>
+        <div class="player-meta">
+          <span class="role-pill" style="border-color: #F97316; color: #F97316;">Raider</span>
+          <span class="price">₹9L</span>
+        </div>
+        <div class="source-info">Source: 160x240 Official Asset</div>
+      </div>
+    </div>
+    
+    <div class="player-card" data-team="Tamil Thalaivas" data-role="Defender" data-tier="A">
+      <div class="card-img-wrap">
+        <img src="/images/pkl-players/k-182.webp" alt="Nitesh Kumar" loading="lazy" />
+        <span class="tier-badge tier-A">Tier A</span>
+        <span class="id-badge">k-182</span>
+      </div>
+      <div class="card-info">
+        <div class="player-name">Nitesh Kumar</div>
+        <div class="player-team">Tamil Thalaivas</div>
+        <div class="player-meta">
+          <span class="role-pill" style="border-color: #3B82F6; color: #3B82F6;">Right Corner</span>
+          <span class="price">₹30L</span>
+        </div>
+        <div class="source-info">Source: 160x240 Official Asset</div>
+      </div>
+    </div>
+    
+    <div class="player-card" data-team="Tamil Thalaivas" data-role="Defender" data-tier="C">
+      <div class="card-img-wrap">
+        <img src="/images/pkl-players/k-183.webp" alt="Anuj Gawade" loading="lazy" />
+        <span class="tier-badge tier-C">Tier C</span>
+        <span class="id-badge">k-183</span>
+      </div>
+      <div class="card-info">
+        <div class="player-name">Anuj Gawade</div>
+        <div class="player-team">Tamil Thalaivas</div>
+        <div class="player-meta">
+          <span class="role-pill" style="border-color: #3B82F6; color: #3B82F6;">Left Cover</span>
+          <span class="price">₹13L</span>
+        </div>
+        <div class="source-info">Source: 160x240 Official Asset</div>
+      </div>
+    </div>
+    
+    <div class="player-card" data-team="Tamil Thalaivas" data-role="All-Rounder" data-tier="B">
+      <div class="card-img-wrap">
+        <img src="/images/pkl-players/k-184.webp" alt="Moein Shafaghi" loading="lazy" />
+        <span class="tier-badge tier-B">Tier B</span>
+        <span class="id-badge">k-184</span>
+      </div>
+      <div class="card-info">
+        <div class="player-name">Moein Shafaghi</div>
+        <div class="player-team">Tamil Thalaivas</div>
+        <div class="player-meta">
+          <span class="role-pill" style="border-color: #10B981; color: #10B981;">All-Rounder</span>
+          <span class="price">₹20L</span>
+        </div>
+        <div class="source-info">Source: 160x240 Official Asset</div>
+      </div>
+    </div>
+    
+    <div class="player-card" data-team="Tamil Thalaivas" data-role="Defender" data-tier="D">
+      <div class="card-img-wrap">
+        <img src="/images/pkl-players/k-185.webp" alt="Aashish" loading="lazy" />
+        <span class="tier-badge tier-D">Tier D</span>
+        <span class="id-badge">k-185</span>
+      </div>
+      <div class="card-info">
+        <div class="player-name">Aashish</div>
+        <div class="player-team">Tamil Thalaivas</div>
+        <div class="player-meta">
+          <span class="role-pill" style="border-color: #3B82F6; color: #3B82F6;">Left Cover</span>
+          <span class="price">₹9L</span>
+        </div>
+        <div class="source-info">Source: 160x240 Official Asset</div>
+      </div>
+    </div>
+    
+    <div class="player-card" data-team="Tamil Thalaivas" data-role="Defender" data-tier="C">
+      <div class="card-img-wrap">
+        <img src="/images/pkl-players/k-186.webp" alt="Himanshu" loading="lazy" />
+        <span class="tier-badge tier-C">Tier C</span>
+        <span class="id-badge">k-186</span>
+      </div>
+      <div class="card-info">
+        <div class="player-name">Himanshu</div>
+        <div class="player-team">Tamil Thalaivas</div>
+        <div class="player-meta">
+          <span class="role-pill" style="border-color: #3B82F6; color: #3B82F6;">Right Cover</span>
+          <span class="price">₹13L</span>
+        </div>
+        <div class="source-info">Source: 160x240 Official Asset</div>
+      </div>
+    </div>
+    
+    <div class="player-card" data-team="Tamil Thalaivas" data-role="Defender" data-tier="D">
+      <div class="card-img-wrap">
+        <img src="/images/pkl-players/k-187.webp" alt="Ronak" loading="lazy" />
+        <span class="tier-badge tier-D">Tier D</span>
+        <span class="id-badge">k-187</span>
+      </div>
+      <div class="card-info">
+        <div class="player-name">Ronak</div>
+        <div class="player-team">Tamil Thalaivas</div>
+        <div class="player-meta">
+          <span class="role-pill" style="border-color: #3B82F6; color: #3B82F6;">Left Cover</span>
+          <span class="price">₹9L</span>
+        </div>
+        <div class="source-info">Source: 160x240 Official Asset</div>
+      </div>
+    </div>
+    
+    <div class="player-card" data-team="Tamil Thalaivas" data-role="Raider" data-tier="D">
+      <div class="card-img-wrap">
+        <img src="/images/pkl-players/k-188.webp" alt="Dhiraj Bailmare" loading="lazy" />
+        <span class="tier-badge tier-D">Tier D</span>
+        <span class="id-badge">k-188</span>
+      </div>
+      <div class="card-info">
+        <div class="player-name">Dhiraj Bailmare</div>
+        <div class="player-team">Tamil Thalaivas</div>
+        <div class="player-meta">
+          <span class="role-pill" style="border-color: #F97316; color: #F97316;">Raider</span>
+          <span class="price">₹9L</span>
+        </div>
+        <div class="source-info">Source: 160x240 Official Asset</div>
+      </div>
+    </div>
+    
+    <div class="player-card" data-team="Tamil Thalaivas" data-role="Defender" data-tier="C">
+      <div class="card-img-wrap">
+        <img src="/images/pkl-players/k-189.webp" alt="Sagar Rathee" loading="lazy" />
+        <span class="tier-badge tier-C">Tier C</span>
+        <span class="id-badge">k-189</span>
+      </div>
+      <div class="card-info">
+        <div class="player-name">Sagar Rathee</div>
+        <div class="player-team">Tamil Thalaivas</div>
+        <div class="player-meta">
+          <span class="role-pill" style="border-color: #3B82F6; color: #3B82F6;">Left Corner</span>
+          <span class="price">₹13L</span>
+        </div>
+        <div class="source-info">Source: 160x240 Official Asset</div>
+      </div>
+    </div>
+    
+    <div class="player-card" data-team="Tamil Thalaivas" data-role="Raider" data-tier="D">
+      <div class="card-img-wrap">
+        <img src="/images/pkl-players/k-190.webp" alt="Abhiraj Pawar" loading="lazy" />
+        <span class="tier-badge tier-D">Tier D</span>
+        <span class="id-badge">k-190</span>
+      </div>
+      <div class="card-info">
+        <div class="player-name">Abhiraj Pawar</div>
+        <div class="player-team">Tamil Thalaivas</div>
+        <div class="player-meta">
+          <span class="role-pill" style="border-color: #F97316; color: #F97316;">Raider</span>
+          <span class="price">₹9L</span>
+        </div>
+        <div class="source-info">Source: 160x240 Official Asset</div>
+      </div>
+    </div>
+    
+    <div class="player-card" data-team="Tamil Thalaivas" data-role="Raider" data-tier="D">
+      <div class="card-img-wrap">
+        <img src="/images/pkl-players/k-191.webp" alt="Rohit Beniwal" loading="lazy" />
+        <span class="tier-badge tier-D">Tier D</span>
+        <span class="id-badge">k-191</span>
+      </div>
+      <div class="card-info">
+        <div class="player-name">Rohit Beniwal</div>
+        <div class="player-team">Tamil Thalaivas</div>
+        <div class="player-meta">
+          <span class="role-pill" style="border-color: #F97316; color: #F97316;">Raider</span>
+          <span class="price">₹9L</span>
+        </div>
+        <div class="source-info">Source: 160x240 Official Asset</div>
+      </div>
+    </div>
+    
+    <div class="player-card" data-team="Tamil Thalaivas" data-role="Raider" data-tier="C">
+      <div class="card-img-wrap">
+        <img src="/images/pkl-players/k-192.webp" alt="Yogesh Yadav" loading="lazy" />
+        <span class="tier-badge tier-C">Tier C</span>
+        <span class="id-badge">k-192</span>
+      </div>
+      <div class="card-info">
+        <div class="player-name">Yogesh Yadav</div>
+        <div class="player-team">Tamil Thalaivas</div>
+        <div class="player-meta">
+          <span class="role-pill" style="border-color: #F97316; color: #F97316;">Raider</span>
+          <span class="price">₹13L</span>
+        </div>
+        <div class="source-info">Source: 160x240 Official Asset</div>
+      </div>
+    </div>
+    
+    <div class="player-card" data-team="Tamil Thalaivas" data-role="Defender" data-tier="D">
+      <div class="card-img-wrap">
+        <img src="/images/pkl-players/k-193.webp" alt="Arulnanthababu" loading="lazy" />
+        <span class="tier-badge tier-D">Tier D</span>
+        <span class="id-badge">k-193</span>
+      </div>
+      <div class="card-info">
+        <div class="player-name">Arulnanthababu</div>
+        <div class="player-team">Tamil Thalaivas</div>
+        <div class="player-meta">
+          <span class="role-pill" style="border-color: #3B82F6; color: #3B82F6;">Right Corner</span>
+          <span class="price">₹9L</span>
+        </div>
+        <div class="source-info">Source: 328x473 Official Asset</div>
+      </div>
+    </div>
+    
+    <div class="player-card" data-team="Tamil Thalaivas" data-role="Defender" data-tier="B">
+      <div class="card-img-wrap">
+        <img src="/images/pkl-players/k-194.webp" alt="Alireza Khalili" loading="lazy" />
+        <span class="tier-badge tier-B">Tier B</span>
+        <span class="id-badge">k-194</span>
+      </div>
+      <div class="card-info">
+        <div class="player-name">Alireza Khalili</div>
+        <div class="player-team">Tamil Thalaivas</div>
+        <div class="player-meta">
+          <span class="role-pill" style="border-color: #3B82F6; color: #3B82F6;">Left Cover</span>
+          <span class="price">₹20L</span>
+        </div>
+        <div class="source-info">Source: 328x473 Official Asset</div>
+      </div>
+    </div>
+    
+    <div class="player-card" data-team="Tamil Thalaivas" data-role="Defender" data-tier="C">
+      <div class="card-img-wrap">
+        <img src="/images/pkl-players/k-195.webp" alt="Mohit" loading="lazy" />
+        <span class="tier-badge tier-C">Tier C</span>
+        <span class="id-badge">k-195</span>
+      </div>
+      <div class="card-info">
+        <div class="player-name">Mohit</div>
+        <div class="player-team">Tamil Thalaivas</div>
+        <div class="player-meta">
+          <span class="role-pill" style="border-color: #3B82F6; color: #3B82F6;">Right Cover</span>
+          <span class="price">₹13L</span>
+        </div>
+        <div class="source-info">Source: 160x240 Official Asset</div>
+      </div>
+    </div>
+    
+    <div class="player-card" data-team="Tamil Thalaivas" data-role="Defender" data-tier="D">
+      <div class="card-img-wrap">
+        <img src="/images/pkl-players/k-196.webp" alt="Tarun" loading="lazy" />
+        <span class="tier-badge tier-D">Tier D</span>
+        <span class="id-badge">k-196</span>
+      </div>
+      <div class="card-info">
+        <div class="player-name">Tarun</div>
+        <div class="player-team">Tamil Thalaivas</div>
+        <div class="player-meta">
+          <span class="role-pill" style="border-color: #3B82F6; color: #3B82F6;">Right Corner</span>
+          <span class="price">₹9L</span>
+        </div>
+        <div class="source-info">Source: 160x240 Official Asset</div>
+      </div>
+    </div>
+    
+    <div class="player-card" data-team="Tamil Thalaivas" data-role="All-Rounder" data-tier="D">
+      <div class="card-img-wrap">
+        <img src="/images/pkl-players/k-197.webp" alt="Suresh Jadhav" loading="lazy" />
+        <span class="tier-badge tier-D">Tier D</span>
+        <span class="id-badge">k-197</span>
+      </div>
+      <div class="card-info">
+        <div class="player-name">Suresh Jadhav</div>
+        <div class="player-team">Tamil Thalaivas</div>
+        <div class="player-meta">
+          <span class="role-pill" style="border-color: #10B981; color: #10B981;">All-Rounder</span>
+          <span class="price">₹9L</span>
+        </div>
+        <div class="source-info">Source: 160x240 Official Asset</div>
+      </div>
+    </div>
+    
+    <div class="player-card" data-team="Tamil Thalaivas" data-role="All-Rounder" data-tier="A">
+      <div class="card-img-wrap">
+        <img src="/images/pkl-players/k-198.webp" alt="Pawan Sehrawat" loading="lazy" />
+        <span class="tier-badge tier-A">Tier A</span>
+        <span class="id-badge">k-198</span>
+      </div>
+      <div class="card-info">
+        <div class="player-name">Pawan Sehrawat</div>
+        <div class="player-team">Tamil Thalaivas</div>
+        <div class="player-meta">
+          <span class="role-pill" style="border-color: #10B981; color: #10B981;">All-Rounder</span>
+          <span class="price">₹30L</span>
+        </div>
+        <div class="source-info">Source: 160x240 Official Asset</div>
+      </div>
+    </div>
+    
+    <div class="player-card" data-team="UP Yoddhas" data-role="Defender" data-tier="D">
+      <div class="card-img-wrap">
+        <img src="/images/pkl-players/k-199.webp" alt="Sumit" loading="lazy" />
+        <span class="tier-badge tier-D">Tier D</span>
+        <span class="id-badge">k-199</span>
+      </div>
+      <div class="card-info">
+        <div class="player-name">Sumit</div>
+        <div class="player-team">UP Yoddhas</div>
+        <div class="player-meta">
+          <span class="role-pill" style="border-color: #3B82F6; color: #3B82F6;">Left Cover</span>
+          <span class="price">₹9L</span>
+        </div>
+        <div class="source-info">Source: 160x240 Official Asset</div>
+      </div>
+    </div>
+    
+    <div class="player-card" data-team="UP Yoddhas" data-role="Defender" data-tier="D">
+      <div class="card-img-wrap">
+        <img src="/images/pkl-players/k-200.webp" alt="Ashu Singh" loading="lazy" />
+        <span class="tier-badge tier-D">Tier D</span>
+        <span class="id-badge">k-200</span>
+      </div>
+      <div class="card-info">
+        <div class="player-name">Ashu Singh</div>
+        <div class="player-team">UP Yoddhas</div>
+        <div class="player-meta">
+          <span class="role-pill" style="border-color: #3B82F6; color: #3B82F6;">Right Corner</span>
+          <span class="price">₹9L</span>
+        </div>
+        <div class="source-info">Source: 160x240 Official Asset</div>
+      </div>
+    </div>
+    
+    <div class="player-card" data-team="UP Yoddhas" data-role="Defender" data-tier="C">
+      <div class="card-img-wrap">
+        <img src="/images/pkl-players/k-201.webp" alt="Hitesh" loading="lazy" />
+        <span class="tier-badge tier-C">Tier C</span>
+        <span class="id-badge">k-201</span>
+      </div>
+      <div class="card-info">
+        <div class="player-name">Hitesh</div>
+        <div class="player-team">UP Yoddhas</div>
+        <div class="player-meta">
+          <span class="role-pill" style="border-color: #3B82F6; color: #3B82F6;">Left Corner</span>
+          <span class="price">₹13L</span>
+        </div>
+        <div class="source-info">Source: 160x240 Official Asset</div>
+      </div>
+    </div>
+    
+    <div class="player-card" data-team="UP Yoddhas" data-role="Raider" data-tier="D">
+      <div class="card-img-wrap">
+        <img src="/images/pkl-players/k-202.webp" alt="Bhavani Rajput" loading="lazy" />
+        <span class="tier-badge tier-D">Tier D</span>
+        <span class="id-badge">k-202</span>
+      </div>
+      <div class="card-info">
+        <div class="player-name">Bhavani Rajput</div>
+        <div class="player-team">UP Yoddhas</div>
+        <div class="player-meta">
+          <span class="role-pill" style="border-color: #F97316; color: #F97316;">Raider</span>
+          <span class="price">₹9L</span>
+        </div>
+        <div class="source-info">Source: 160x240 Official Asset</div>
+      </div>
+    </div>
+    
+    <div class="player-card" data-team="UP Yoddhas" data-role="Raider" data-tier="D">
+      <div class="card-img-wrap">
+        <img src="/images/pkl-players/k-203.webp" alt="Surender Gill" loading="lazy" />
+        <span class="tier-badge tier-D">Tier D</span>
+        <span class="id-badge">k-203</span>
+      </div>
+      <div class="card-info">
+        <div class="player-name">Surender Gill</div>
+        <div class="player-team">UP Yoddhas</div>
+        <div class="player-meta">
+          <span class="role-pill" style="border-color: #F97316; color: #F97316;">Raider</span>
+          <span class="price">₹9L</span>
+        </div>
+        <div class="source-info">Source: 160x240 Official Asset</div>
+      </div>
+    </div>
+    
+    <div class="player-card" data-team="UP Yoddhas" data-role="Defender" data-tier="C">
+      <div class="card-img-wrap">
+        <img src="/images/pkl-players/k-204.webp" alt="Sahul Kumar" loading="lazy" />
+        <span class="tier-badge tier-C">Tier C</span>
+        <span class="id-badge">k-204</span>
+      </div>
+      <div class="card-info">
+        <div class="player-name">Sahul Kumar</div>
+        <div class="player-team">UP Yoddhas</div>
+        <div class="player-meta">
+          <span class="role-pill" style="border-color: #3B82F6; color: #3B82F6;">Right Corner</span>
+          <span class="price">₹13L</span>
+        </div>
+        <div class="source-info">Source: 160x240 Official Asset</div>
+      </div>
+    </div>
+    
+    <div class="player-card" data-team="UP Yoddhas" data-role="Defender" data-tier="B">
+      <div class="card-img-wrap">
+        <img src="/images/pkl-players/k-205.webp" alt="Mahender Singh" loading="lazy" />
+        <span class="tier-badge tier-B">Tier B</span>
+        <span class="id-badge">k-205</span>
+      </div>
+      <div class="card-info">
+        <div class="player-name">Mahender Singh</div>
+        <div class="player-team">UP Yoddhas</div>
+        <div class="player-meta">
+          <span class="role-pill" style="border-color: #3B82F6; color: #3B82F6;">Left Cover</span>
+          <span class="price">₹20L</span>
+        </div>
+        <div class="source-info">Source: 160x240 Official Asset</div>
+      </div>
+    </div>
+    
+    <div class="player-card" data-team="UP Yoddhas" data-role="Defender" data-tier="B">
+      <div class="card-img-wrap">
+        <img src="/images/pkl-players/k-206.webp" alt="Mohammadreza Kaboudrahangi" loading="lazy" />
+        <span class="tier-badge tier-B">Tier B</span>
+        <span class="id-badge">k-206</span>
+      </div>
+      <div class="card-info">
+        <div class="player-name">Mohammadreza Kaboudrahangi</div>
+        <div class="player-team">UP Yoddhas</div>
+        <div class="player-meta">
+          <span class="role-pill" style="border-color: #3B82F6; color: #3B82F6;">Left Cover</span>
+          <span class="price">₹20L</span>
+        </div>
+        <div class="source-info">Source: 160x240 Official Asset</div>
+      </div>
+    </div>
+    
+    <div class="player-card" data-team="UP Yoddhas" data-role="Raider" data-tier="C">
+      <div class="card-img-wrap">
+        <img src="/images/pkl-players/k-207.webp" alt="Gagan Gowda" loading="lazy" />
+        <span class="tier-badge tier-C">Tier C</span>
+        <span class="id-badge">k-207</span>
+      </div>
+      <div class="card-info">
+        <div class="player-name">Gagan Gowda</div>
+        <div class="player-team">UP Yoddhas</div>
+        <div class="player-meta">
+          <span class="role-pill" style="border-color: #F97316; color: #F97316;">Raider</span>
+          <span class="price">₹13L</span>
+        </div>
+        <div class="source-info">Source: 160x240 Official Asset</div>
+      </div>
+    </div>
+    
+    <div class="player-card" data-team="UP Yoddhas" data-role="Raider" data-tier="D">
+      <div class="card-img-wrap">
+        <img src="/images/pkl-players/k-208.webp" alt="Keshav Kumar" loading="lazy" />
+        <span class="tier-badge tier-D">Tier D</span>
+        <span class="id-badge">k-208</span>
+      </div>
+      <div class="card-info">
+        <div class="player-name">Keshav Kumar</div>
+        <div class="player-team">UP Yoddhas</div>
+        <div class="player-meta">
+          <span class="role-pill" style="border-color: #F97316; color: #F97316;">Raider</span>
+          <span class="price">₹9L</span>
+        </div>
+        <div class="source-info">Source: 160x240 Official Asset</div>
+      </div>
+    </div>
+    
+    <div class="player-card" data-team="UP Yoddhas" data-role="Defender" data-tier="D">
+      <div class="card-img-wrap">
+        <img src="/images/pkl-players/k-209.webp" alt="Gangaram" loading="lazy" />
+        <span class="tier-badge tier-D">Tier D</span>
+        <span class="id-badge">k-209</span>
+      </div>
+      <div class="card-info">
+        <div class="player-name">Gangaram</div>
+        <div class="player-team">UP Yoddhas</div>
+        <div class="player-meta">
+          <span class="role-pill" style="border-color: #3B82F6; color: #3B82F6;">Left Corner</span>
+          <span class="price">₹9L</span>
+        </div>
+        <div class="source-info">Source: 160x240 Official Asset</div>
+      </div>
+    </div>
+    
+    <div class="player-card" data-team="UP Yoddhas" data-role="Defender" data-tier="A">
+      <div class="card-img-wrap">
+        <img src="/images/pkl-players/k-210.webp" alt="Sachin" loading="lazy" />
+        <span class="tier-badge tier-A">Tier A</span>
+        <span class="id-badge">k-210</span>
+      </div>
+      <div class="card-info">
+        <div class="player-name">Sachin</div>
+        <div class="player-team">UP Yoddhas</div>
+        <div class="player-meta">
+          <span class="role-pill" style="border-color: #3B82F6; color: #3B82F6;">Right Cover</span>
+          <span class="price">₹30L</span>
+        </div>
+        <div class="source-info">Source: 160x240 Official Asset</div>
+      </div>
+    </div>
+    
+    <div class="player-card" data-team="UP Yoddhas" data-role="Defender" data-tier="D">
+      <div class="card-img-wrap">
+        <img src="/images/pkl-players/k-211.webp" alt="Jayesh Mahajan" loading="lazy" />
+        <span class="tier-badge tier-D">Tier D</span>
+        <span class="id-badge">k-211</span>
+      </div>
+      <div class="card-info">
+        <div class="player-name">Jayesh Mahajan</div>
+        <div class="player-team">UP Yoddhas</div>
+        <div class="player-meta">
+          <span class="role-pill" style="border-color: #3B82F6; color: #3B82F6;">Left Cover</span>
+          <span class="price">₹9L</span>
+        </div>
+        <div class="source-info">Source: 160x240 Official Asset</div>
+      </div>
+    </div>
+    
+    <div class="player-card" data-team="UP Yoddhas" data-role="Raider" data-tier="A">
+      <div class="card-img-wrap">
+        <img src="/images/pkl-players/k-212.webp" alt="Guman Singh" loading="lazy" />
+        <span class="tier-badge tier-A">Tier A</span>
+        <span class="id-badge">k-212</span>
+      </div>
+      <div class="card-info">
+        <div class="player-name">Guman Singh</div>
+        <div class="player-team">UP Yoddhas</div>
+        <div class="player-meta">
+          <span class="role-pill" style="border-color: #F97316; color: #F97316;">Raider</span>
+          <span class="price">₹30L</span>
+        </div>
+        <div class="source-info">Source: 160x240 Official Asset</div>
+      </div>
+    </div>
+    
+    <div class="player-card" data-team="UP Yoddhas" data-role="Raider" data-tier="C">
+      <div class="card-img-wrap">
+        <img src="/images/pkl-players/k-213.webp" alt="Dong Geon Lee" loading="lazy" />
+        <span class="tier-badge tier-C">Tier C</span>
+        <span class="id-badge">k-213</span>
+      </div>
+      <div class="card-info">
+        <div class="player-name">Dong Geon Lee</div>
+        <div class="player-team">UP Yoddhas</div>
+        <div class="player-meta">
+          <span class="role-pill" style="border-color: #F97316; color: #F97316;">Raider</span>
+          <span class="price">₹13L</span>
+        </div>
+        <div class="source-info">Source: 328x473 Official Asset</div>
+      </div>
+    </div>
+    
+    <div class="player-card" data-team="UP Yoddhas" data-role="Raider" data-tier="D">
+      <div class="card-img-wrap">
+        <img src="/images/pkl-players/k-214.webp" alt="Jatin Singh" loading="lazy" />
+        <span class="tier-badge tier-D">Tier D</span>
+        <span class="id-badge">k-214</span>
+      </div>
+      <div class="card-info">
+        <div class="player-name">Jatin Singh</div>
+        <div class="player-team">UP Yoddhas</div>
+        <div class="player-meta">
+          <span class="role-pill" style="border-color: #F97316; color: #F97316;">Raider</span>
+          <span class="price">₹9L</span>
+        </div>
+        <div class="source-info">Source: 160x240 Official Asset</div>
+      </div>
+    </div>
+    
+    <div class="player-card" data-team="UP Yoddhas" data-role="Raider" data-tier="D">
+      <div class="card-img-wrap">
+        <img src="/images/pkl-players/k-215.webp" alt="Shivam Chaudhary" loading="lazy" />
+        <span class="tier-badge tier-D">Tier D</span>
+        <span class="id-badge">k-215</span>
+      </div>
+      <div class="card-info">
+        <div class="player-name">Shivam Chaudhary</div>
+        <div class="player-team">UP Yoddhas</div>
+        <div class="player-meta">
+          <span class="role-pill" style="border-color: #F97316; color: #F97316;">Raider</span>
+          <span class="price">₹9L</span>
+        </div>
+        <div class="source-info">Source: 160x240 Official Asset</div>
+      </div>
+    </div>
+    
+    <div class="player-card" data-team="UP Yoddhas" data-role="Defender" data-tier="C">
+      <div class="card-img-wrap">
+        <img src="/images/pkl-players/k-216.webp" alt="Krishan" loading="lazy" />
+        <span class="tier-badge tier-C">Tier C</span>
+        <span class="id-badge">k-216</span>
+      </div>
+      <div class="card-info">
+        <div class="player-name">Krishan</div>
+        <div class="player-team">UP Yoddhas</div>
+        <div class="player-meta">
+          <span class="role-pill" style="border-color: #3B82F6; color: #3B82F6;">Right Corner</span>
+          <span class="price">₹13L</span>
+        </div>
+        <div class="source-info">Source: 328x473 Official Asset</div>
+      </div>
+    </div>
+    
+    <div class="player-card" data-team="UP Yoddhas" data-role="Defender" data-tier="D">
+      <div class="card-img-wrap">
+        <img src="/images/pkl-players/k-217.webp" alt="Ronak Nain" loading="lazy" />
+        <span class="tier-badge tier-D">Tier D</span>
+        <span class="id-badge">k-217</span>
+      </div>
+      <div class="card-info">
+        <div class="player-name">Ronak Nain</div>
+        <div class="player-team">UP Yoddhas</div>
+        <div class="player-meta">
+          <span class="role-pill" style="border-color: #3B82F6; color: #3B82F6;">Left Corner</span>
+          <span class="price">₹9L</span>
+        </div>
+        <div class="source-info">Source: 160x240 Official Asset</div>
+      </div>
+    </div>
+    
+    <div class="player-card" data-team="Gujarat Giants" data-role="All-Rounder" data-tier="A">
+      <div class="card-img-wrap">
+        <img src="/images/pkl-players/k-218.webp" alt="Mohammadreza Shadloui" loading="lazy" />
+        <span class="tier-badge tier-A">Tier A</span>
+        <span class="id-badge">k-218</span>
+      </div>
+      <div class="card-info">
+        <div class="player-name">Mohammadreza Shadloui</div>
+        <div class="player-team">Gujarat Giants</div>
+        <div class="player-meta">
+          <span class="role-pill" style="border-color: #10B981; color: #10B981;">All-Rounder</span>
+          <span class="price">₹30L</span>
+        </div>
+        <div class="source-info">Source: 160x240 Official Asset</div>
+      </div>
+    </div>
+    
+    <div class="player-card" data-team="Gujarat Giants" data-role="Raider" data-tier="B">
+      <div class="card-img-wrap">
+        <img src="/images/pkl-players/k-219.webp" alt="Parteek Dahiya" loading="lazy" />
+        <span class="tier-badge tier-B">Tier B</span>
+        <span class="id-badge">k-219</span>
+      </div>
+      <div class="card-info">
+        <div class="player-name">Parteek Dahiya</div>
+        <div class="player-team">Gujarat Giants</div>
+        <div class="player-meta">
+          <span class="role-pill" style="border-color: #F97316; color: #F97316;">Raider</span>
+          <span class="price">₹20L</span>
+        </div>
+        <div class="source-info">Source: 160x240 Official Asset</div>
+      </div>
+    </div>
+    
+    <div class="player-card" data-team="Gujarat Giants" data-role="Raider" data-tier="B">
+      <div class="card-img-wrap">
+        <img src="/images/pkl-players/k-220.webp" alt="Rakesh" loading="lazy" />
+        <span class="tier-badge tier-B">Tier B</span>
+        <span class="id-badge">k-220</span>
+      </div>
+      <div class="card-info">
+        <div class="player-name">Rakesh</div>
+        <div class="player-team">Gujarat Giants</div>
+        <div class="player-meta">
+          <span class="role-pill" style="border-color: #F97316; color: #F97316;">Raider</span>
+          <span class="price">₹20L</span>
+        </div>
+        <div class="source-info">Source: 160x240 Official Asset</div>
+      </div>
+    </div>
+    
+    <div class="player-card" data-team="Gujarat Giants" data-role="Raider" data-tier="D">
+      <div class="card-img-wrap">
+        <img src="/images/pkl-players/k-221.webp" alt="Himanshu Singh" loading="lazy" />
+        <span class="tier-badge tier-D">Tier D</span>
+        <span class="id-badge">k-221</span>
+      </div>
+      <div class="card-info">
+        <div class="player-name">Himanshu Singh</div>
+        <div class="player-team">Gujarat Giants</div>
+        <div class="player-meta">
+          <span class="role-pill" style="border-color: #F97316; color: #F97316;">Raider</span>
+          <span class="price">₹9L</span>
+        </div>
+        <div class="source-info">Source: 160x240 Official Asset</div>
+      </div>
+    </div>
+    
+    <div class="player-card" data-team="Gujarat Giants" data-role="Defender" data-tier="C">
+      <div class="card-img-wrap">
+        <img src="/images/pkl-players/k-222.webp" alt="Himanshu" loading="lazy" />
+        <span class="tier-badge tier-C">Tier C</span>
+        <span class="id-badge">k-222</span>
+      </div>
+      <div class="card-info">
+        <div class="player-name">Himanshu</div>
+        <div class="player-team">Gujarat Giants</div>
+        <div class="player-meta">
+          <span class="role-pill" style="border-color: #3B82F6; color: #3B82F6;">Right Cover</span>
+          <span class="price">₹13L</span>
+        </div>
+        <div class="source-info">Source: 160x240 Official Asset</div>
+      </div>
+    </div>
+    
+    <div class="player-card" data-team="Gujarat Giants" data-role="Defender" data-tier="D">
+      <div class="card-img-wrap">
+        <img src="/images/pkl-players/k-223.webp" alt="Lucky Sharma" loading="lazy" />
+        <span class="tier-badge tier-D">Tier D</span>
+        <span class="id-badge">k-223</span>
+      </div>
+      <div class="card-info">
+        <div class="player-name">Lucky Sharma</div>
+        <div class="player-team">Gujarat Giants</div>
+        <div class="player-meta">
+          <span class="role-pill" style="border-color: #3B82F6; color: #3B82F6;">Left Cover</span>
+          <span class="price">₹9L</span>
+        </div>
+        <div class="source-info">Source: 160x240 Official Asset</div>
+      </div>
+    </div>
+    
+    <div class="player-card" data-team="Gujarat Giants" data-role="All-Rounder" data-tier="D">
+      <div class="card-img-wrap">
+        <img src="/images/pkl-players/k-224.webp" alt="Nitin Panwar" loading="lazy" />
+        <span class="tier-badge tier-D">Tier D</span>
+        <span class="id-badge">k-224</span>
+      </div>
+      <div class="card-info">
+        <div class="player-name">Nitin Panwar</div>
+        <div class="player-team">Gujarat Giants</div>
+        <div class="player-meta">
+          <span class="role-pill" style="border-color: #10B981; color: #10B981;">All-Rounder</span>
+          <span class="price">₹9L</span>
+        </div>
+        <div class="source-info">Source: 160x240 Official Asset</div>
+      </div>
+    </div>
+    
+    <div class="player-card" data-team="Gujarat Giants" data-role="Defender" data-tier="C">
+      <div class="card-img-wrap">
+        <img src="/images/pkl-players/k-225.webp" alt="Rohit Nandal" loading="lazy" />
+        <span class="tier-badge tier-C">Tier C</span>
+        <span class="id-badge">k-225</span>
+      </div>
+      <div class="card-info">
+        <div class="player-name">Rohit Nandal</div>
+        <div class="player-team">Gujarat Giants</div>
+        <div class="player-meta">
+          <span class="role-pill" style="border-color: #3B82F6; color: #3B82F6;">Left Corner</span>
+          <span class="price">₹13L</span>
+        </div>
+        <div class="source-info">Source: 160x240 Official Asset</div>
+      </div>
+    </div>
+    
+    <div class="player-card" data-team="Gujarat Giants" data-role="Raider" data-tier="D">
+      <div class="card-img-wrap">
+        <img src="/images/pkl-players/k-226.webp" alt="Ankit Dahiya" loading="lazy" />
+        <span class="tier-badge tier-D">Tier D</span>
+        <span class="id-badge">k-226</span>
+      </div>
+      <div class="card-info">
+        <div class="player-name">Ankit Dahiya</div>
+        <div class="player-team">Gujarat Giants</div>
+        <div class="player-meta">
+          <span class="role-pill" style="border-color: #F97316; color: #F97316;">Raider</span>
+          <span class="price">₹9L</span>
+        </div>
+        <div class="source-info">Source: 160x240 Official Asset</div>
+      </div>
+    </div>
+    
+    <div class="player-card" data-team="Gujarat Giants" data-role="Raider" data-tier="D">
+      <div class="card-img-wrap">
+        <img src="/images/pkl-players/k-227.webp" alt="Aryavardhan Navale" loading="lazy" />
+        <span class="tier-badge tier-D">Tier D</span>
+        <span class="id-badge">k-227</span>
+      </div>
+      <div class="card-info">
+        <div class="player-name">Aryavardhan Navale</div>
+        <div class="player-team">Gujarat Giants</div>
+        <div class="player-meta">
+          <span class="role-pill" style="border-color: #F97316; color: #F97316;">Raider</span>
+          <span class="price">₹9L</span>
+        </div>
+        <div class="source-info">Source: 328x473 Official Asset</div>
+      </div>
+    </div>
+    
+    <div class="player-card" data-team="Gujarat Giants" data-role="Raider" data-tier="C">
+      <div class="card-img-wrap">
+        <img src="/images/pkl-players/k-228.webp" alt="Harish" loading="lazy" />
+        <span class="tier-badge tier-C">Tier C</span>
+        <span class="id-badge">k-228</span>
+      </div>
+      <div class="card-info">
+        <div class="player-name">Harish</div>
+        <div class="player-team">Gujarat Giants</div>
+        <div class="player-meta">
+          <span class="role-pill" style="border-color: #F97316; color: #F97316;">Raider</span>
+          <span class="price">₹13L</span>
+        </div>
+        <div class="source-info">Source: 160x240 Official Asset</div>
+      </div>
+    </div>
+    
+    <div class="player-card" data-team="Gujarat Giants" data-role="Raider" data-tier="D">
+      <div class="card-img-wrap">
+        <img src="/images/pkl-players/k-229.webp" alt="Shridhar Kadam" loading="lazy" />
+        <span class="tier-badge tier-D">Tier D</span>
+        <span class="id-badge">k-229</span>
+      </div>
+      <div class="card-info">
+        <div class="player-name">Shridhar Kadam</div>
+        <div class="player-team">Gujarat Giants</div>
+        <div class="player-meta">
+          <span class="role-pill" style="border-color: #F97316; color: #F97316;">Raider</span>
+          <span class="price">₹9L</span>
+        </div>
+        <div class="source-info">Source: 160x240 Official Asset</div>
+      </div>
+    </div>
+    
+    <div class="player-card" data-team="Gujarat Giants" data-role="Defender" data-tier="D">
+      <div class="card-img-wrap">
+        <img src="/images/pkl-players/k-230.webp" alt="Amit" loading="lazy" />
+        <span class="tier-badge tier-D">Tier D</span>
+        <span class="id-badge">k-230</span>
+      </div>
+      <div class="card-info">
+        <div class="player-name">Amit</div>
+        <div class="player-team">Gujarat Giants</div>
+        <div class="player-meta">
+          <span class="role-pill" style="border-color: #3B82F6; color: #3B82F6;">Right Cover</span>
+          <span class="price">₹9L</span>
+        </div>
+        <div class="source-info">Source: 160x240 Official Asset</div>
+      </div>
+    </div>
+    
+    <div class="player-card" data-team="Gujarat Giants" data-role="Defender" data-tier="B">
+      <div class="card-img-wrap">
+        <img src="/images/pkl-players/k-231.webp" alt="Milad Jabbari" loading="lazy" />
+        <span class="tier-badge tier-B">Tier B</span>
+        <span class="id-badge">k-231</span>
+      </div>
+      <div class="card-info">
+        <div class="player-name">Milad Jabbari</div>
+        <div class="player-team">Gujarat Giants</div>
+        <div class="player-meta">
+          <span class="role-pill" style="border-color: #3B82F6; color: #3B82F6;">Left Cover</span>
+          <span class="price">₹20L</span>
+        </div>
+        <div class="source-info">Source: 160x240 Official Asset</div>
+      </div>
+    </div>
+    
+    <div class="player-card" data-team="Gujarat Giants" data-role="Defender" data-tier="D">
+      <div class="card-img-wrap">
+        <img src="/images/pkl-players/k-232.webp" alt="Shubham Kumar" loading="lazy" />
+        <span class="tier-badge tier-D">Tier D</span>
+        <span class="id-badge">k-232</span>
+      </div>
+      <div class="card-info">
+        <div class="player-name">Shubham Kumar</div>
+        <div class="player-team">Gujarat Giants</div>
+        <div class="player-meta">
+          <span class="role-pill" style="border-color: #3B82F6; color: #3B82F6;">Right Corner</span>
+          <span class="price">₹9L</span>
+        </div>
+        <div class="source-info">Source: 160x240 Official Asset</div>
+      </div>
+    </div>
+    
+    <div class="player-card" data-team="Gujarat Giants" data-role="Defender" data-tier="D">
+      <div class="card-img-wrap">
+        <img src="/images/pkl-players/k-233.webp" alt="Sumit" loading="lazy" />
+        <span class="tier-badge tier-D">Tier D</span>
+        <span class="id-badge">k-233</span>
+      </div>
+      <div class="card-info">
+        <div class="player-name">Sumit</div>
+        <div class="player-team">Gujarat Giants</div>
+        <div class="player-meta">
+          <span class="role-pill" style="border-color: #3B82F6; color: #3B82F6;">Left Corner</span>
+          <span class="price">₹9L</span>
+        </div>
+        <div class="source-info">Source: 160x240 Official Asset</div>
+      </div>
+    </div>
+    
+    <div class="player-card" data-team="Gujarat Giants" data-role="All-Rounder" data-tier="C">
+      <div class="card-img-wrap">
+        <img src="/images/pkl-players/k-234.webp" alt="Himanshu Yadav" loading="lazy" />
+        <span class="tier-badge tier-C">Tier C</span>
+        <span class="id-badge">k-234</span>
+      </div>
+      <div class="card-info">
+        <div class="player-name">Himanshu Yadav</div>
+        <div class="player-team">Gujarat Giants</div>
+        <div class="player-meta">
+          <span class="role-pill" style="border-color: #10B981; color: #10B981;">All-Rounder</span>
+          <span class="price">₹13L</span>
+        </div>
+        <div class="source-info">Source: 160x240 Official Asset</div>
+      </div>
+    </div>
+    
+    <div class="player-card" data-team="Gujarat Giants" data-role="All-Rounder" data-tier="D">
+      <div class="card-img-wrap">
+        <img src="/images/pkl-players/k-235.webp" alt="Visvanth V" loading="lazy" />
+        <span class="tier-badge tier-D">Tier D</span>
+        <span class="id-badge">k-235</span>
+      </div>
+      <div class="card-info">
+        <div class="player-name">Visvanth V</div>
+        <div class="player-team">Gujarat Giants</div>
+        <div class="player-meta">
+          <span class="role-pill" style="border-color: #10B981; color: #10B981;">All-Rounder</span>
+          <span class="price">₹9L</span>
+        </div>
+        <div class="source-info">Source: 160x240 Official Asset</div>
+      </div>
+    </div>
+    
+  </main>
+
+  <script>
+    function filterCards() {
+      const query = document.getElementById('search').value.toLowerCase();
+      const team = document.getElementById('teamFilter').value;
+      const cards = document.querySelectorAll('.player-card');
+
+      cards.forEach(card => {
+        const name = card.querySelector('.player-name').innerText.toLowerCase();
+        const cardTeam = card.getAttribute('data-team');
+        const matchesQuery = !query || name.includes(query);
+        const matchesTeam = !team || cardTeam === team;
+
+        if (matchesQuery && matchesTeam) {
+          card.style.display = 'flex';
+        } else {
+          card.style.display = 'none';
+        }
+      });
+    }
+  </script>
+</body>
+</html>

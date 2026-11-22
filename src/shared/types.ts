@@ -6,7 +6,11 @@ export type PlayerRole =
   | 'Batter'
   | 'Bowler'
   | 'All-Rounder'
-  | 'Wicketkeeper';
+  | 'Wicketkeeper'
+  | 'Raider'
+  | 'Defender'
+  | 'RAID'
+  | 'DEF';
 
 export type PlayerTier = 'A' | 'B' | 'C';
 
