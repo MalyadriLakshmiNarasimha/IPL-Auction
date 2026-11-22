@@ -1,0 +1,25 @@
+# Dependencies
+node_modules/
+
+# Next.js / build output
+.next/
+out/
+dist/
+.dist/
+build/
+archive/
+audit-evidence/
+*.tsbuildinfo
+
+# Local environment secrets
+.env
+.env.*
+!.env.example
+
+# Logs and local caches
+*.log
+npm-debug.log*
+.DS_Store
+__pycache__/
+*.py[cod]
+*.zip

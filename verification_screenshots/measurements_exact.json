@@ -1,0 +1,122 @@
+[
+  {
+    "vp": "1920x1080",
+    "navH": 68,
+    "heroW": 1913,
+    "heroH": 820,
+    "createBtnH": 48,
+    "createBtnVisible": true,
+    "joinBtnH": 48,
+    "joinBtnVisible": true,
+    "arenaH2Top": 972,
+    "isArenaBelowFold": false
+  },
+  {
+    "vp": "1536x730",
+    "navH": 68,
+    "heroW": 1529,
+    "heroH": 642,
+    "createBtnH": 48,
+    "createBtnVisible": true,
+    "joinBtnH": 48,
+    "joinBtnVisible": true,
+    "arenaH2Top": 794,
+    "isArenaBelowFold": true
+  },
+  {
+    "vp": "1366x768",
+    "navH": 68,
+    "heroW": 1359,
+    "heroH": 680,
+    "createBtnH": 48,
+    "createBtnVisible": true,
+    "joinBtnH": 48,
+    "joinBtnVisible": true,
+    "arenaH2Top": 832,
+    "isArenaBelowFold": true
+  },
+  {
+    "vp": "1024x768",
+    "navH": 79,
+    "heroW": 1017,
+    "heroH": 680,
+    "createBtnH": 48,
+    "createBtnVisible": true,
+    "joinBtnH": 48,
+    "joinBtnVisible": true,
+    "arenaH2Top": 843,
+    "isArenaBelowFold": true
+  },
+  {
+    "vp": "768x1024",
+    "navH": 68,
+    "heroW": 761,
+    "heroH": 820,
+    "createBtnH": 48,
+    "createBtnVisible": true,
+    "joinBtnH": 48,
+    "joinBtnVisible": true,
+    "arenaH2Top": 956,
+    "isArenaBelowFold": false
+  },
+  {
+    "vp": "427x952",
+    "navH": 58,
+    "heroW": 427,
+    "heroH": 760,
+    "createBtnH": 0,
+    "createBtnVisible": true,
+    "joinBtnH": 0,
+    "joinBtnVisible": true,
+    "arenaH2Top": 878,
+    "isArenaBelowFold": false
+  },
+  {
+    "vp": "393x852",
+    "navH": 58,
+    "heroW": 393,
+    "heroH": 760,
+    "createBtnH": 0,
+    "createBtnVisible": true,
+    "joinBtnH": 0,
+    "joinBtnVisible": true,
+    "arenaH2Top": 878,
+    "isArenaBelowFold": true
+  },
+  {
+    "vp": "390x844",
+    "navH": 58,
+    "heroW": 390,
+    "heroH": 760,
+    "createBtnH": 0,
+    "createBtnVisible": true,
+    "joinBtnH": 0,
+    "joinBtnVisible": true,
+    "arenaH2Top": 878,
+    "isArenaBelowFold": true
+  },
+  {
+    "vp": "360x800",
+    "navH": 53,
+    "heroW": 360,
+    "heroH": 744,
+    "createBtnH": 0,
+    "createBtnVisible": true,
+    "joinBtnH": 0,
+    "joinBtnVisible": true,
+    "arenaH2Top": 858,
+    "isArenaBelowFold": true
+  },
+  {
+    "vp": "360x640",
+    "navH": 53,
+    "heroW": 360,
+    "heroH": 584,
+    "createBtnH": 0,
+    "createBtnVisible": true,
+    "joinBtnH": 0,
+    "joinBtnVisible": true,
+    "arenaH2Top": 698,
+    "isArenaBelowFold": true
+  }
+]

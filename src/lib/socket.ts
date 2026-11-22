@@ -1,0 +1,74 @@
+'use client';
+
+import { io, Socket } from 'socket.io-client';
+import { ClientToServerEvents, ServerToClientEvents } from '@/shared/types';
+
+let socket: Socket<ServerToClientEvents, ClientToServerEvents> | null = null;
+
+export function getSocketUrl(): string {
+  if (typeof window !== 'undefined') {
+    const envUrl = process.env.NEXT_PUBLIC_SOCKET_URL;
+    if (envUrl) return envUrl.replace(/\/$/, '');
+
+    // In production (Netlify or remote deployment), default to authoritative Render backend
+    const isLocalhost =
+      window.location.hostname === 'localhost' ||
+      window.location.hostname === '127.0.0.1';
+
+    if (!isLocalhost) {
+      return 'https://ipl-auction-backend-495n.onrender.com';
+    }
+    return 'http://localhost:3001';
+  }
+  return process.env.NEXT_PUBLIC_SOCKET_URL?.replace(/\/$/, '') || 'http://localhost:3001';
+}
+
+export function getSocket(token?: string): Socket<ServerToClientEvents, ClientToServerEvents> {
+  let authToken = token || '';
+  if (!authToken && typeof window !== 'undefined') {
+    authToken = localStorage.getItem('ipl_session_token') || '';
+  }
+
+  if (!socket) {
+    const url = getSocketUrl();
+    socket = io(url, {
+      autoConnect: true,
+      reconnection: true,
+      reconnectionAttempts: 10,
+      reconnectionDelay: 1000,
+      reconnectionDelayMax: 5000,
+      timeout: 15000,
+      transports: ['websocket', 'polling'],
+      auth: authToken ? { token: authToken } : {},
+      withCredentials: true, // Sends HTTP-only session cookie automatically
+    });
+
+    socket.on('connect', () => {
+      console.log('⚡ Socket connected to', url, 'ID:', socket?.id);
+    });
+
+    socket.on('connect_error', (err) => {
+      console.warn('⚠️ Socket connection error:', err.message);
+      if (err.message.includes('Authentication required') || err.message.includes('Invalid or expired')) {
+        // Disconnect immediately on auth failure to avoid aggressive reconnection loops
+        socket?.disconnect();
+      }
+    });
+  } else if (authToken && socket.auth && (socket.auth as any).token !== authToken) {
+    // Update auth token if provided and re-authenticate
+    (socket.auth as any).token = authToken;
+    if (socket.connected) {
+      socket.disconnect().connect();
+    }
+  }
+
+  return socket;
+}
+
+export function disconnectSocket() {
+  if (socket) {
+    socket.disconnect();
+    socket = null;
+  }
+}
+
