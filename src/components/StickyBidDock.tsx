@@ -2,7 +2,7 @@
 
 import React from 'react';
 import { AuctionState, Participant, RoomSettings } from '@/shared/types';
-import { BID_INCREMENTS, formatCurrency } from '@/shared/constants';
+import { BID_INCREMENTS, PKL_BID_INCREMENTS, formatCurrency } from '@/shared/constants';
 import { getBidButtonStatus } from '@/shared/validation';
 import { soundManager } from '@/lib/sound';
 
@@ -21,7 +21,8 @@ export const StickyBidDock: React.FC<StickyBidDockProps> = ({
   onBid,
   onWithdraw,
 }) => {
-  const isBiddingActive = auctionState.phase === 'bidding';
+  const isPaused = Boolean(auctionState.is_paused);
+  const isBiddingActive = auctionState.phase === 'bidding' && !isPaused;
   const hasWithdrawn =
     participant?.has_withdrawn_current ||
     (participant?.id ? auctionState.passed_participant_ids?.includes(participant.id) : false) ||
@@ -38,12 +39,23 @@ export const StickyBidDock: React.FC<StickyBidDockProps> = ({
     onWithdraw();
   };
 
+  const isPkl = settings?.sport_type === 'PKL';
+  const increments = isPkl ? PKL_BID_INCREMENTS : BID_INCREMENTS;
+
   return (
-    <div className="sticky bottom-0 left-0 right-0 z-30 bg-[#0A0B0D]/95 backdrop-blur-md border-t border-night-border/80 px-2 sm:px-6 py-2 sm:py-3 shadow-2xl">
+    <div
+      data-testid="bidding-dock"
+      data-sport={isPkl ? 'PKL' : 'IPL'}
+      className={
+        isPkl
+          ? 'fixed bottom-0 left-0 right-0 z-40 bg-[#0A0B0D]/95 backdrop-blur-md border-t border-night-border/80 px-2 sm:px-6 pt-2 sm:pt-2.5 pb-[max(0.5rem,env(safe-area-inset-bottom))] shadow-2xl transition-all'
+          : 'sticky bottom-0 left-0 right-0 z-30 bg-[#0A0B0D]/95 backdrop-blur-md border-t border-night-border/80 px-2 sm:px-6 py-2 sm:py-3 shadow-2xl'
+      }
+    >
       <div className="max-w-4xl mx-auto flex flex-col gap-2">
-        {/* Buttons Grid - 4 Controls in One Single Row: +₹25L, +₹50L, +₹1Cr, PASS / WITHDRAW */}
+        {/* Buttons Grid - 4 Controls in One Single Row */}
         <div className="grid grid-cols-4 gap-1.5 sm:gap-3">
-          {BID_INCREMENTS.map(({ label, amount }) => {
+          {increments.map(({ label, amount }) => {
             const status = getBidButtonStatus(participant, auctionState, settings, amount);
             const isDisabled = !isBiddingActive || status.disabled || hasWithdrawn;
 
@@ -118,7 +130,9 @@ export const StickyBidDock: React.FC<StickyBidDockProps> = ({
         {/* Bottom Status Row */}
         <div className="flex items-center justify-between gap-2 pt-0.5 text-xs">
           <div className="text-floodlight-muted truncate text-[11px] sm:text-xs">
-            {hasWithdrawn ? (
+            {isPaused ? (
+              <span className="text-amber-400 font-bold">⏸️ Auction paused — waiting for host to resume</span>
+            ) : hasWithdrawn ? (
               <span className="text-hammer font-semibold">You have passed on this player</span>
             ) : isLeading ? (
               <span className="text-turf font-bold">You hold the highest bid</span>
@@ -127,7 +141,11 @@ export const StickyBidDock: React.FC<StickyBidDockProps> = ({
             ) : !isBiddingActive ? (
               <span>Bidding paused or awaiting player</span>
             ) : (
-              <span>Reserve required: ₹20L per remaining empty slot</span>
+              <span>
+                {settings?.sport_type === 'PKL'
+                  ? 'Reserve required: ₹9L per remaining empty slot'
+                  : 'Reserve required: ₹20L per remaining empty slot'}
+              </span>
             )}
           </div>
 

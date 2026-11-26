@@ -20,18 +20,16 @@ export function middleware(req: NextRequest) {
     path.startsWith('/join') ||
     path.startsWith('/room');
 
-  const isAuthPath = path === '/login' || path === '/register';
-
   if (isProtectedPath && !token) {
     const loginUrl = new URL('/login', req.url);
     loginUrl.searchParams.set('redirect', path);
     return NextResponse.redirect(loginUrl);
   }
 
-  if (isAuthPath && token) {
-    const redirectParam = req.nextUrl.searchParams.get('redirect') || '/';
-    return NextResponse.redirect(new URL(redirectParam, req.url));
-  }
+  // Do NOT blindly redirect away from /login or /register if token exists.
+  // The token in the cookie could be expired or invalid in the database.
+  // The client-side /login and /register components securely verify authentication
+  // with /api/auth/me before deciding whether to redirect.
 
   return NextResponse.next();
 }

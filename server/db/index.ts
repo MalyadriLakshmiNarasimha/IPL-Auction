@@ -1,6 +1,7 @@
 import { AuctionResults, Participant, Player, RoomSettings, WorkflowStage, TradeOffer, TradeTransaction, PlayingXISubmission, CommentaryEvent, AuctionState } from '../../src/shared/types';
 import { db, prisma, checkMySqlConnection, DatabaseConnectionError } from '../../src/lib/db';
 import { ensureMysqlRunning } from '../../scripts/db-manager';
+import { buildFullAuctionResults } from '../../src/shared/auction-results-engine';
 
 const memoryResults = new Map<string, AuctionResults>();
 
@@ -27,6 +28,10 @@ export interface SerializedRoomState {
   completed_trades: TradeTransaction[];
   playing_xi_submissions: PlayingXISubmission[];
   commentary_events: CommentaryEvent[];
+  status?: string;
+  termination_reason?: string | null;
+  terminated_at?: number | null;
+  terminated_by_system?: boolean;
   schema_version: number;
   saved_at: number;
 }
@@ -135,16 +140,34 @@ export async function persistRoomSnapshot(stateData: SerializedRoomState): Promi
         select: { status: true },
       });
 
-      const isCompleted = stateData.auction_state.phase === 'completed' || existingDbRoom?.status === 'completed';
+      const isTerminated =
+        stateData.status === 'terminated' ||
+        stateData.auction_state.phase === 'terminated' ||
+        existingDbRoom?.status === 'terminated';
+      const isCompleted =
+        !isTerminated &&
+        (stateData.auction_state.phase === 'completed' || existingDbRoom?.status === 'completed');
       const isLive =
+        !isTerminated &&
         !isCompleted &&
         (stateData.auction_state.phase === 'bidding' ||
           stateData.auction_state.phase === 'starting' ||
           stateData.stage !== 'lobby');
-      const initialStatus = isCompleted ? 'completed' : isLive ? 'live' : 'lobby';
+      const initialStatus = isTerminated ? 'terminated' : isCompleted ? 'completed' : isLive ? 'live' : 'lobby';
 
       if (existingDbRoom) {
-        if (isCompleted) {
+        if (isTerminated) {
+          await tx.room.update({
+            where: { room_code: code },
+            data: {
+              updated_at: new Date(),
+              status: 'terminated',
+              termination_reason: stateData.termination_reason || stateData.auction_state.termination_reason || 'ALL_MANAGERS_EXITED',
+              terminated_at: stateData.terminated_at ? new Date(stateData.terminated_at) : new Date(),
+              terminated_by_system: stateData.terminated_by_system ?? true,
+            },
+          });
+        } else if (isCompleted) {
           await tx.room.update({
             where: { room_code: code },
             data: {
@@ -156,7 +179,7 @@ export async function persistRoomSnapshot(stateData: SerializedRoomState): Promi
           await tx.room.updateMany({
             where: {
               room_code: code,
-              status: { not: 'completed' },
+              status: { notIn: ['completed', 'terminated'] },
             },
             data: {
               updated_at: new Date(),
@@ -185,16 +208,18 @@ export async function persistRoomSnapshot(stateData: SerializedRoomState): Promi
           }
         }
         if (!hostUser) {
-          hostUser = await tx.user.findFirst();
-        }
-        if (!hostUser) {
-          hostUser = await tx.user.create({
-            data: {
-              name: 'System Host',
-              email: `system_host_${Date.now()}_${Math.random().toString(36).substring(2, 6)}@auction.local`,
-              password_hash: 'system-hash',
-            },
+          hostUser = await tx.user.findUnique({
+            where: { email: 'system-bot@auction.internal' },
           });
+          if (!hostUser) {
+            hostUser = await tx.user.create({
+              data: {
+                name: 'System Test Host',
+                email: 'system-bot@auction.internal',
+                password_hash: 'system-bot-hash-internal',
+              },
+            });
+          }
         }
         try {
           await tx.room.create({
@@ -203,23 +228,40 @@ export async function persistRoomSnapshot(stateData: SerializedRoomState): Promi
               name: stateData.name || 'IPL Auction Room',
               host_user_id: hostUser.id,
               status: initialStatus,
+              sport_type: stateData.settings?.sport_type === 'PKL' ? 'PKL' : 'IPL',
+              ...(isTerminated ? {
+                termination_reason: stateData.termination_reason || stateData.auction_state.termination_reason || 'ALL_MANAGERS_EXITED',
+                terminated_at: stateData.terminated_at ? new Date(stateData.terminated_at) : new Date(),
+                terminated_by_system: stateData.terminated_by_system ?? true,
+              } : {}),
             },
           });
         } catch (fkErr: any) {
-          // If concurrent test teardown deleted hostUser, create a dedicated fallback user
-          const fallbackHost = await tx.user.create({
-            data: {
-              name: 'System Host',
-              email: `system_host_${Date.now()}_${Math.random().toString(36).substring(2, 6)}@auction.local`,
-              password_hash: 'system-hash',
-            },
+          // If concurrent test teardown deleted hostUser, ensure dedicated fallback user exists
+          let fallbackHost = await tx.user.findUnique({
+            where: { email: 'system-bot@auction.internal' },
           });
+          if (!fallbackHost) {
+            fallbackHost = await tx.user.create({
+              data: {
+                name: 'System Test Host',
+                email: 'system-bot@auction.internal',
+                password_hash: 'system-bot-hash-internal',
+              },
+            });
+          }
           await tx.room.create({
             data: {
               room_code: code,
               name: stateData.name || 'IPL Auction Room',
               host_user_id: fallbackHost.id,
               status: initialStatus,
+              sport_type: stateData.settings?.sport_type === 'PKL' ? 'PKL' : 'IPL',
+              ...(isTerminated ? {
+                termination_reason: stateData.termination_reason || stateData.auction_state.termination_reason || 'ALL_MANAGERS_EXITED',
+                terminated_at: stateData.terminated_at ? new Date(stateData.terminated_at) : new Date(),
+                terminated_by_system: stateData.terminated_by_system ?? true,
+              } : {}),
             },
           });
         }
@@ -328,9 +370,12 @@ export async function loadAllActiveRoomCodes(): Promise<string[]> {
     const isDbUp = await checkMySqlConnection();
     if (!isDbUp) return [];
 
+    const recentCutoff = new Date(Date.now() - 24 * 60 * 60 * 1000);
     const activeRooms = await prisma.room.findMany({
       where: {
-        status: { not: 'completed' },
+        status: { in: ['lobby', 'live'] },
+        host_user_id: { not: 'system-bot-host-id' },
+        updated_at: { gte: recentCutoff },
       },
       select: { room_code: true },
     });
@@ -390,30 +435,66 @@ export async function persistResults(results: AuctionResults): Promise<void> {
   }
 }
 
-export async function getPersistedResults(roomCode: string): Promise<AuctionResults | null> {
+export async function getPersistedResults(roomCode: string): Promise<any | null> {
   const code = roomCode.toUpperCase();
   if (memoryResults.has(code)) {
     return memoryResults.get(code)!;
   }
 
   try {
-    const row = await db.result.findUnique({
-      where: { room_code: code },
-    });
+    const [row, snapshot, room, bidEvents] = await Promise.all([
+      db.result.findUnique({ where: { room_code: code } }),
+      db.roomSnapshot.findFirst({ where: { room_code: code }, orderBy: { created_at: 'desc' } }),
+      db.room.findUnique({ where: { room_code: code }, include: { participants: true, host: true } }),
+      db.bidEvent.findMany({ where: { room_code: code } }),
+    ]);
 
-    if (row) {
-      const results: AuctionResults = {
-        room_code: row.room_code,
-        completed_at: Number(row.completed_at),
-        awards: row.awards as any,
-        leaderboard: row.leaderboard as any,
-        total_players_auctioned: row.total_players_auctioned,
-        total_money_spent: Number(row.total_money_spent),
-        most_expensive_player: null,
-        biggest_bidding_war: null,
+    if (row || snapshot?.state_data) {
+      const stateData = (snapshot?.state_data as any) || {};
+      const sportType: 'IPL' | 'PKL' =
+        room?.sport_type === 'PKL' ||
+        code.startsWith('K') ||
+        stateData.sport === 'pkl' ||
+        stateData.config?.season?.includes('Season')
+          ? 'PKL'
+          : 'IPL';
+
+      const completedAt = row?.completed_at
+        ? Number(row.completed_at)
+        : (snapshot?.created_at.getTime() || Date.now());
+
+      const rawLeaderboard = (row?.leaderboard as any[]) || stateData.results?.leaderboard || [];
+      const rawAwards = (row?.awards as any[]) || stateData.results?.awards || [];
+      const allCompletedBids = stateData.all_completed_bids || [];
+      const rawUnsoldPool = stateData.unsold_pool || [];
+      const totalPoolCount = stateData.pool?.length || (sportType === 'PKL' ? 235 : 274);
+
+      const fullResults = buildFullAuctionResults(
+        code,
+        room?.name || stateData.name || `Auction ${code}`,
+        sportType,
+        completedAt,
+        stateData.participants || (room as any)?.participants || [],
+        rawLeaderboard,
+        rawAwards,
+        allCompletedBids,
+        rawUnsoldPool,
+        bidEvents,
+        totalPoolCount
+      );
+
+      const combinedResults = {
+        ...fullResults,
+        room_code: code,
+        completed_at: completedAt,
+        awards: rawAwards,
+        leaderboard: rawLeaderboard,
+        total_players_auctioned: fullResults.overview.total_sold,
+        total_money_spent: fullResults.overview.total_spent,
       };
-      memoryResults.set(code, results);
-      return results;
+
+      memoryResults.set(code, combinedResults as any);
+      return combinedResults;
     }
   } catch (err) {
     // Return null if not found
@@ -434,7 +515,7 @@ export async function archiveAbandonedRooms(olderThanDays = 7): Promise<number> 
     const cutoff = new Date(Date.now() - olderThanDays * 24 * 60 * 60 * 1000);
     const staleRooms = await prisma.room.findMany({
       where: {
-        status: { not: 'completed' },
+        status: { notIn: ['completed', 'terminated'] },
         created_at: { lt: cutoff },
       },
       select: { room_code: true },

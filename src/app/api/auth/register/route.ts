@@ -6,6 +6,7 @@ import {
   AUTH_COOKIE_NAME,
   getCookieOptions,
   checkAuthRateLimit,
+  resetAuthRateLimit,
 } from '@/lib/auth';
 
 export async function POST(req: NextRequest) {
@@ -76,6 +77,9 @@ export async function POST(req: NextRequest) {
 
     // 5. Create Session
     const { sessionToken, expiresAt } = await createSession(user.id);
+
+    // Reset rate limiter on successful registration
+    resetAuthRateLimit(`register_${ip}`);
 
     // 6. Response with HTTP-only cookie & socket authorization token
     const response = NextResponse.json(

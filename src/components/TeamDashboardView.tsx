@@ -7,7 +7,7 @@ import { DownloadReportModal } from '@/components/DownloadReportModal';
 import { SmartPurseAnalyzer } from '@/components/SmartPurseAnalyzer';
 import { SquadCompositionAnalyzer } from '@/components/SquadCompositionAnalyzer';
 import { PlayerPortrait } from '@/components/PlayerPortrait';
-import { DEFAULT_ROOM_SETTINGS } from '@/shared/constants';
+import { DEFAULT_ROOM_SETTINGS, DEFAULT_PKL_ROOM_SETTINGS } from '@/shared/constants';
 import { Participant } from '@/shared/types';
 import {
   Shield,
@@ -246,10 +246,16 @@ export const TeamDashboardView: React.FC<TeamDashboardViewProps> = ({
               squad_excesses: [],
               has_withdrawn_current: false,
             };
+            const isPkl = (results as any).sport_type === 'PKL' || squad.some(
+              item =>
+                item.player?.id?.startsWith('k-') ||
+                item.player?.id?.startsWith('pkl-') ||
+                ['Raider', 'Defender', 'RAID', 'DEF'].includes(item.player?.role)
+            );
             const analysisSettings = {
-              ...DEFAULT_ROOM_SETTINGS,
+              ...(isPkl ? DEFAULT_PKL_ROOM_SETTINGS : DEFAULT_ROOM_SETTINGS),
               purse: squadScore.total_spent + squadScore.purse_remaining,
-              squad_size: Math.max(15, squad.length || 15),
+              squad_size: Math.max(isPkl ? 14 : 15, squad.length || (isPkl ? 14 : 15)),
             };
 
             return (

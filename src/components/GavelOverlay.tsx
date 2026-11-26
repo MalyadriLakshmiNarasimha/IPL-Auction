@@ -1,12 +1,12 @@
 'use client';
 
-import React, { useEffect } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import confetti from 'canvas-confetti';
 import { Participant, Player } from '@/shared/types';
 import { formatCurrency } from '@/shared/constants';
 import { soundManager } from '@/lib/sound';
-import { Gavel } from 'lucide-react';
+import { Gavel, X, ArrowRight } from 'lucide-react';
 
 interface GavelOverlayProps {
   phase: 'sold' | 'unsold';
@@ -14,6 +14,7 @@ interface GavelOverlayProps {
   winner?: Participant | null;
   price?: number;
   currentUserId: string;
+  onDismiss?: () => void;
 }
 
 export const GavelOverlay: React.FC<GavelOverlayProps> = ({
@@ -22,17 +23,30 @@ export const GavelOverlay: React.FC<GavelOverlayProps> = ({
   winner,
   price = 0,
   currentUserId,
+  onDismiss,
 }) => {
   const isMyPurchase = winner?.id === currentUserId;
   const winnerColor = winner?.team_color || winner?.franchise?.color || '#DCC477';
   const winnerName = winner?.team_name || winner?.franchise?.name || 'Winning Team';
   const winnerCode = winner?.team_short_code || winner?.franchise?.short_code || 'TM';
+  const [isDismissed, setIsDismissed] = useState(false);
+
+  const handleDismiss = useCallback(() => {
+    setIsDismissed(true);
+    if (onDismiss) {
+      onDismiss();
+    }
+  }, [onDismiss]);
+
+  useEffect(() => {
+    setIsDismissed(false);
+  }, [phase, player?.id]);
 
   useEffect(() => {
     // Note: The authoritative hammer strike is triggered exactly once via soundFX.playGavel()
     // immediately upon server confirmation in page.tsx before this overlay mounts.
-    if (phase === 'sold') {
-      setTimeout(() => {
+    const soundTimer = setTimeout(() => {
+      if (phase === 'sold') {
         soundManager.playSoldFanfare();
         // Trigger celebratory confetti in winner's jersey color
         try {
@@ -43,15 +57,24 @@ export const GavelOverlay: React.FC<GavelOverlayProps> = ({
             colors: [winnerColor, '#F9CD05', '#F2EFE4'],
           });
         } catch (e) {}
-      }, 400);
-    } else {
-      setTimeout(() => {
+      } else {
         soundManager.playUnsoldSigh();
-      }, 400);
-    }
-  }, [phase, winnerColor]);
+      }
+    }, 400);
 
-  if (!player) return null;
+    // Reliable Auto-Dismiss Safety Watchdog:
+    // Guarantees the overlay never remains stuck on screen even if socket events fluctuate.
+    const autoDismissTimer = setTimeout(() => {
+      handleDismiss();
+    }, 4500);
+
+    return () => {
+      clearTimeout(soundTimer);
+      clearTimeout(autoDismissTimer);
+    };
+  }, [phase, player?.id, winnerColor, handleDismiss]);
+
+  if (!player || isDismissed) return null;
 
   return (
     <AnimatePresence>
@@ -83,6 +106,15 @@ export const GavelOverlay: React.FC<GavelOverlayProps> = ({
             boxShadow: phase === 'sold' ? `0 0 40px ${winnerColor}40` : undefined,
           }}
         >
+          {/* Quick Dismiss Button */}
+          <button
+            onClick={handleDismiss}
+            className="absolute top-3 right-3 p-1.5 rounded-lg text-floodlight-muted hover:text-white hover:bg-white/10 transition-colors"
+            title="Dismiss result overlay"
+          >
+            <X className="w-4 h-4" />
+          </button>
+
           {/* STAMP */}
           {phase === 'sold' ? (
             <motion.div
@@ -161,6 +193,28 @@ export const GavelOverlay: React.FC<GavelOverlayProps> = ({
               Will return in the Accelerated Round at base price.
             </p>
           )}
+
+          {/* Bottom dismissal action */}
+          <div className="mt-5 pt-3 border-t border-night-border/60 flex items-center justify-between">
+            <span className="text-[10px] text-floodlight-muted/80 flex items-center gap-1">
+              <span>Transitioning to next player...</span>
+            </span>
+            <button
+              onClick={handleDismiss}
+              className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-night-raised hover:bg-white/10 text-xs font-bold text-flare border border-flare/30 transition-all hover:scale-105"
+            >
+              <span>Continue</span>
+              <ArrowRight className="w-3.5 h-3.5" />
+            </button>
+          </div>
+
+          {/* Animated Auto-Advance Progress Bar */}
+          <motion.div
+            initial={{ scaleX: 1 }}
+            animate={{ scaleX: 0 }}
+            transition={{ duration: 4.5, ease: 'linear' }}
+            className="absolute bottom-0 left-0 right-0 h-1 bg-amber-400 origin-left"
+          />
         </motion.div>
       </motion.div>
     </AnimatePresence>

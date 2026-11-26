@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { Participant, WorkflowStage } from '@/shared/types';
+import { AuctionState, Participant, WorkflowStage } from '@/shared/types';
 import {
   X,
   Play,
@@ -17,6 +17,7 @@ import {
 interface HostControlsModalProps {
   isPaused: boolean;
   currentStage?: WorkflowStage;
+  auctionState?: AuctionState | null;
   participants: Participant[];
   currentUserId: string;
   onPause: () => void;
@@ -32,6 +33,7 @@ interface HostControlsModalProps {
 export const HostControlsModal: React.FC<HostControlsModalProps> = ({
   isPaused,
   currentStage = 'main_auction',
+  auctionState,
   participants,
   currentUserId,
   onPause,
@@ -126,10 +128,34 @@ export const HostControlsModal: React.FC<HostControlsModalProps> = ({
             <div className="grid grid-cols-1 gap-1.5 max-h-48 overflow-y-auto pr-1">
               {stages.map(s => {
                 const isActive = currentStage === s.key;
+                const r1Done = Boolean(auctionState?.round1_completed);
+                const r2Done = Boolean(auctionState?.round2_completed);
+                const tradingDone = Boolean(auctionState?.trading_completed);
+                const tradingStarted = Boolean(auctionState?.trading_started);
+
+                let isAllowed = !isActive;
+                if (s.key === 'main_auction') {
+                  isAllowed = false;
+                } else if (s.key === 'unsold_auction') {
+                  isAllowed = r1Done && !r2Done && !isActive;
+                } else if (s.key === 'trading_window') {
+                  isAllowed = r1Done && r2Done && !tradingStarted && !tradingDone && !isActive;
+                } else if (s.key === 'squad_evaluation') {
+                  isAllowed = r1Done && r2Done && (currentStage === 'trading_window' || currentStage === 'unsold_auction' || currentStage === 'main_auction') && !isActive;
+                } else if (s.key === 'playing_xi_selection') {
+                  isAllowed = r1Done && r2Done && (currentStage === 'trading_window' || currentStage === 'squad_evaluation') && !isActive;
+                } else if (s.key === 'playing_xi_evaluation') {
+                  isAllowed = r1Done && r2Done && (currentStage === 'squad_evaluation' || currentStage === 'playing_xi_selection') && !isActive;
+                } else if (s.key === 'championship_recap') {
+                  isAllowed = r1Done && r2Done && !isActive;
+                }
+
                 return (
                   <button
                     key={s.key}
+                    disabled={!isAllowed}
                     onClick={() => {
+                      if (!isAllowed) return;
                       if (confirm(`Transition auction room to stage: ${s.label}?`)) {
                         onTransitionStage(s.key);
                         onClose();
@@ -138,13 +164,15 @@ export const HostControlsModal: React.FC<HostControlsModalProps> = ({
                     className={`flex items-center justify-between p-2 rounded text-xs font-bold transition-all text-left border ${
                       isActive
                         ? 'bg-flare/20 border-flare text-flare'
-                        : 'bg-night-raised hover:bg-night-border border-night-border text-floodlight'
+                        : isAllowed
+                          ? 'bg-night-raised hover:bg-night-border border-night-border text-floodlight'
+                          : 'bg-night-raised/40 border-night-border/40 text-floodlight-subtle opacity-45 cursor-not-allowed'
                     }`}
                   >
                     <span>{s.label}</span>
                     <span className="text-[10px] font-mono text-floodlight-muted flex items-center gap-1">
-                      {isActive ? 'Current' : 'Jump'}
-                      {!isActive && <ArrowRight className="w-3 h-3" />}
+                      {isActive ? 'Current' : isAllowed ? 'Jump' : 'Locked'}
+                      {isAllowed && <ArrowRight className="w-3 h-3" />}
                     </span>
                   </button>
                 );

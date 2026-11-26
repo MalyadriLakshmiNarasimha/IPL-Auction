@@ -18,11 +18,17 @@ export function validateBid(
   isExplicitAmount: boolean = false
 ): BidValidationResult {
   // 1. Auction Phase Check
+  if (auctionState.phase === 'terminated' || auctionState.status === 'terminated') {
+    return { valid: false, reason: 'AUCTION_TERMINATED: This auction has been terminated.' };
+  }
   if (auctionState.phase === 'announcing') {
     return { valid: false, reason: 'Bidding has not started yet. Player announcement in progress.' };
   }
   if (auctionState.phase !== 'bidding') {
     return { valid: false, reason: 'Bidding is not currently active' };
+  }
+  if (auctionState.is_paused) {
+    return { valid: false, reason: 'Auction is paused — awaiting host resume' };
   }
 
   // 2. Timer Check

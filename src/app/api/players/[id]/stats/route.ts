@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getPlayerById } from '../../../../../shared/player-data';
+import { getPklPlayerById, getPklPlayerStats } from '../../../../../shared/pkl-player-data';
 import {
   getIplCareerStats,
   getIplSeasonStats,
@@ -26,6 +27,32 @@ export async function GET(
     const player = getPlayerById(resolvedId);
 
     if (!player) {
+      const pklPlayer = getPklPlayerById(rawId);
+      if (pklPlayer) {
+        const pklStats = getPklPlayerStats(pklPlayer.id);
+        return NextResponse.json(
+          {
+            player_id: pklPlayer.id,
+            canonical_name: pklPlayer.name,
+            role: pklPlayer.role,
+            position_detail: pklPlayer.position_detail,
+            nationality: pklPlayer.nationality || pklPlayer.country,
+            team: pklPlayer.team,
+            sport: 'PKL',
+            status: pklStats?.data_status || 'VERIFIED_S12',
+            career: pklStats?.career || null,
+            season_12: pklStats?.season_12 || null,
+            stats_2026: pklPlayer.stats_2026,
+          },
+          {
+            status: 200,
+            headers: {
+              'Cache-Control': 'public, max-age=3600, s-maxage=3600',
+            },
+          }
+        );
+      }
+
       return NextResponse.json(
         {
           error: `Player '${rawId}' not found in database registry`,

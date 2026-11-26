@@ -2,6 +2,7 @@ import {
   AuctionPhase,
   AuctionResults,
   AuctionState,
+  AuctionTerminatedPayload,
   Bid,
   ChatMessage,
   CommentaryEvent,
@@ -46,11 +47,21 @@ import {
 import { db, prisma } from '../src/lib/db';
 import { Server as SocketIOServer } from 'socket.io';
 
+export const AUCTION_TERMINATED_ERROR = 'AUCTION_TERMINATED';
+export const ALL_MANAGERS_EXITED_REASON = 'ALL_MANAGERS_EXITED';
+export const ALL_MANAGERS_EXITED_MESSAGE =
+  'All franchise managers have exited. This auction has been terminated and all participating managers have been disqualified.';
+
 export interface RoomRecord {
   room_code: string;
   name: string;
   host_session_id: string;
   host_disconnect_time: number | null;
+  status?: 'lobby' | 'live' | 'completed' | 'terminated';
+  termination_reason?: string | null;
+  terminated_at?: number | null;
+  terminated_by_system?: boolean;
+  is_terminating?: boolean;
   settings: RoomSettings;
   participants: Map<string, Participant>;
   chat_messages: ChatMessage[];
@@ -68,11 +79,14 @@ export interface RoomRecord {
   timer_handle: NodeJS.Timeout | null;
   next_player_handle: NodeJS.Timeout | null;
   announcement_timeout_handle: NodeJS.Timeout | null;
+  stage_deadline_handle?: NodeJS.Timeout | null;
   client_announcement_completions: Set<string>;
   is_processing_bid: boolean;
   current_player_passes: Set<string>;
+  current_player_bid_count: number;
   is_processing_unsold: boolean;
   closing_warning_bid_key?: string | null;
+  auto_paused_reason?: 'server_restart' | 'host_disconnect' | null;
 
   // New Workflow State Additions
   stage: WorkflowStage;
@@ -97,12 +111,42 @@ export class RoomManager {
   private startPeriodicSnapshotLoop() {
     if (this.periodicSnapshotHandle) clearInterval(this.periodicSnapshotHandle);
     this.periodicSnapshotHandle = setInterval(async () => {
+      const now = Date.now();
       for (const room of this.rooms.values()) {
-        if (room.auction_state.phase === 'bidding' || room.stage === 'trading_window') {
+        if (room.stage === 'trading_window' && room.auction_state.phase === 'trading') {
+          if (room.auction_state.stage_ends_at && now >= room.auction_state.stage_ends_at) {
+            this.concludeTradingWindow(room, 'Trading deadline reached.');
+            continue;
+          }
+        }
+        const isActiveTrading =
+          room.stage === 'trading_window' &&
+          room.auction_state.phase === 'trading' &&
+          !room.auction_state.trading_completed;
+        if (room.auction_state.phase === 'bidding' || isActiveTrading) {
           await this.saveRoomSnapshot(room.room_code, 'periodic_loop');
         }
       }
     }, 5000);
+  }
+
+  private clearRoomTimers(room: RoomRecord): void {
+    if (room.timer_handle) {
+      clearInterval(room.timer_handle);
+      room.timer_handle = null;
+    }
+    if (room.next_player_handle) {
+      clearTimeout(room.next_player_handle);
+      room.next_player_handle = null;
+    }
+    if (room.announcement_timeout_handle) {
+      clearTimeout(room.announcement_timeout_handle);
+      room.announcement_timeout_handle = null;
+    }
+    if (room.stage_deadline_handle) {
+      clearTimeout(room.stage_deadline_handle);
+      room.stage_deadline_handle = null;
+    }
   }
 
   public stopPeriodicSnapshotLoop() {
@@ -121,19 +165,54 @@ export class RoomManager {
   }
 
   public getEligibleBidders(room: RoomRecord): Participant[] {
+    const squadSize = room.settings?.squad_size ?? 15;
     return Array.from(room.participants.values()).filter(p => {
       const hasTeam = Boolean(p.team_name || p.franchise);
       const notSpectator = !p.is_spectator && p.role !== 'spectator';
-      const hasSquadSlot = p.squad.length < room.settings.squad_size;
-      return hasTeam && notSpectator && hasSquadSlot;
+      const notExited =
+        !p.has_exited &&
+        p.participation_status !== 'EXITED' &&
+        p.participation_status !== 'DISQUALIFIED';
+      const hasSquadSlot = (p.squad?.length ?? 0) < squadSize;
+      return hasTeam && notSpectator && notExited && hasSquadSlot;
+    });
+  }
+
+  public isRoomTerminated(room: RoomRecord | undefined | null): boolean {
+    if (!room) return false;
+    return (
+      room.status === 'terminated' ||
+      room.auction_state.phase === 'terminated' ||
+      room.auction_state.status === 'terminated'
+    );
+  }
+
+  private getTerminatedPayload(room: RoomRecord): AuctionTerminatedPayload {
+    return {
+      roomCode: room.room_code,
+      reason: room.termination_reason || room.auction_state.termination_reason || ALL_MANAGERS_EXITED_REASON,
+      terminatedAt: room.terminated_at || room.auction_state.terminated_at || Date.now(),
+      message: room.auction_state.termination_message || ALL_MANAGERS_EXITED_MESSAGE,
+      sportType: room.settings.sport_type,
+      participants: Array.from(room.participants.values()),
+    };
+  }
+
+  private emitTerminatedRejection(room: RoomRecord, sessionId?: string, socketId?: string): void {
+    const participant = sessionId ? room.participants.get(sessionId) : undefined;
+    const target = socketId || participant?.socket_id || sessionId;
+    if (!target) return;
+    this.io.to(target).emit('error_message', {
+      code: AUCTION_TERMINATED_ERROR,
+      message: `${AUCTION_TERMINATED_ERROR}: ${room.auction_state.termination_message || ALL_MANAGERS_EXITED_MESSAGE}`,
     });
   }
 
   public removeRoom(roomCode: string): void {
     const code = roomCode.toUpperCase();
     const room = this.rooms.get(code);
-    if (room && room.timer_handle) {
-      clearInterval(room.timer_handle);
+    if (room) {
+      this.clearRoomTimers(room);
     }
     this.rooms.delete(code);
   }
@@ -155,6 +234,11 @@ export class RoomManager {
       display_name: hostDisplayName,
       is_host: true,
       is_connected: true,
+      has_exited: false,
+      exited_at: null,
+      participation_status: 'ACTIVE',
+      disqualification_reason: null,
+      disqualified_at: null,
       is_spectator: false,
       role: 'host',
       last_active: Date.now(),
@@ -178,6 +262,10 @@ export class RoomManager {
       phase: 'lobby',
       stage: 'lobby',
       round_number: 1,
+      round1_completed: false,
+      round2_completed: false,
+      trading_started: false,
+      trading_completed: false,
       current_player_index: 0,
       current_player: null,
       current_bid: 0,
@@ -195,6 +283,11 @@ export class RoomManager {
       sold_count: 0,
       unsold_count: 0,
       is_paused: false,
+      status: 'lobby',
+      termination_reason: null,
+      terminated_at: null,
+      terminated_by_system: false,
+      termination_message: null,
     };
 
     const record: RoomRecord = {
@@ -202,6 +295,11 @@ export class RoomManager {
       name,
       host_session_id: hostSessionId,
       host_disconnect_time: null,
+      status: 'lobby',
+      termination_reason: null,
+      terminated_at: null,
+      terminated_by_system: false,
+      is_terminating: false,
       settings,
       participants,
       chat_messages: [],
@@ -213,9 +311,11 @@ export class RoomManager {
       timer_handle: null,
       next_player_handle: null,
       announcement_timeout_handle: null,
+      stage_deadline_handle: null,
       client_announcement_completions: new Set(),
       is_processing_bid: false,
       current_player_passes: new Set(),
+      current_player_bid_count: 0,
       is_processing_unsold: false,
       closing_warning_bid_key: null,
       stage: 'lobby',
@@ -240,16 +340,35 @@ export class RoomManager {
     const room = this.getRoom(roomCode);
     if (!room) return null;
 
+    if (this.isRoomTerminated(room)) {
+      const payload = this.getTerminatedPayload(room);
+      if (socketId) {
+        this.io.to(socketId).emit('auction_terminated', payload);
+        this.io.to(socketId).emit('error_message', {
+          code: AUCTION_TERMINATED_ERROR,
+          message: `${AUCTION_TERMINATED_ERROR}: ${payload.message}`,
+        });
+      }
+      return null;
+    }
+
     let participant = room.participants.get(sessionId);
+    let shouldAutoResumeOnHostReconnect = false;
     if (participant) {
       participant.is_connected = true;
       participant.socket_id = socketId;
       participant.last_active = Date.now();
+      participant.has_exited = false;
+      participant.exited_at = null;
+      participant.participation_status = 'ACTIVE';
       if (participant.display_name !== displayName && displayName.trim().length > 0) {
         participant.display_name = displayName;
       }
       if (participant.id === room.host_session_id) {
         room.host_disconnect_time = null;
+        if (room.auction_state.is_paused && room.auto_paused_reason) {
+          shouldAutoResumeOnHostReconnect = true;
+        }
       }
     } else {
       if (room.participants.size >= MAX_ROOM_PARTICIPANTS) {
@@ -263,6 +382,11 @@ export class RoomManager {
         display_name: displayName || `Manager ${room.participants.size + 1}`,
         is_host: isHost,
         is_connected: true,
+        has_exited: false,
+        exited_at: null,
+        participation_status: 'ACTIVE',
+        disqualification_reason: null,
+        disqualified_at: null,
         is_spectator: isSpectator && !isHost,
         role: isHost ? 'host' : isSpectator ? 'spectator' : 'manager',
         last_active: Date.now(),
@@ -277,7 +401,7 @@ export class RoomManager {
         squad_shortages: [],
         squad_excesses: [],
       };
-    if (participant.is_host) {
+      if (participant.is_host) {
         room.host_session_id = sessionId;
       }
       room.participants.set(sessionId, participant);
@@ -301,14 +425,56 @@ export class RoomManager {
         franchise_color: participant.franchise?.color || null,
         is_host: participant.is_host,
         is_spectator: participant.is_spectator,
+        participation_status: 'ACTIVE',
       },
       update: {
         display_name: participant.display_name,
         is_spectator: participant.is_spectator,
+        participation_status: 'ACTIVE',
+        exited_at: null,
       },
-    }).catch(() => {});
+    }).catch(() => { });
 
     this.refreshParticipantMetrics(room);
+    if (room.auction_state.phase === 'bidding' || room.auction_state.phase === 'announcing') {
+      room.auction_state.total_eligible_passers = this.getEligibleBidders(room).length;
+    }
+
+    if (shouldAutoResumeOnHostReconnect) {
+      this.resumeAuction(room.room_code, room.host_session_id);
+      return room;
+    }
+
+    // Watchdog check: If room is in unsold or sold phase with no scheduled next player and unpaused, auto-schedule next player
+    if (
+      (room.auction_state.phase === 'unsold' || room.auction_state.phase === 'sold') &&
+      !room.next_player_handle &&
+      !room.auction_state.is_paused
+    ) {
+      this.scheduleNextPlayer(room, 2000);
+    } else if (
+      room.auction_state.phase === 'bidding' &&
+      !room.auction_state.is_paused &&
+      !room.timer_handle
+    ) {
+      if (!room.auction_state.timer_ends_at || room.auction_state.timer_ends_at <= Date.now()) {
+        room.auction_state.timer_ends_at = Date.now() + room.settings.timer_seconds * 1000;
+      }
+      this.startTimerLoop(room);
+    } else if (
+      room.auction_state.phase === 'announcing' &&
+      !room.auction_state.is_paused &&
+      !room.announcement_timeout_handle
+    ) {
+      const remainingAnnounceMs = Math.max(
+        1200,
+        (room.auction_state.announcement_ends_at || 0) - Date.now()
+      );
+      room.announcement_timeout_handle = setTimeout(() => {
+        this.startBiddingPhase(room);
+      }, remainingAnnounceMs);
+    }
+
     this.broadcastState(room);
     return room;
   }
@@ -316,6 +482,10 @@ export class RoomManager {
   public setSpectatorMode(roomCode: string, sessionId: string, isSpectator: boolean): boolean {
     const room = this.getRoom(roomCode);
     if (!room) return false;
+    if (this.isRoomTerminated(room)) {
+      this.emitTerminatedRejection(room, sessionId);
+      return false;
+    }
 
     const participant = room.participants.get(sessionId);
     if (!participant || participant.is_host) return false;
@@ -327,7 +497,7 @@ export class RoomManager {
     }
 
     this.broadcastState(room);
-    this.saveRoomSnapshot(room.room_code, 'stage_transition').catch(() => {});
+    this.saveRoomSnapshot(room.room_code, 'stage_transition').catch(() => { });
     return true;
   }
 
@@ -350,6 +520,10 @@ export class RoomManager {
   public pickFranchise(roomCode: string, sessionId: string, franchise: FranchiseIdentity): boolean {
     const room = this.getRoom(roomCode);
     if (!room) return false;
+    if (this.isRoomTerminated(room)) {
+      this.emitTerminatedRejection(room, sessionId);
+      return false;
+    }
 
     // Lock franchise selection once the auction starts
     if (room.auction_state.phase !== 'lobby') {
@@ -379,7 +553,7 @@ export class RoomManager {
     participant.team_color = franchise.color;
     this.refreshParticipantMetrics(room);
     this.broadcastState(room);
-    this.saveRoomSnapshot(room.room_code, 'franchise_picked').catch(() => {});
+    this.saveRoomSnapshot(room.room_code, 'franchise_picked').catch(() => { });
 
     // Synchronize & persist franchise selection in MySQL
     db.roomParticipant.upsert({
@@ -415,7 +589,7 @@ export class RoomManager {
         franchise_color: franchise.color,
         is_spectator: false,
       },
-    }).catch(() => {});
+    }).catch(() => { });
 
     return true;
   }
@@ -428,6 +602,9 @@ export class RoomManager {
   ): { success: boolean; reason?: string } {
     const room = this.getRoom(roomCode);
     if (!room) return { success: false, reason: 'Room not found.' };
+    if (this.isRoomTerminated(room)) {
+      return { success: false, reason: `${AUCTION_TERMINATED_ERROR}: This auction has been terminated.` };
+    }
 
     if (room.auction_state.phase !== 'lobby') {
       return { success: false, reason: 'Team name is locked once the auction starts.' };
@@ -466,7 +643,7 @@ export class RoomManager {
 
     this.refreshParticipantMetrics(room);
     this.broadcastState(room);
-    this.saveRoomSnapshot(room.room_code, 'team_name_set').catch(() => {});
+    this.saveRoomSnapshot(room.room_code, 'team_name_set').catch(() => { });
 
     db.roomParticipant.upsert({
       where: {
@@ -501,7 +678,7 @@ export class RoomManager {
         franchise_color: color,
         display_name: participant.display_name,
       },
-    }).catch(() => {});
+    }).catch(() => { });
 
     this.io.to(room.room_code).emit('team_name_updated', {
       session_id: sessionId,
@@ -516,6 +693,10 @@ export class RoomManager {
   public updateSettings(roomCode: string, sessionId: string, newSettings: Partial<RoomSettings>): boolean {
     const room = this.getRoom(roomCode);
     if (!room || room.host_session_id !== sessionId) return false;
+    if (this.isRoomTerminated(room)) {
+      this.emitTerminatedRejection(room, sessionId);
+      return false;
+    }
     if (room.auction_state.phase !== 'lobby') return false;
 
     room.settings = {
@@ -534,7 +715,7 @@ export class RoomManager {
     room.auction_state.remaining_pool_count = room.settings.selected_player_ids.length;
 
     this.broadcastState(room);
-    this.saveRoomSnapshot(room.room_code, 'stage_transition').catch(() => {});
+    this.saveRoomSnapshot(room.room_code, 'stage_transition').catch(() => { });
     return true;
   }
 
@@ -559,7 +740,7 @@ export class RoomManager {
         text,
         event_type: type,
       },
-    }).catch(() => {});
+    }).catch(() => { });
   }
 
   public refreshParticipantMetrics(room: RoomRecord) {
@@ -579,14 +760,19 @@ export class RoomManager {
   public startAuction(roomCode: string, sessionId: string): boolean {
     const room = this.getRoom(roomCode);
     if (!room || room.host_session_id !== sessionId) return false;
+    if (this.isRoomTerminated(room)) {
+      this.emitTerminatedRejection(room, sessionId);
+      return false;
+    }
     if (room.auction_state.phase !== 'lobby') return false;
 
+    const sourcePool = room.settings.sport_type === 'PKL' ? ALL_PKL_PLAYERS : ALL_PLAYERS;
     const hostParticipant = room.participants.get(sessionId);
     const startValidation = validateAuctionStart(
       hostParticipant,
       Array.from(room.participants.values()),
       room.settings,
-      ALL_PLAYERS.length
+      sourcePool.length
     );
 
     if (!startValidation.valid) {
@@ -597,7 +783,6 @@ export class RoomManager {
     }
 
     const selectedIds = new Set(room.settings.selected_player_ids);
-    const sourcePool = room.settings.sport_type === 'PKL' ? ALL_PKL_PLAYERS : ALL_PLAYERS;
     let selectedPlayers = sourcePool.filter(p => selectedIds.has(p.id));
     if (selectedPlayers.length === 0) {
       selectedPlayers = [...sourcePool];
@@ -607,22 +792,30 @@ export class RoomManager {
 
     room.pool = selectedPlayers;
     room.unsold_pool = [];
+    room.status = 'live';
+    room.auction_state.status = 'live';
     room.auction_state.total_pool_count = room.pool.length;
     room.auction_state.remaining_pool_count = room.pool.length;
     room.auction_state.phase = 'starting';
     room.auction_state.stage = 'main_auction';
     room.stage = 'main_auction';
     room.auction_state.round_number = 1;
+    room.auction_state.round1_completed = false;
+    room.auction_state.round2_completed = false;
+    room.auction_state.trading_started = false;
+    room.auction_state.trading_completed = false;
+    room.auction_state.stage_ends_at = undefined;
+    room.auction_state.stage_duration_seconds = undefined;
     room.auction_state.current_player_index = -1;
 
     db.room.updateMany({
       where: { room_code: room.room_code },
       data: { status: 'live' },
-    }).catch(() => {});
+    }).catch(() => { });
 
     this.addCommentary(room, `🚀 LIVE MAIN AUCTION has officially begun! ${room.pool.length} players on the board.`, 'stage');
     this.broadcastState(room);
-    this.saveRoomSnapshot(room.room_code, 'auction_started').catch(() => {});
+    this.saveRoomSnapshot(room.room_code, 'auction_started').catch(() => { });
 
     this.scheduleNextPlayer(room, 2500);
 
@@ -634,7 +827,11 @@ export class RoomManager {
       clearTimeout(room.next_player_handle);
       room.next_player_handle = null;
     }
-    if (room.auction_state.phase === 'completed' || room.stage === 'championship_recap') {
+    if (
+      this.isRoomTerminated(room) ||
+      room.auction_state.phase === 'completed' ||
+      room.stage === 'championship_recap'
+    ) {
       return;
     }
     room.next_player_handle = setTimeout(() => {
@@ -659,13 +856,101 @@ export class RoomManager {
     }
   }
 
+  public isTradingEligible(room: RoomRecord): boolean {
+    if (
+      room.auction_state.round1_completed !== true ||
+      room.auction_state.round2_completed !== true ||
+      room.auction_state.trading_completed === true ||
+      room.auction_state.phase === 'completed' ||
+      room.stage === 'championship_recap'
+    ) {
+      return false;
+    }
+
+    const activeTeamsWithPlayers = Array.from(room.participants.values()).filter(
+      p => !p.is_spectator && (p.squad?.length ?? 0) > 0
+    );
+    return activeTeamsWithPlayers.length >= 2;
+  }
+
+  private scheduleStageDeadlineTimer(room: RoomRecord, delayMs: number): void {
+    if (room.stage_deadline_handle) {
+      clearTimeout(room.stage_deadline_handle);
+      room.stage_deadline_handle = null;
+    }
+    const safeDelay = Math.max(50, delayMs);
+    room.stage_deadline_handle = setTimeout(() => {
+      room.stage_deadline_handle = null;
+      const latest = this.getRoom(room.room_code);
+      if (!latest) return;
+      if (latest.stage === 'trading_window' && latest.auction_state.phase === 'trading') {
+        this.concludeTradingWindow(latest, 'Trading window deadline reached.');
+      } else if (latest.stage === 'playing_xi_selection') {
+        this.transitionStage(latest.room_code, latest.host_session_id, 'playing_xi_evaluation');
+      }
+    }, safeDelay);
+  }
+
+  public concludeTradingWindow(roomOrCode: RoomRecord | string, reason: string = 'Host concluded trading window.'): boolean {
+    const room = typeof roomOrCode === 'string' ? this.getRoom(roomOrCode) : roomOrCode;
+    if (!room) return false;
+    if (room.auction_state.trading_completed) return false;
+
+    if (room.stage_deadline_handle) {
+      clearTimeout(room.stage_deadline_handle);
+      room.stage_deadline_handle = null;
+    }
+
+    // Cancel any unaccepted pending trade offers cleanly without mutating executed swaps
+    for (const offer of room.pending_trades.values()) {
+      if (offer.status === 'pending' || offer.status === 'countered') {
+        offer.status = 'cancelled';
+        this.io.to(room.room_code).emit('trade_offer_updated', offer);
+      }
+    }
+
+    room.auction_state.trading_completed = true;
+    room.auction_state.stage_ends_at = undefined;
+    room.auction_state.stage_duration_seconds = undefined;
+    this.addCommentary(room, `🔒 ${reason} Finalizing trades and entering Final Evaluation.`, 'stage');
+
+    return this.transitionStage(room.room_code, room.host_session_id, 'squad_evaluation');
+  }
+
+  private advanceFromRound2(room: RoomRecord): void {
+    if (!room.auction_state.round1_completed || !room.auction_state.round2_completed) {
+      return;
+    }
+
+    if (this.isTradingEligible(room) && !room.auction_state.trading_started) {
+      this.transitionStage(room.room_code, room.host_session_id, 'trading_window', 180);
+      return;
+    }
+
+    room.auction_state.trading_completed = true;
+    this.addCommentary(
+      room,
+      `📊 Round 1 & Round 2 complete. Advancing directly to Final Evaluation (Trade Round requires at least 2 squads with acquired players).`,
+      'stage'
+    );
+    this.transitionStage(room.room_code, room.host_session_id, 'squad_evaluation');
+  }
+
   public nextPlayer(room: RoomRecord) {
     if (room.next_player_handle) {
       clearTimeout(room.next_player_handle);
       room.next_player_handle = null;
     }
 
-    if (room.auction_state.phase === 'completed' || room.stage === 'championship_recap') {
+    if (
+      this.isRoomTerminated(room) ||
+      room.auction_state.phase === 'completed' ||
+      room.stage === 'championship_recap' ||
+      room.stage === 'trading_window' ||
+      room.stage === 'squad_evaluation' ||
+      room.stage === 'playing_xi_selection' ||
+      room.stage === 'playing_xi_evaluation'
+    ) {
       return;
     }
 
@@ -679,31 +964,68 @@ export class RoomManager {
     );
     const allSquadsFull =
       activeParticipants.length > 0 &&
-      activeParticipants.every(p => p.squad.length >= room.settings.squad_size);
+      activeParticipants.every(p => (p.squad?.length ?? 0) >= (room.settings?.squad_size ?? 15));
 
     if (allSquadsFull || room.pool.length === 0) {
-      if (
-        room.auction_state.round_number === 1 &&
-        room.settings.accelerated_round &&
-        room.unsold_pool.length > 0 &&
-        !allSquadsFull
-      ) {
+      // STAGE 1 -> STAGE 2 TRANSITION (strictly once)
+      if (room.auction_state.round_number === 1 && !room.auction_state.round1_completed) {
+        room.auction_state.round1_completed = true;
         room.auction_state.round_number = 2;
-        room.auction_state.phase = 'unsold_round';
         room.auction_state.stage = 'unsold_auction';
         room.stage = 'unsold_auction';
-        room.pool = [...room.unsold_pool];
-        room.unsold_pool = [];
-        room.auction_state.remaining_pool_count = room.pool.length;
-        this.addCommentary(room, `⚡ ROUND 2: UNSOLD PLAYER AUCTION is underway! ${room.pool.length} re-entering players.`, 'stage');
-        this.broadcastState(room);
 
-        this.scheduleNextPlayer(room, 3000);
+        if (!allSquadsFull && room.settings.accelerated_round !== false && room.unsold_pool.length > 0) {
+          room.pool = [...room.unsold_pool];
+          room.unsold_pool = [];
+          room.auction_state.total_pool_count = room.pool.length;
+          room.auction_state.remaining_pool_count = room.pool.length;
+          room.auction_state.current_player_index = -1;
+          room.auction_state.current_player = null;
+          room.auction_state.phase = 'unsold_round';
+
+          this.addCommentary(
+            room,
+            `⚡ ROUND 1 COMPLETE! ROUND 2 (Unsold Player Auction) is starting with ${room.pool.length} players.`,
+            'stage'
+          );
+          this.io.to(room.room_code).emit('stage_transitioned', {
+            stage: 'unsold_auction',
+            auction_state: this.getPublicState(room),
+          });
+          this.broadcastState(room);
+          this.saveRoomSnapshot(room.room_code, 'round1_completed').catch(() => { });
+
+          this.scheduleNextPlayer(room, 2500);
+          return;
+        }
+
+        // No eligible unsold players remain or all squads full -> Round 2 has 0 applicable players
+        room.auction_state.round2_completed = true;
+        room.auction_state.remaining_pool_count = 0;
+        room.auction_state.current_player = null;
+        this.addCommentary(
+          room,
+          `✅ Round 1 & Round 2 complete (no remaining eligible unsold players for Round 2).`,
+          'stage'
+        );
+        this.advanceFromRound2(room);
         return;
       }
 
-      // Transition to Stage 3: Trading Window
-      this.transitionStage(room.room_code, room.host_session_id, 'trading_window', 180);
+      // STAGE 2 COMPLETION (strictly once) -> Unlock STAGE 3: TRADE ROUND
+      if (
+        room.auction_state.round_number === 2 &&
+        room.auction_state.round1_completed &&
+        !room.auction_state.round2_completed
+      ) {
+        room.auction_state.round2_completed = true;
+        room.auction_state.remaining_pool_count = 0;
+        room.auction_state.current_player = null;
+        this.addCommentary(room, `🏁 ROUND 2 COMPLETE! All auction rounds have finished.`, 'stage');
+        this.advanceFromRound2(room);
+        return;
+      }
+
       return;
     }
 
@@ -722,6 +1044,7 @@ export class RoomManager {
     room.auction_state.remaining_pool_count = room.pool.length;
     room.auction_state.is_paused = false;
     room.current_player_passes.clear();
+    room.current_player_bid_count = 0;
     room.is_processing_unsold = false;
 
     for (const p of room.participants.values()) {
@@ -756,7 +1079,7 @@ export class RoomManager {
       auction_state: this.getPublicState(room),
     });
 
-    this.saveRoomSnapshot(room.room_code, 'next_player').catch(() => {});
+    this.saveRoomSnapshot(room.room_code, 'next_player').catch(() => { });
 
     // Authoritative Server-Side Sequence: Bidding starts when announcement finishes
     room.announcement_timeout_handle = setTimeout(() => {
@@ -770,7 +1093,7 @@ export class RoomManager {
       room.announcement_timeout_handle = null;
     }
 
-    if (room.auction_state.phase !== 'announcing' || room.auction_state.is_paused) {
+    if (this.isRoomTerminated(room) || room.auction_state.phase !== 'announcing' || room.auction_state.is_paused) {
       return;
     }
 
@@ -788,19 +1111,21 @@ export class RoomManager {
     });
 
     this.broadcastState(room);
-    this.saveRoomSnapshot(room.room_code, 'bidding_started').catch(() => {});
+    this.saveRoomSnapshot(room.room_code, 'bidding_started').catch(() => { });
     this.startTimerLoop(room);
   }
 
   public handleClientAnnouncementCompleted(roomCode: string, sessionId: string, playerId: string) {
     const room = this.getRoom(roomCode);
-    if (!room || room.auction_state.phase !== 'announcing' || room.auction_state.is_paused) return;
+    if (!room || this.isRoomTerminated(room) || room.auction_state.phase !== 'announcing' || room.auction_state.is_paused) return;
     if (room.auction_state.current_player?.id !== playerId) return;
 
     room.client_announcement_completions.add(sessionId);
 
-    // If all active managers finished playback, we can start bidding after a short 400ms buffer
-    const activeManagers = Array.from(room.participants.values()).filter(p => !p.is_spectator);
+    // If all connected active managers finished playback, start bidding after a short 400ms buffer
+    const activeManagers = Array.from(room.participants.values()).filter(
+      p => !p.is_spectator && p.is_connected !== false
+    );
     const allCompleted =
       activeManagers.length > 0 &&
       activeManagers.every(p => room.client_announcement_completions.has(p.id));
@@ -876,6 +1201,16 @@ export class RoomManager {
     const room = this.getRoom(roomCode);
     if (!room) return false;
 
+    if (this.isRoomTerminated(room)) {
+      const participant = room.participants.get(sessionId);
+      const recipient = participant?.socket_id || sessionId;
+      this.io.to(recipient).emit('bid_rejected', {
+        reason: `${AUCTION_TERMINATED_ERROR}: This auction has been terminated.`,
+      });
+      this.emitTerminatedRejection(room, sessionId);
+      return false;
+    }
+
     if (room.is_processing_bid) return false;
     room.is_processing_bid = true;
 
@@ -926,15 +1261,16 @@ export class RoomManager {
         room.auction_state.bids.pop();
       }
 
-      // Record bid event with sequence number in MySQL
-      const bidSeq = room.auction_state.bids.length;
+      // Record bid event with monotonic sequence number per player in MySQL
+      room.current_player_bid_count = (room.current_player_bid_count || 0) + 1;
+      const bidSeq = room.current_player_bid_count;
       recordBidEvent(
         room.room_code,
         player.id,
         bidSeq,
         participant.id,
         newBidAmount
-      ).catch(() => {});
+      ).catch(() => { });
 
       const durationMs = room.settings.timer_seconds * 1000;
       room.auction_state.timer_ends_at = Date.now() + durationMs;
@@ -972,6 +1308,11 @@ export class RoomManager {
   public withdrawBid(roomCode: string, sessionId: string): boolean {
     const room = this.getRoom(roomCode);
     if (!room) return false;
+
+    if (this.isRoomTerminated(room)) {
+      this.emitTerminatedRejection(room, sessionId);
+      return false;
+    }
 
     // Follow pause policy without unintended transition
     if (room.auction_state.is_paused) {
@@ -1070,7 +1411,7 @@ export class RoomManager {
     }
 
     this.broadcastState(room);
-    this.saveRoomSnapshot(room.room_code, 'stage_transition').catch(() => {});
+    this.saveRoomSnapshot(room.room_code, 'stage_transition').catch(() => { });
     return true;
   }
 
@@ -1079,11 +1420,15 @@ export class RoomManager {
   }
 
   private handleTimerExpired(room: RoomRecord) {
+    if (this.isRoomTerminated(room)) return;
     const player = room.auction_state.current_player;
     if (!player) return;
 
-    if (room.auction_state.current_bidder_id && room.auction_state.current_bid > 0) {
-      const winner = room.participants.get(room.auction_state.current_bidder_id)!;
+    const winner = room.auction_state.current_bidder_id
+      ? room.participants.get(room.auction_state.current_bidder_id)
+      : undefined;
+
+    if (winner && room.auction_state.current_bid > 0) {
       const finalPrice = room.auction_state.current_bid;
 
       winner.purse_remaining -= finalPrice;
@@ -1100,7 +1445,7 @@ export class RoomManager {
       room.all_completed_bids.push({
         player_id: player.id,
         player,
-        bids_count: room.auction_state.bids.length,
+        bids_count: room.current_player_bid_count || room.auction_state.bids.length,
         final_price: finalPrice,
         winner_id: winner.id,
       });
@@ -1129,7 +1474,7 @@ export class RoomManager {
         auction_state: this.getPublicState(room),
       });
 
-      this.saveRoomSnapshot(room.room_code, 'player_sold').catch(() => {});
+      this.saveRoomSnapshot(room.room_code, 'player_sold').catch(() => { });
 
       // Allow 5000ms for gavel hammer strike and sold voice announcement to complete before next player
       this.scheduleNextPlayer(room, 5000);
@@ -1149,7 +1494,7 @@ export class RoomManager {
         auction_state: this.getPublicState(room),
       });
 
-      this.saveRoomSnapshot(room.room_code, 'player_unsold').catch(() => {});
+      this.saveRoomSnapshot(room.room_code, 'player_unsold').catch(() => { });
 
       // Allow 4500ms for gavel hammer strike and unsold voice announcement to complete before next player
       this.scheduleNextPlayer(room, 4500);
@@ -1159,6 +1504,10 @@ export class RoomManager {
   public pauseAuction(roomCode: string, sessionId: string, force: boolean = false): boolean {
     const room = this.getRoom(roomCode);
     if (!room) return false;
+    if (this.isRoomTerminated(room)) {
+      if (!force) this.emitTerminatedRejection(room, sessionId);
+      return false;
+    }
     if (!force && room.host_session_id !== sessionId) return false;
     if (
       (room.auction_state.phase !== 'bidding' && room.auction_state.phase !== 'announcing') ||
@@ -1172,7 +1521,7 @@ export class RoomManager {
         clearTimeout(room.announcement_timeout_handle);
         room.announcement_timeout_handle = null;
       }
-      const remainingMs = Math.max(0, (room.auction_state.announcement_ends_at || Date.now()) - Date.now());
+      const remainingMs = Math.max(1000, (room.auction_state.announcement_ends_at || Date.now()) - Date.now());
       room.auction_state.pause_remaining_ms = remainingMs;
     } else {
       if (room.timer_handle) {
@@ -1180,45 +1529,72 @@ export class RoomManager {
         room.timer_handle = null;
       }
       const remainingMs = Math.max(0, room.auction_state.timer_ends_at - Date.now());
-      room.auction_state.pause_remaining_ms = remainingMs;
+      room.auction_state.pause_remaining_ms = remainingMs > 0 ? remainingMs : room.settings.timer_seconds * 1000;
     }
 
+    room.auto_paused_reason = force ? 'host_disconnect' : null;
     room.auction_state.is_paused = true;
 
     this.io.to(room.room_code).emit('auction_paused');
     this.broadcastState(room);
-    this.saveRoomSnapshot(room.room_code, 'stage_transition').catch(() => {});
+    this.saveRoomSnapshot(room.room_code, 'stage_transition').catch(() => { });
     return true;
   }
 
   public resumeAuction(roomCode: string, sessionId: string): boolean {
     const room = this.getRoom(roomCode);
     if (!room || room.host_session_id !== sessionId) return false;
+    if (this.isRoomTerminated(room)) {
+      this.emitTerminatedRejection(room, sessionId);
+      return false;
+    }
     if (!room.auction_state.is_paused) return false;
 
+    room.auto_paused_reason = null;
+
     if (room.auction_state.phase === 'announcing') {
-      const remainingMs = room.auction_state.pause_remaining_ms || 3000;
+      const savedMs = room.auction_state.pause_remaining_ms;
+      const remainingMs = savedMs && savedMs > 500 ? savedMs : 3000;
       room.auction_state.announcement_ends_at = Date.now() + remainingMs;
+      room.auction_state.pause_remaining_ms = undefined;
       room.auction_state.is_paused = false;
+      if (room.announcement_timeout_handle) {
+        clearTimeout(room.announcement_timeout_handle);
+      }
       room.announcement_timeout_handle = setTimeout(() => {
         this.startBiddingPhase(room);
       }, remainingMs);
-    } else {
-      const remainingMs = room.auction_state.pause_remaining_ms || room.settings.timer_seconds * 1000;
+    } else if (room.auction_state.phase === 'unsold' || room.auction_state.phase === 'sold') {
+      // Transition out of resolved player state reliably to the next player
+      room.auction_state.pause_remaining_ms = undefined;
+      room.auction_state.is_paused = false;
+      this.scheduleNextPlayer(room, 500);
+    } else if (room.auction_state.phase === 'bidding') {
+      const savedMs = room.auction_state.pause_remaining_ms;
+      const fallbackMs = room.settings.timer_seconds * 1000;
+      const remainingMs = savedMs && savedMs > 1000 ? Math.min(fallbackMs, savedMs) : fallbackMs;
       room.auction_state.timer_ends_at = Date.now() + remainingMs;
+      room.auction_state.pause_remaining_ms = undefined;
       room.auction_state.is_paused = false;
       this.startTimerLoop(room);
+    } else {
+      room.auction_state.pause_remaining_ms = undefined;
+      room.auction_state.is_paused = false;
     }
 
     this.io.to(room.room_code).emit('auction_resumed', room.auction_state.timer_ends_at);
     this.broadcastState(room);
-    this.saveRoomSnapshot(room.room_code, 'stage_transition').catch(() => {});
+    this.saveRoomSnapshot(room.room_code, 'stage_transition').catch(() => { });
     return true;
   }
 
   public skipPlayer(roomCode: string, sessionId: string): boolean {
     const room = this.getRoom(roomCode);
     if (!room || room.host_session_id !== sessionId) return false;
+    if (this.isRoomTerminated(room)) {
+      this.emitTerminatedRejection(room, sessionId);
+      return false;
+    }
     if (room.auction_state.phase !== 'bidding' && room.auction_state.phase !== 'announcing') return false;
 
     if (room.announcement_timeout_handle) {
@@ -1248,9 +1624,276 @@ export class RoomManager {
     return true;
   }
 
+  public requestNextPlayer(roomCode: string, sessionId: string): boolean {
+    const room = this.getRoom(roomCode);
+    if (!room) return false;
+    if (this.isRoomTerminated(room)) {
+      this.emitTerminatedRejection(room, sessionId);
+      return false;
+    }
+
+    // Reliable transition guard: allow advancing if stuck in unsold or sold phase
+    if (room.auction_state.phase !== 'unsold' && room.auction_state.phase !== 'sold') {
+      return false;
+    }
+
+    if (room.next_player_handle) {
+      clearTimeout(room.next_player_handle);
+      room.next_player_handle = null;
+    }
+
+    room.auction_state.is_paused = false;
+    this.nextPlayer(room);
+    return true;
+  }
+
+  public leaveRoom(roomCode: string, sessionId: string, socketId?: string): boolean {
+    const room = this.getRoom(roomCode);
+    if (!room) return false;
+
+    if (this.isRoomTerminated(room)) {
+      this.emitTerminatedRejection(room, sessionId, socketId);
+      return false;
+    }
+
+    const participant = room.participants.get(sessionId);
+    if (!participant) return false;
+
+    const now = Date.now();
+    participant.is_connected = false;
+    participant.last_active = now;
+    participant.has_exited = true;
+    participant.exited_at = now;
+    if (participant.participation_status !== 'DISQUALIFIED') {
+      participant.participation_status = 'EXITED';
+    }
+
+    // If host leaves, record disconnect time so existing host-absence safety applies,
+    // while active managers remain.
+    if (participant.id === room.host_session_id) {
+      room.host_disconnect_time = now;
+    }
+
+    if (room.auction_state.phase === 'bidding' || room.auction_state.phase === 'announcing') {
+      room.auction_state.total_eligible_passers = this.getEligibleBidders(room).length;
+    }
+
+    // Persist explicit exit in MySQL participant record
+    db.roomParticipant.updateMany({
+      where: {
+        room_code: room.room_code,
+        session_id: sessionId,
+      },
+      data: {
+        participation_status: 'EXITED',
+        exited_at: new Date(now),
+      },
+    }).catch(() => { });
+
+    const evaluation = this.evaluateActiveParticipantsAndTerminate(room.room_code);
+    if (!evaluation.terminated) {
+      this.broadcastState(room);
+      this.saveRoomSnapshot(room.room_code, 'participant_exited').catch(() => { });
+    }
+    return true;
+  }
+
+  /**
+   * Server-authoritative evaluator executed after explicit manager exits.
+   * Counts active, non-spectator franchise managers only (temporarily disconnected
+   * managers who have not explicitly exited remain counted as active).
+   * Terminates atomically and idempotently when active manager count reaches zero.
+   */
+  public evaluateActiveParticipantsAndTerminate(roomCode: string): {
+    evaluated: boolean;
+    activeCount: number;
+    totalManagers: number;
+    terminated: boolean;
+    alreadyTerminated: boolean;
+  } {
+    const room = this.getRoom(roomCode);
+    if (!room) {
+      return {
+        evaluated: false,
+        activeCount: 0,
+        totalManagers: 0,
+        terminated: false,
+        alreadyTerminated: false,
+      };
+    }
+
+    if (this.isRoomTerminated(room) || room.is_terminating) {
+      return {
+        evaluated: true,
+        activeCount: 0,
+        totalManagers: 0,
+        terminated: true,
+        alreadyTerminated: true,
+      };
+    }
+
+    const nonSpectators = Array.from(room.participants.values()).filter(
+      p => !p.is_spectator && p.role !== 'spectator'
+    );
+    const withTeam = nonSpectators.filter(p => Boolean(p.franchise) || Boolean(p.team_name));
+    const franchiseManagers = withTeam.length > 0 ? withTeam : nonSpectators;
+    const activeManagers = franchiseManagers.filter(
+      p => !p.has_exited && p.participation_status !== 'EXITED' && p.participation_status !== 'DISQUALIFIED'
+    );
+
+    // Do not auto-terminate unstarted lobbies or normally completed auctions
+    if (
+      room.auction_state.phase === 'lobby' ||
+      room.auction_state.phase === 'completed' ||
+      room.stage === 'championship_recap'
+    ) {
+      return {
+        evaluated: false,
+        activeCount: activeManagers.length,
+        totalManagers: franchiseManagers.length,
+        terminated: false,
+        alreadyTerminated: false,
+      };
+    }
+
+    if (franchiseManagers.length > 0 && activeManagers.length === 0) {
+      const didTerminate = this.terminateAuction(room, ALL_MANAGERS_EXITED_REASON);
+      return {
+        evaluated: true,
+        activeCount: 0,
+        totalManagers: franchiseManagers.length,
+        terminated: true,
+        alreadyTerminated: !didTerminate,
+      };
+    }
+
+    return {
+      evaluated: true,
+      activeCount: activeManagers.length,
+      totalManagers: franchiseManagers.length,
+      terminated: false,
+      alreadyTerminated: false,
+    };
+  }
+
+  public terminateAuction(
+    roomOrCode: RoomRecord | string,
+    reason: string = ALL_MANAGERS_EXITED_REASON
+  ): boolean {
+    const room = typeof roomOrCode === 'string' ? this.getRoom(roomOrCode) : roomOrCode;
+    if (!room) return false;
+
+    // Atomic idempotency guard: never emit duplicate termination events or mutate twice
+    if (this.isRoomTerminated(room) || room.is_terminating) {
+      return false;
+    }
+
+    room.is_terminating = true;
+    try {
+      this.clearRoomTimers(room);
+      room.is_processing_bid = false;
+      room.is_processing_unsold = false;
+
+      const now = Date.now();
+      room.status = 'terminated';
+      room.termination_reason = reason;
+      room.terminated_at = now;
+      room.terminated_by_system = true;
+
+      room.auction_state.phase = 'terminated';
+      room.auction_state.status = 'terminated';
+      room.auction_state.is_paused = false;
+      room.auction_state.pause_remaining_ms = undefined;
+      room.auction_state.timer_ends_at = 0;
+      room.auction_state.stage_ends_at = undefined;
+      room.auction_state.stage_duration_seconds = undefined;
+      room.auction_state.termination_reason = reason;
+      room.auction_state.terminated_at = now;
+      room.auction_state.terminated_by_system = true;
+      room.auction_state.termination_message = ALL_MANAGERS_EXITED_MESSAGE;
+      room.auction_state.total_eligible_passers = 0;
+
+      // Cancel pending trades cleanly without deleting completed trades or squads
+      for (const offer of room.pending_trades.values()) {
+        if (offer.status === 'pending' || offer.status === 'countered') {
+          offer.status = 'cancelled';
+          this.io.to(room.room_code).emit('trade_offer_updated', offer);
+        }
+      }
+
+      // Disqualify all participating managers while preserving squads, purse, and bid records
+      for (const p of room.participants.values()) {
+        if (!p.is_spectator && p.role !== 'spectator') {
+          p.participation_status = 'DISQUALIFIED';
+          p.disqualification_reason = reason;
+          p.disqualified_at = now;
+        }
+      }
+
+      this.addCommentary(
+        room,
+        `⛔ AUCTION TERMINATED: ${ALL_MANAGERS_EXITED_MESSAGE}`,
+        'stage'
+      );
+
+      const payload: AuctionTerminatedPayload = {
+        roomCode: room.room_code,
+        reason,
+        terminatedAt: now,
+        message: ALL_MANAGERS_EXITED_MESSAGE,
+        sportType: room.settings.sport_type,
+        participants: Array.from(room.participants.values()),
+      };
+
+      // Emit dedicated event exactly once to all connected clients in the room
+      this.io.to(room.room_code).emit('auction_terminated', payload);
+      this.broadcastState(room);
+
+      // Persist termination state and disqualifications atomically without deleting history
+      Promise.all([
+        db.room.updateMany({
+          where: { room_code: room.room_code },
+          data: {
+            status: 'terminated',
+            termination_reason: reason,
+            terminated_at: new Date(now),
+            terminated_by_system: true,
+          },
+        }),
+        db.roomParticipant.updateMany({
+          where: {
+            room_code: room.room_code,
+            is_spectator: false,
+          },
+          data: {
+            participation_status: 'DISQUALIFIED',
+            disqualification_reason: reason,
+            disqualified_at: new Date(now),
+          },
+        }),
+      ])
+        .catch(err => {
+          console.error(`[TERMINATE DB ERROR] Room ${room.room_code}:`, err?.message || err);
+        })
+        .finally(() => {
+          this.saveRoomSnapshot(room.room_code, 'auction_terminated').catch(err => {
+            console.error(`[TERMINATE SNAPSHOT ERROR] Room ${room.room_code}:`, err?.message || err);
+          });
+        });
+
+      return true;
+    } finally {
+      room.is_terminating = false;
+    }
+  }
+
   public endAuctionEarly(roomCode: string, sessionId: string): boolean {
     const room = this.getRoom(roomCode);
     if (!room || room.host_session_id !== sessionId) return false;
+    if (this.isRoomTerminated(room)) {
+      this.emitTerminatedRejection(room, sessionId);
+      return false;
+    }
 
     if (room.timer_handle) {
       clearInterval(room.timer_handle);
@@ -1277,15 +1920,68 @@ export class RoomManager {
   ): boolean {
     const room = this.getRoom(roomCode);
     if (!room) return false;
+    if (this.isRoomTerminated(room)) {
+      this.emitTerminatedRejection(room, hostSessionId);
+      return false;
+    }
     if (room.host_session_id !== hostSessionId) return false;
 
-    if (room.timer_handle) {
-      clearInterval(room.timer_handle);
-      room.timer_handle = null;
+    // Never allow stage transitions once auction has permanently completed
+    if (room.auction_state.phase === 'completed' || room.stage === 'championship_recap') {
+      return false;
     }
-    if (room.next_player_handle) {
-      clearTimeout(room.next_player_handle);
-      room.next_player_handle = null;
+
+    // Idempotency: ignore duplicate transitions to the exact same active stage (prevents resetting countdowns)
+    if (room.stage === newStage) {
+      return false;
+    }
+
+    const r1Done = Boolean(room.auction_state.round1_completed);
+    const r2Done = Boolean(room.auction_state.round2_completed);
+
+    // Enforce strict stage sequence:
+    // ROUND 1 (main_auction) -> ROUND 2 (unsold_auction) -> TRADE ROUND (trading_window) -> FINAL EVALUATION
+    if (newStage === 'lobby') {
+      return false;
+    } else if (newStage === 'main_auction') {
+      if (r1Done || room.stage !== 'lobby') return false;
+    } else if (newStage === 'unsold_auction') {
+      if (!r1Done || r2Done) return false;
+    } else if (newStage === 'trading_window') {
+      if (
+        !r1Done ||
+        !r2Done ||
+        room.auction_state.trading_started === true ||
+        room.auction_state.trading_completed === true ||
+        !this.isTradingEligible(room) ||
+        (room.stage !== 'unsold_auction' && room.stage !== 'main_auction')
+      ) {
+        return false;
+      }
+    } else if (newStage === 'squad_evaluation') {
+      if (!r1Done || !r2Done) return false;
+      if (room.stage === 'playing_xi_selection' || room.stage === 'playing_xi_evaluation') return false;
+    } else if (newStage === 'playing_xi_selection') {
+      if (!r1Done || !r2Done) return false;
+      if (room.stage !== 'trading_window' && room.stage !== 'squad_evaluation') return false;
+    } else if (newStage === 'playing_xi_evaluation') {
+      if (!r1Done || !r2Done) return false;
+      if (room.stage !== 'squad_evaluation' && room.stage !== 'playing_xi_selection') return false;
+    }
+
+    this.clearRoomTimers(room);
+
+    // Finalize trading flags/offers cleanly when exiting trading_window
+    if (room.stage === 'trading_window' && newStage !== 'trading_window') {
+      room.auction_state.trading_completed = true;
+      room.auction_state.stage_ends_at = undefined;
+      room.auction_state.stage_duration_seconds = undefined;
+      for (const offer of room.pending_trades.values()) {
+        if (offer.status === 'pending' || offer.status === 'countered') {
+          offer.status = 'cancelled';
+          this.io.to(room.room_code).emit('trade_offer_updated', offer);
+        }
+      }
     }
 
     room.stage = newStage;
@@ -1309,25 +2005,57 @@ export class RoomManager {
       this.scheduleNextPlayer(room, 1500);
     } else if (newStage === 'trading_window') {
       room.auction_state.phase = 'trading';
+      room.auction_state.trading_started = true;
+      room.auction_state.trading_completed = false;
+      room.auction_state.current_player = null;
       const dur = durationSeconds || 180;
       room.auction_state.stage_duration_seconds = dur;
       room.auction_state.stage_ends_at = Date.now() + dur * 1000;
+      this.scheduleStageDeadlineTimer(room, dur * 1000);
       this.addCommentary(
         room,
-        `🤝 PLAYER TRADING WINDOW OPEN! Player-for-player swaps active for ${Math.round(dur / 60)} minutes.`,
+        `🤝 TRADE ROUND OPEN! Player-for-player swaps active for ${Math.round(dur / 60)} minutes.`,
         'stage'
       );
     } else if (newStage === 'squad_evaluation') {
       room.auction_state.phase = 'evaluation';
+      room.auction_state.trading_completed = true;
+      room.auction_state.stage_ends_at = undefined;
+      room.auction_state.stage_duration_seconds = undefined;
       this.refreshParticipantMetrics(room);
-      this.addCommentary(room, `📊 SQUAD EVALUATION: Post-auction 5-pillar scores calculated.`, 'stage');
+      room.results = computeAuctionResults(
+        room.room_code,
+        Array.from(room.participants.values()),
+        room.settings,
+        room.all_completed_bids,
+        room.completed_trades,
+        Array.from(room.playing_xi_submissions.values())
+      );
+      this.addCommentary(room, `📊 FINAL EVALUATION: Squad composition, purse balances, and 5-pillar rankings complete.`, 'stage');
     } else if (newStage === 'playing_xi_selection') {
       room.auction_state.phase = 'playing_xi';
+      room.auction_state.trading_completed = true;
       const dur = durationSeconds || 120;
       room.auction_state.stage_duration_seconds = dur;
       room.auction_state.stage_ends_at = Date.now() + dur * 1000;
-      this.addCommentary(room, `🏏 PLAYING XI SELECTION ACTIVE! Managers, assemble your top 11 matchday squad.`, 'stage');
-    } else if (newStage === 'playing_xi_evaluation' || newStage === 'championship_recap') {
+      const label = room.settings.sport_type === 'PKL' ? 'STARTING 7' : 'PLAYING XI';
+      this.addCommentary(room, `🏏 ${label} SELECTION ACTIVE! Managers, assemble your matchday squad.`, 'stage');
+    } else if (newStage === 'playing_xi_evaluation') {
+      room.auction_state.phase = 'evaluation';
+      room.auction_state.trading_completed = true;
+      room.auction_state.stage_ends_at = undefined;
+      room.auction_state.stage_duration_seconds = undefined;
+      this.refreshParticipantMetrics(room);
+      room.results = computeAuctionResults(
+        room.room_code,
+        Array.from(room.participants.values()),
+        room.settings,
+        room.all_completed_bids,
+        room.completed_trades,
+        Array.from(room.playing_xi_submissions.values())
+      );
+      this.addCommentary(room, `📋 LINEUP RANKINGS: Matchday lineup evaluation complete.`, 'stage');
+    } else if (newStage === 'championship_recap') {
       this.completeAuction(room);
       return true;
     }
@@ -1338,7 +2066,7 @@ export class RoomManager {
     });
 
     this.broadcastState(room);
-    this.saveRoomSnapshot(room.room_code, 'stage_transition').catch(() => {});
+    this.saveRoomSnapshot(room.room_code, 'stage_transition').catch(() => { });
     return true;
   }
 
@@ -1354,6 +2082,20 @@ export class RoomManager {
   ): boolean {
     const room = this.getRoom(roomCode);
     if (!room || room.host_session_id !== hostSessionId) return false;
+    if (this.isRoomTerminated(room)) {
+      this.emitTerminatedRejection(room, hostSessionId);
+      return false;
+    }
+    // Block Round 2 configuration while Round 1 pool is active or after Round 2 / Trading already completed
+    if (
+      room.auction_state.round2_completed ||
+      room.auction_state.trading_started ||
+      room.stage === 'trading_window' ||
+      room.auction_state.phase === 'completed' ||
+      (room.auction_state.round_number === 1 && room.pool.length > 0)
+    ) {
+      return false;
+    }
 
     const idSet = new Set(playerIds);
     const chosen = room.unsold_pool.filter(p => idSet.has(p.id));
@@ -1362,6 +2104,8 @@ export class RoomManager {
     this.sortPool(chosen, orderType, room.settings.sport_type);
     room.pool = chosen;
     room.unsold_pool = room.unsold_pool.filter(p => !idSet.has(p.id));
+    room.auction_state.round1_completed = true;
+    room.auction_state.round2_completed = false;
     room.auction_state.total_pool_count = room.pool.length;
     room.auction_state.remaining_pool_count = room.pool.length;
     room.auction_state.round_number = 2;
@@ -1371,6 +2115,7 @@ export class RoomManager {
 
     this.addCommentary(room, `Host re-entered ${chosen.length} selected unsold players for Round 2 bidding.`, 'stage');
     this.broadcastState(room);
+    this.saveRoomSnapshot(room.room_code, 'unsold_pool_configured').catch(() => { });
 
     this.scheduleNextPlayer(room, 1500);
 
@@ -1390,6 +2135,24 @@ export class RoomManager {
   ): { success: boolean; error?: string; offer?: TradeOffer } {
     const room = this.getRoom(roomCode);
     if (!room) return { success: false, error: 'Room not found' };
+    if (this.isRoomTerminated(room)) {
+      return { success: false, error: `${AUCTION_TERMINATED_ERROR}: This auction has been terminated.` };
+    }
+
+    if (
+      room.stage !== 'trading_window' ||
+      room.auction_state.phase !== 'trading' ||
+      room.auction_state.round1_completed !== true ||
+      room.auction_state.round2_completed !== true ||
+      room.auction_state.trading_completed === true
+    ) {
+      return { success: false, error: 'Trading is only unlocked during Stage 3 after Round 1 and Round 2 complete.' };
+    }
+
+    if (room.auction_state.stage_ends_at && Date.now() >= room.auction_state.stage_ends_at) {
+      this.concludeTradingWindow(room, 'Trading window deadline reached.');
+      return { success: false, error: 'Trading deadline has expired.' };
+    }
 
     const sender = room.participants.get(senderId);
     const target = room.participants.get(targetId);
@@ -1452,7 +2215,7 @@ export class RoomManager {
     );
 
     this.broadcastState(room);
-    this.saveRoomSnapshot(room.room_code, 'trade_proposed').catch(() => {});
+    this.saveRoomSnapshot(room.room_code, 'trade_proposed').catch(() => { });
     return { success: true, offer: tradeOffer };
   }
 
@@ -1465,12 +2228,37 @@ export class RoomManager {
   ): { success: boolean; error?: string } {
     const room = this.getRoom(roomCode);
     if (!room) return { success: false, error: 'Room not found' };
+    if (this.isRoomTerminated(room)) {
+      return { success: false, error: `${AUCTION_TERMINATED_ERROR}: This auction has been terminated.` };
+    }
+
+    if (
+      room.stage !== 'trading_window' ||
+      room.auction_state.phase !== 'trading' ||
+      room.auction_state.trading_completed === true
+    ) {
+      return { success: false, error: 'Trading window is not active.' };
+    }
+
+    if (room.auction_state.stage_ends_at && Date.now() >= room.auction_state.stage_ends_at) {
+      this.concludeTradingWindow(room, 'Trading window deadline reached.');
+      return { success: false, error: 'Trading deadline has expired.' };
+    }
 
     const trade = room.pending_trades.get(tradeId);
     if (!trade) return { success: false, error: 'Trade offer not found' };
 
+    if (trade.status !== 'pending' && trade.status !== 'countered') {
+      return { success: false, error: `Trade offer is already ${trade.status}` };
+    }
+
     if (trade.receiver_id !== receiverId && trade.sender_id !== receiverId) {
       return { success: false, error: 'Unauthorized to respond to this trade' };
+    }
+
+    // Mutual consent: the sender cannot unilaterally accept their own pending trade proposal
+    if (action === 'accept' && trade.receiver_id !== receiverId) {
+      return { success: false, error: 'Mutual consent required: only the receiving manager can accept this trade.' };
     }
 
     if (action === 'reject') {
@@ -1482,18 +2270,21 @@ export class RoomManager {
         'trade'
       );
       this.broadcastState(room);
-      this.saveRoomSnapshot(room.room_code, 'trade_rejected').catch(() => {});
+      this.saveRoomSnapshot(room.room_code, 'trade_rejected').catch(() => { });
       return { success: true };
     }
 
     if (action === 'counter' && counterPlayerId) {
-      const counterPlayer = getPlayerById(counterPlayerId);
+      const counterPlayer =
+        room.settings.sport_type === 'PKL'
+          ? getPklPlayerById(counterPlayerId)
+          : getPlayerById(counterPlayerId);
       if (!counterPlayer) return { success: false, error: 'Invalid counter player' };
       trade.status = 'countered';
       trade.counter_player = counterPlayer;
       this.io.to(room.room_code).emit('trade_offer_updated', trade);
       this.broadcastState(room);
-      this.saveRoomSnapshot(room.room_code, 'trade_countered').catch(() => {});
+      this.saveRoomSnapshot(room.room_code, 'trade_countered').catch(() => { });
       return { success: true };
     }
 
@@ -1582,6 +2373,10 @@ export class RoomManager {
   public cancelTrade(roomCode: string, senderId: string, tradeId: string): boolean {
     const room = this.getRoom(roomCode);
     if (!room) return false;
+    if (this.isRoomTerminated(room)) {
+      this.emitTerminatedRejection(room, senderId);
+      return false;
+    }
 
     const trade = room.pending_trades.get(tradeId);
     if (!trade || trade.sender_id !== senderId) return false;
@@ -1589,7 +2384,7 @@ export class RoomManager {
     trade.status = 'cancelled';
     this.io.to(room.room_code).emit('trade_offer_updated', trade);
     this.broadcastState(room);
-    this.saveRoomSnapshot(room.room_code, 'stage_transition').catch(() => {});
+    this.saveRoomSnapshot(room.room_code, 'stage_transition').catch(() => { });
     return true;
   }
 
@@ -1604,6 +2399,10 @@ export class RoomManager {
   ): boolean {
     const room = this.getRoom(roomCode);
     if (!room) return false;
+    if (this.isRoomTerminated(room)) {
+      this.emitTerminatedRejection(room, participantId);
+      return false;
+    }
 
     const participant = room.participants.get(participantId);
     if (!participant || !participant.franchise) return false;
@@ -1623,7 +2422,7 @@ export class RoomManager {
 
     room.playing_xi_submissions.set(participantId, updated);
     this.broadcastState(room);
-    this.saveRoomSnapshot(room.room_code, 'stage_transition').catch(() => {});
+    this.saveRoomSnapshot(room.room_code, 'stage_transition').catch(() => { });
     return true;
   }
 
@@ -1634,19 +2433,27 @@ export class RoomManager {
   ): { success: boolean; error?: string; scoreBreakdown?: PlayingXIScoreBreakdown } {
     const room = this.getRoom(roomCode);
     if (!room) return { success: false, error: 'Room not found' };
+    if (this.isRoomTerminated(room)) {
+      return { success: false, error: `${AUCTION_TERMINATED_ERROR}: This auction has been terminated.` };
+    }
 
     const participant = room.participants.get(participantId);
     if (!participant || !participant.franchise) {
       return { success: false, error: 'Must belong to an active franchise' };
     }
 
+    const isPkl = room.settings.sport_type === 'PKL';
+    const requiredLineupSize = isPkl ? 7 : 11;
+    const maxOverseas = isPkl ? 2 : 4;
+    const lineupLabel = isPkl ? 'Starting 7' : 'Playing XI';
+
     const existingSub = room.playing_xi_submissions.get(participantId);
     if (existingSub?.is_submitted || existingSub?.is_locked) {
-      return { success: false, error: 'Playing XI has already been submitted and locked.' };
+      return { success: false, error: `${lineupLabel} has already been submitted and locked.` };
     }
 
-    if (!submission.players || submission.players.length !== 11) {
-      return { success: false, error: 'Playing XI must contain exactly 11 players' };
+    if (!submission.players || submission.players.length !== requiredLineupSize) {
+      return { success: false, error: `${lineupLabel} must contain exactly ${requiredLineupSize} players` };
     }
 
     const ownedIds = new Set(participant.squad.map(s => s.player_id));
@@ -1659,10 +2466,10 @@ export class RoomManager {
     const overseasCount = submission.players.filter(
       p => p.country !== 'India' && p.nationality !== 'India'
     ).length;
-    if (overseasCount > 4) {
+    if (overseasCount > maxOverseas) {
       return {
         success: false,
-        error: `IPL overseas limit exceeded: Selected ${overseasCount} overseas players (maximum 4 allowed).`,
+        error: `${isPkl ? 'PKL' : 'IPL'} overseas limit exceeded: Selected ${overseasCount} overseas players (maximum ${maxOverseas} allowed).`,
       };
     }
 
@@ -1681,7 +2488,7 @@ export class RoomManager {
 
     this.io.to(room.room_code).emit('playing_xi_updated', submission);
     this.broadcastState(room);
-    this.saveRoomSnapshot(room.room_code, 'playing_xi_submitted').catch(() => {});
+    this.saveRoomSnapshot(room.room_code, 'playing_xi_submitted').catch(() => { });
 
     // If all active managers have submitted their XI, trigger final recap
     const activeParticipants = Array.from(room.participants.values()).filter(p => p.franchise !== null);
@@ -1701,15 +2508,14 @@ export class RoomManager {
   // =========================================================================
 
   public completeAuction(room: RoomRecord) {
-    if (room.timer_handle) {
-      clearInterval(room.timer_handle);
-      room.timer_handle = null;
-    }
-    if (room.next_player_handle) {
-      clearTimeout(room.next_player_handle);
-      room.next_player_handle = null;
-    }
+    if (this.isRoomTerminated(room)) return;
+    this.clearRoomTimers(room);
+    room.status = 'completed';
+    room.auction_state.status = 'completed';
 
+    room.auction_state.trading_completed = true;
+    room.auction_state.stage_ends_at = undefined;
+    room.auction_state.stage_duration_seconds = undefined;
     room.auction_state.phase = 'completed';
     room.stage = 'championship_recap';
     room.auction_state.stage = 'championship_recap';
@@ -1725,13 +2531,16 @@ export class RoomManager {
     );
 
     room.results = results;
-    persistResults(results);
-    this.saveRoomSnapshot(room.room_code, 'auction_completed').catch(() => {});
-
-    db.room.updateMany({
-      where: { room_code: room.room_code },
-      data: { status: 'completed' },
-    }).catch(() => {});
+    // Persist results and completed room status immediately, then write the final snapshot
+    persistResults(results)
+      .catch(err => {
+        console.error(`[COMPLETE AUCTION RESULTS ERROR] Room ${room.room_code}:`, err?.message || err);
+      })
+      .finally(() => {
+        this.saveRoomSnapshot(room.room_code, 'auction_completed').catch(err => {
+          console.error(`[COMPLETE AUCTION SNAPSHOT ERROR] Room ${room.room_code}:`, err?.message || err);
+        });
+      });
 
     this.addCommentary(
       room,
@@ -1746,6 +2555,10 @@ export class RoomManager {
   public kickParticipant(roomCode: string, hostSessionId: string, targetId: string): boolean {
     const room = this.getRoom(roomCode);
     if (!room || room.host_session_id !== hostSessionId || hostSessionId === targetId) return false;
+    if (this.isRoomTerminated(room)) {
+      this.emitTerminatedRejection(room, hostSessionId);
+      return false;
+    }
 
     const target = room.participants.get(targetId);
     if (!target) return false;
@@ -1756,13 +2569,17 @@ export class RoomManager {
     }
 
     this.broadcastState(room);
-    this.saveRoomSnapshot(room.room_code, 'stage_transition').catch(() => {});
+    this.saveRoomSnapshot(room.room_code, 'stage_transition').catch(() => { });
     return true;
   }
 
   public transferHost(roomCode: string, currentHostId: string, newHostId: string): boolean {
     const room = this.getRoom(roomCode);
     if (!room) return false;
+    if (this.isRoomTerminated(room)) {
+      this.emitTerminatedRejection(room, currentHostId);
+      return false;
+    }
 
     const isCurrentHost = room.host_session_id === currentHostId;
     const isHostAbsent = room.host_disconnect_time && Date.now() - room.host_disconnect_time > 60000;
@@ -1781,13 +2598,13 @@ export class RoomManager {
 
     this.io.to(room.room_code).emit('host_changed', newHostId);
     this.broadcastState(room);
-    this.saveRoomSnapshot(room.room_code, 'stage_transition').catch(() => {});
+    this.saveRoomSnapshot(room.room_code, 'stage_transition').catch(() => { });
     return true;
   }
 
   public addChatMessage(roomCode: string, message: ChatMessage) {
     const room = this.getRoom(roomCode);
-    if (!room) return;
+    if (!room || this.isRoomTerminated(room)) return;
 
     room.chat_messages.push(message);
     if (room.chat_messages.length > 50) {
@@ -1806,7 +2623,7 @@ export class RoomManager {
       ? getPlayerCategory(room.auction_state.current_player)
       : (room.pool.length > 0 ? getPlayerCategory(room.pool[0]) : undefined);
 
-    return {
+      return {
       ...room.auction_state,
       current_category: currentCategory,
       upcoming_players: room.pool.slice(0, 10),
@@ -1814,6 +2631,10 @@ export class RoomManager {
       total_eligible_passers: room.auction_state.total_eligible_passers ?? eligibleCount,
       passed_participant_ids: room.auction_state.passed_participant_ids ?? Array.from(room.current_player_passes || []),
       stage: room.stage,
+      status: room.status || room.auction_state.status,
+      termination_reason: room.termination_reason ?? room.auction_state.termination_reason ?? null,
+      terminated_at: room.terminated_at ?? room.auction_state.terminated_at ?? null,
+      terminated_by_system: room.terminated_by_system ?? room.auction_state.terminated_by_system ?? false,
       server_time: Date.now(),
     };
   }
@@ -1860,6 +2681,10 @@ export class RoomManager {
         name: currentRoom.name,
         host_session_id: currentRoom.host_session_id,
         host_disconnect_time: currentRoom.host_disconnect_time,
+        status: currentRoom.status || (currentRoom.auction_state.phase === 'terminated' ? 'terminated' : currentRoom.auction_state.phase === 'completed' ? 'completed' : currentRoom.auction_state.phase === 'lobby' ? 'lobby' : 'live'),
+        termination_reason: currentRoom.termination_reason ?? null,
+        terminated_at: currentRoom.terminated_at ?? null,
+        terminated_by_system: Boolean(currentRoom.terminated_by_system),
         settings: currentRoom.settings,
         participants: serializedParticipants,
         auction_state: {
@@ -1905,14 +2730,62 @@ export class RoomManager {
 
     const code = snapshot.room_code.toUpperCase();
 
+    const rawSettings = (snapshot.settings || (snapshot as any).config || {}) as any;
+    const isPkl =
+      rawSettings.sport_type === 'PKL' ||
+      (snapshot as any).sport === 'pkl' ||
+      (snapshot as any).config?.season?.includes('Season') ||
+      code.startsWith('K');
+    const defaultSettings = isPkl ? DEFAULT_PKL_ROOM_SETTINGS : DEFAULT_ROOM_SETTINGS;
+    const defaultPoolIds = (isPkl ? ALL_PKL_PLAYERS : ALL_PLAYERS).map(p => p.id);
+
+    const sanitizedSettings: RoomSettings = {
+      ...defaultSettings,
+      ...rawSettings,
+      sport_type: rawSettings.sport_type || (isPkl ? 'PKL' : 'IPL'),
+      squad_size: Number(rawSettings.squad_size ?? rawSettings.min_squad_size ?? rawSettings.max_squad_size ?? defaultSettings.squad_size),
+      purse: Number(rawSettings.purse ?? rawSettings.total_purse ?? defaultSettings.purse),
+      timer_seconds: Number(rawSettings.timer_seconds ?? defaultSettings.timer_seconds),
+      order_type: rawSettings.order_type || defaultSettings.order_type,
+      accelerated_round: rawSettings.accelerated_round !== undefined ? Boolean(rawSettings.accelerated_round) : defaultSettings.accelerated_round,
+      selected_player_ids:
+        Array.isArray(rawSettings.selected_player_ids) && rawSettings.selected_player_ids.length > 0
+          ? rawSettings.selected_player_ids
+          : defaultPoolIds,
+    };
+
     // Rebuild participants Map
     const participants = new Map<string, Participant>();
-    for (const p of snapshot.participants) {
-      participants.set(p.id, {
-        ...p,
-        is_connected: false,
-        socket_id: undefined,
-      });
+    if (Array.isArray(snapshot.participants)) {
+      for (const p of snapshot.participants) {
+        const id = p.id || (p as any).session_id || (p as any).user_id || '';
+        if (!id) continue;
+        participants.set(id, {
+          ...p,
+          id,
+          room_code: code,
+          display_name: (p as any).display_name || (p as any).name || 'Manager',
+          team_name: p.team_name || (p as any).team_name || '',
+          team_name_normalized: p.team_name_normalized || (p as any).team_name_normalized || '',
+          team_short_code: p.team_short_code || (p as any).team_short_code || (p as any).short_code || '',
+          team_color: p.team_color || (p as any).team_color || '#F7A721',
+          franchise: p.franchise ?? null,
+          purse_remaining: p.purse_remaining ?? (p as any).purse ?? sanitizedSettings.purse,
+          squad: Array.isArray(p.squad) ? p.squad : [],
+          has_withdrawn_current: Boolean(p.has_withdrawn_current),
+          last_active: p.last_active || Date.now(),
+          is_host: Boolean(p.is_host),
+          is_spectator: Boolean(p.is_spectator || (p as any).role === 'spectator'),
+          role: p.role || (p.is_spectator ? 'spectator' : (p.is_host ? 'host' : 'manager')),
+          has_exited: Boolean(p.has_exited),
+          exited_at: p.exited_at ?? null,
+          participation_status: p.participation_status || 'ACTIVE',
+          disqualification_reason: p.disqualification_reason ?? null,
+          disqualified_at: p.disqualified_at ?? null,
+          is_connected: false,
+          socket_id: undefined,
+        });
+      }
     }
 
     // Rebuild pending trades Map
@@ -1937,32 +2810,101 @@ export class RoomManager {
       snapshot.auction_state?.passed_participant_ids || snapshot.auction_state?.withdrawn_participant_ids || []
     );
 
+    const rawStage = (snapshot.stage || snapshot.auction_state?.stage || 'main_auction') as WorkflowStage;
+    const rawPhase = (snapshot.auction_state?.phase || (snapshot as any).phase || 'lobby') as AuctionPhase;
+    const isSnapTerminated =
+      rawPhase === 'terminated' ||
+      (snapshot as any).status === 'terminated' ||
+      snapshot.auction_state?.status === 'terminated';
+    const rawStatus = isSnapTerminated
+      ? 'terminated'
+      : rawPhase === 'completed'
+        ? 'completed'
+        : rawPhase === 'lobby'
+          ? 'lobby'
+          : 'live';
+    const rawRoundNumber = snapshot.auction_state?.round_number ?? (snapshot as any).round_number ?? 1;
+    const snapPool = snapshot.pool || [];
+    const snapUnsold = snapshot.unsold_pool || [];
+
+    const hasExplicitR1 = snapshot.auction_state?.round1_completed !== undefined;
+    const hasExplicitR2 = snapshot.auction_state?.round2_completed !== undefined;
+    const inferredR1Done = hasExplicitR1
+      ? Boolean(snapshot.auction_state?.round1_completed)
+      : rawStage === 'unsold_auction' ||
+      rawStage === 'squad_evaluation' ||
+      rawStage === 'playing_xi_selection' ||
+      rawStage === 'playing_xi_evaluation' ||
+      rawStage === 'championship_recap' ||
+      (rawStage === 'trading_window' && (rawRoundNumber >= 2 || (snapPool.length === 0 && snapUnsold.length === 0)));
+
+    const inferredR2Done = hasExplicitR2
+      ? Boolean(snapshot.auction_state?.round2_completed)
+      : rawStage === 'squad_evaluation' ||
+      rawStage === 'playing_xi_selection' ||
+      rawStage === 'playing_xi_evaluation' ||
+      rawStage === 'championship_recap' ||
+      (rawStage === 'trading_window' && snapPool.length === 0 && snapUnsold.length === 0 && inferredR1Done);
+
     const record: RoomRecord = {
       room_code: code,
-      name: snapshot.name,
+      name: snapshot.name || (snapshot as any).config?.name || `Room ${code}`,
       host_session_id: snapshot.host_session_id,
       host_disconnect_time: snapshot.host_disconnect_time,
-      settings: snapshot.settings,
+      status: rawStatus,
+      termination_reason: snapshot.termination_reason ?? snapshot.auction_state?.termination_reason ?? null,
+      terminated_at: snapshot.terminated_at ?? snapshot.auction_state?.terminated_at ?? null,
+      terminated_by_system: snapshot.terminated_by_system ?? snapshot.auction_state?.terminated_by_system ?? false,
+      is_terminating: false,
+      settings: sanitizedSettings,
       participants,
       chat_messages: [],
       auction_state: {
-        ...(snapshot.auction_state || ({} as any)),
+        ...(snapshot.auction_state || {}),
+        room_code: code,
+        phase: isSnapTerminated ? 'terminated' : rawPhase,
+        status: rawStatus,
+        stage: rawStage,
+        round_number: rawRoundNumber,
+        round1_completed: inferredR1Done,
+        round2_completed: inferredR2Done,
+        trading_started: snapshot.auction_state?.trading_started ?? (rawStage === 'trading_window' && inferredR1Done && inferredR2Done),
+        trading_completed: snapshot.auction_state?.trading_completed ?? (rawStage === 'squad_evaluation' || rawStage === 'playing_xi_selection' || rawStage === 'playing_xi_evaluation' || rawStage === 'championship_recap' || rawPhase === 'completed'),
+        current_player_index: snapshot.auction_state?.current_player_index ?? (snapshot as any).current_player_index ?? 0,
+        current_player: snapshot.auction_state?.current_player || (
+          (snapshot as any).current_player_id
+            ? (getPklPlayerById((snapshot as any).current_player_id) || getPlayerById((snapshot as any).current_player_id) || null)
+            : null
+        ),
+        current_bid: snapshot.auction_state?.current_bid ?? (snapshot as any).current_bid ?? 0,
+        current_bidder_id: snapshot.auction_state?.current_bidder_id ?? (snapshot as any).highest_bidder_id ?? null,
+        timer_seconds: snapshot.auction_state?.timer_seconds ?? sanitizedSettings.timer_seconds,
+        timer_ends_at: snapshot.auction_state?.timer_ends_at ?? 0,
+        server_time: Date.now(),
+        bids: snapshot.auction_state?.bids || [],
+        withdrawn_participant_ids: snapshot.auction_state?.withdrawn_participant_ids || [],
         pass_count: snapshot.auction_state?.pass_count ?? current_player_passes.size,
         total_eligible_passers: snapshot.auction_state?.total_eligible_passers ?? 0,
         passed_participant_ids: snapshot.auction_state?.passed_participant_ids ?? Array.from(current_player_passes),
+        termination_reason: snapshot.termination_reason ?? snapshot.auction_state?.termination_reason ?? null,
+        terminated_at: snapshot.terminated_at ?? snapshot.auction_state?.terminated_at ?? null,
+        terminated_by_system: snapshot.terminated_by_system ?? snapshot.auction_state?.terminated_by_system ?? false,
+        termination_message: snapshot.auction_state?.termination_message ?? (isSnapTerminated ? ALL_MANAGERS_EXITED_MESSAGE : null),
       },
-      pool: snapshot.pool || [],
-      unsold_pool: snapshot.unsold_pool || [],
+      pool: snapPool,
+      unsold_pool: snapUnsold,
       all_completed_bids: snapshot.all_completed_bids || [],
       results: snapshot.results || null,
       timer_handle: null,
       next_player_handle: null,
       announcement_timeout_handle: null,
+      stage_deadline_handle: null,
       client_announcement_completions: new Set(),
       is_processing_bid: false,
       current_player_passes,
+      current_player_bid_count: snapshot.auction_state?.bids?.length || 0,
       is_processing_unsold: false,
-      stage: snapshot.stage || 'main_auction',
+      stage: rawStage,
       pending_trades,
       completed_trades: snapshot.completed_trades || [],
       playing_xi_submissions,
@@ -1970,15 +2912,140 @@ export class RoomManager {
     };
     record.auction_state.total_eligible_passers = this.getEligibleBidders(record).length;
 
+    const now = Date.now();
+    let recoveredLifecycleState = false;
+
+    if (this.isRoomTerminated(record)) {
+      record.status = 'terminated';
+      record.auction_state.phase = 'terminated';
+      record.auction_state.status = 'terminated';
+      record.auction_state.is_paused = false;
+      record.auction_state.timer_ends_at = 0;
+      record.auction_state.stage_ends_at = undefined;
+      for (const p of record.participants.values()) {
+        if (!p.is_spectator && p.role !== 'spectator') {
+          p.participation_status = 'DISQUALIFIED';
+          p.disqualification_reason = p.disqualification_reason || record.termination_reason || ALL_MANAGERS_EXITED_REASON;
+          p.disqualified_at = p.disqualified_at || record.terminated_at || now;
+        }
+      }
+      this.rooms.set(code, record);
+      console.log(`[RESTORE] Terminated room ${code} restored cleanly from database (no timers started).`);
+      return record;
+    }
+
+    // Safe recovery for inconsistent or expired trading_window snapshots
+    if (record.stage === 'trading_window' || record.auction_state.phase === 'trading') {
+      if (!record.auction_state.round1_completed && record.pool.length > 0) {
+        // Incomplete Round 1 saved prematurely as trading_window -> restore to Round 1
+        record.stage = 'main_auction';
+        record.auction_state.stage = 'main_auction';
+        record.auction_state.phase = 'bidding';
+        record.auction_state.round_number = 1;
+        record.auction_state.round1_completed = false;
+        record.auction_state.round2_completed = false;
+        record.auction_state.trading_started = false;
+        record.auction_state.trading_completed = false;
+        record.auction_state.stage_ends_at = undefined;
+        record.auction_state.stage_duration_seconds = undefined;
+        record.auction_state.pause_remaining_ms = record.settings.timer_seconds * 1000;
+        record.auction_state.timer_ends_at = now + record.auction_state.pause_remaining_ms;
+        record.auction_state.is_paused = true;
+        record.auto_paused_reason = 'server_restart';
+        recoveredLifecycleState = true;
+        this.addCommentary(record, `Room recovered: resumed paused Round 1 auction with ${record.pool.length} remaining players.`, 'stage');
+      } else if (!record.auction_state.round2_completed && (record.unsold_pool.length > 0 || (record.pool.length > 0 && record.auction_state.round_number === 2))) {
+        // Incomplete Round 2 saved prematurely as trading_window -> restore to Round 2
+        if (record.pool.length === 0 && record.unsold_pool.length > 0) {
+          record.pool = [...record.unsold_pool];
+          record.unsold_pool = [];
+        }
+        record.stage = 'unsold_auction';
+        record.auction_state.stage = 'unsold_auction';
+        record.auction_state.phase = 'unsold_round';
+        record.auction_state.round_number = 2;
+        record.auction_state.round1_completed = true;
+        record.auction_state.round2_completed = false;
+        record.auction_state.trading_started = false;
+        record.auction_state.trading_completed = false;
+        record.auction_state.stage_ends_at = undefined;
+        record.auction_state.stage_duration_seconds = undefined;
+        record.auction_state.pause_remaining_ms = undefined;
+        record.auction_state.is_paused = false;
+        record.auto_paused_reason = null;
+        recoveredLifecycleState = true;
+        this.addCommentary(record, `Room recovered: resumed Round 2 auction before unlocking Trade Round.`, 'stage');
+      } else if (
+        record.auction_state.trading_completed === true ||
+        !record.auction_state.stage_ends_at ||
+        now >= record.auction_state.stage_ends_at ||
+        !this.isTradingEligible(record)
+      ) {
+        // Trading deadline expired or trading ineligible/already concluded -> advance safely to Final Evaluation
+        for (const offer of record.pending_trades.values()) {
+          if (offer.status === 'pending' || offer.status === 'countered') {
+            offer.status = 'cancelled';
+          }
+        }
+        record.stage = 'squad_evaluation';
+        record.auction_state.stage = 'squad_evaluation';
+        record.auction_state.phase = 'evaluation';
+        record.auction_state.round1_completed = true;
+        record.auction_state.round2_completed = true;
+        record.auction_state.trading_started = true;
+        record.auction_state.trading_completed = true;
+        record.auction_state.stage_ends_at = undefined;
+        record.auction_state.stage_duration_seconds = undefined;
+        this.refreshParticipantMetrics(record);
+        record.results = computeAuctionResults(
+          record.room_code,
+          Array.from(record.participants.values()),
+          record.settings,
+          record.all_completed_bids,
+          record.completed_trades,
+          Array.from(record.playing_xi_submissions.values())
+        );
+        recoveredLifecycleState = true;
+        this.addCommentary(record, `Room recovered: trading session concluded cleanly into Final Evaluation.`, 'stage');
+      } else {
+        // Valid active Trade Round with remaining time -> preserve exact stage_ends_at countdown
+        record.stage = 'trading_window';
+        record.auction_state.stage = 'trading_window';
+        record.auction_state.phase = 'trading';
+        record.auction_state.trading_started = true;
+        record.auction_state.trading_completed = false;
+        this.scheduleStageDeadlineTimer(record, record.auction_state.stage_ends_at - now);
+      }
+    }
+
     this.rooms.set(code, record);
 
-    // Timer rehydration from absolute timer_ends_at
-    const now = Date.now();
-    if (record.auction_state.phase === 'bidding' && record.auction_state.current_player) {
+    if (recoveredLifecycleState) {
+      this.saveRoomSnapshot(code, 'recovered_lifecycle_state').catch(() => { });
+    }
+
+    // Timer & lifecycle rehydration
+    if (record.auction_state.phase === 'announcing' && record.auction_state.current_player) {
+      const announceEndsAt = record.auction_state.announcement_ends_at || 0;
+      const remainingAnnounceMs =
+        announceEndsAt > now ? Math.min(8000, Math.max(1200, announceEndsAt - now)) : 3500;
+      record.auction_state.announcement_ends_at = now + remainingAnnounceMs;
+      if (!record.auction_state.is_paused) {
+        record.auction_state.is_paused = true;
+        record.auction_state.pause_remaining_ms = remainingAnnounceMs;
+        record.auto_paused_reason = 'server_restart';
+      } else if (!record.auction_state.pause_remaining_ms || record.auction_state.pause_remaining_ms <= 500) {
+        record.auction_state.pause_remaining_ms = remainingAnnounceMs;
+        record.auto_paused_reason = 'server_restart';
+      }
+    } else if (record.auction_state.phase === 'bidding' && record.auction_state.current_player) {
       const endsAt = record.auction_state.timer_ends_at || 0;
-      if (now >= endsAt) {
-        // Timer expired during downtime!
-        // Resolve deterministically without double-selling:
+      const wasPausedWithoutRemaining =
+        record.auction_state.is_paused === true &&
+        (record.auction_state.pause_remaining_ms === undefined || record.auction_state.pause_remaining_ms <= 0);
+
+      if (now >= endsAt && !wasPausedWithoutRemaining && !record.auction_state.is_paused) {
+        // Timer expired during downtime while actively running -> resolve deterministically
         if (record.auction_state.current_bidder_id && record.auction_state.current_bid > 0) {
           const alreadySold = record.all_completed_bids.some(
             b => b.player_id === record.auction_state.current_player?.id
@@ -2015,13 +3082,33 @@ export class RoomManager {
           }
           record.auction_state.phase = 'unsold';
         }
-        record.auction_state.is_paused = true; // Pause room so managers see resolved player on reconnect
+        record.auction_state.is_paused = true;
+        record.auto_paused_reason = 'server_restart';
         this.addCommentary(record, `Room recovered after restart. Previous player auction deterministically resolved.`, 'stage');
       } else {
-        // Time remains!
-        record.auction_state.is_paused = true;
-        this.addCommentary(record, `Room recovered after restart. Bidding paused at ${formatCurrency(record.auction_state.current_bid)}.`, 'bid');
+        // Time remains OR room was stranded paused with no saved pause_remaining_ms -> recover cleanly & auto-resume on host reconnect
+        const remainingMs =
+          now < endsAt && endsAt - now > 1000
+            ? Math.min(record.settings.timer_seconds * 1000, endsAt - now)
+            : record.settings.timer_seconds * 1000;
+
+        if (!record.auction_state.is_paused || wasPausedWithoutRemaining) {
+          record.auction_state.pause_remaining_ms = remainingMs;
+          record.auction_state.timer_ends_at = now + remainingMs;
+          record.auction_state.is_paused = true;
+          record.auto_paused_reason = 'server_restart';
+          recoveredLifecycleState = true;
+        }
+        this.addCommentary(record, `Room recovered after restart. Bidding ready to resume at ${formatCurrency(record.auction_state.current_bid)}.`, 'bid');
       }
+    }
+
+    if (
+      (record.auction_state.phase === 'unsold' || record.auction_state.phase === 'sold') &&
+      !record.auction_state.is_paused &&
+      !record.next_player_handle
+    ) {
+      this.scheduleNextPlayer(record, 2500);
     }
 
     console.log(`[RESTORE] Room ${code} successfully restored from database (Phase: ${record.auction_state.phase}, Stage: ${record.stage}).`);

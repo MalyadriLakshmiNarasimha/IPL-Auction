@@ -215,12 +215,12 @@ export const ResumeAuctionModal: React.FC = () => {
           </button>
 
           <Link
-            href="/history"
+            href="/my-rooms"
             onClick={() => setIsOpen(false)}
             className="w-full sm:w-auto py-3.5 px-5 rounded-full border border-night-border hover:bg-night-border text-floodlight font-bold text-xs flex items-center justify-center gap-2 transition-all shrink-0"
           >
-            <History className="w-3.5 h-3.5 text-flare" />
-            <span>View History</span>
+            <Users className="w-3.5 h-3.5 text-flare" />
+            <span>My Rooms</span>
           </Link>
         </div>
 

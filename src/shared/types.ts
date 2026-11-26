@@ -33,7 +33,7 @@ export type PlayerDataStatus =
   | 'PARTIALLY_VERIFIED'
   | 'NO_APPEARANCES_IN_SEASON';
 
-export type ImageVerificationStatus = 'verified' | 'missing' | 'ambiguous';
+export type ImageVerificationStatus = 'verified' | 'missing' | 'ambiguous' | 'silhouette_placeholder';
 
 export interface PlayerImageEntry {
   playerId: string;
@@ -45,6 +45,9 @@ export interface PlayerImageEntry {
   verifiedAt: string;
   imageWidth: number | null;
   imageHeight: number | null;
+  isPlaceholder?: boolean;
+  requiresManualPhoto?: boolean;
+  placeholderReason?: string | null;
 }
 
 export interface PlayerStats2026 {
@@ -181,6 +184,7 @@ export interface Player {
   data_status?: PlayerDataStatus;
   achievements?: string[];
   player_points: number;
+  has_verified_stats?: boolean; // true if scored from verified match stats, false if scored from tier baseline estimate
 
   // Scraped centralized database fields
   card_text?: string | null;
@@ -190,6 +194,12 @@ export interface Player {
   team_code?: string;
   player_name?: string;
   nationality?: string;
+  position_detail?: string;
+  pkl_stats?: {
+    season_12: any;
+    career: any;
+    data_status: string;
+  };
 }
 
 export interface FranchiseIdentity {
@@ -222,6 +232,8 @@ export interface BoughtPlayer {
   timestamp: number;
 }
 
+export type ParticipationStatus = 'ACTIVE' | 'EXITED' | 'DISQUALIFIED';
+
 export interface Participant {
   id: string; // Unique session token / ID
   socket_id?: string;
@@ -233,6 +245,11 @@ export interface Participant {
   team_color?: string;
   is_host: boolean;
   is_connected: boolean;
+  has_exited?: boolean;
+  exited_at?: number | null;
+  participation_status?: ParticipationStatus;
+  disqualification_reason?: string | null;
+  disqualified_at?: number | null;
   last_active: number;
   franchise: FranchiseIdentity | null;
   purse_remaining: number;
@@ -247,17 +264,23 @@ export interface Participant {
   amount_spent?: number;
   avg_purchase_price?: number;
   spent_by_role?: {
-    BAT: number;
-    BOWL: number;
-    AR: number;
-    WK: number;
+    BAT?: number;
+    BOWL?: number;
+    AR?: number;
+    WK?: number;
+    RAID?: number;
+    DEF?: number;
+    [key: string]: number | undefined;
   };
   role_counts?: {
-    BAT: number;
-    BOWL: number;
-    AR: number;
-    WK: number;
+    BAT?: number;
+    BOWL?: number;
+    AR?: number;
+    WK?: number;
+    RAID?: number;
+    DEF?: number;
     overseas: number;
+    [key: string]: number | undefined;
   };
   squad_shortages?: string[];
   squad_excesses?: string[];
@@ -299,13 +322,27 @@ export type AuctionPhase =
   | 'trading'
   | 'evaluation'
   | 'playing_xi'
-  | 'completed';
+  | 'completed'
+  | 'terminated';
+
+export interface AuctionTerminatedPayload {
+  roomCode: string;
+  reason: string;
+  terminatedAt: number;
+  message: string;
+  sportType?: SportType;
+  participants?: Participant[];
+}
 
 export interface AuctionState {
   room_code: string;
   phase: AuctionPhase;
   stage?: WorkflowStage;
   round_number: number; // 1 = Main, 2 = Accelerated / Unsold
+  round1_completed?: boolean;
+  round2_completed?: boolean;
+  trading_started?: boolean;
+  trading_completed?: boolean;
   current_player_index: number;
   current_player: Player | null;
   current_category?: string; // Authoritative active category: 'BATTERS' | 'BOWLERS' | 'ALL-ROUNDERS' | 'WICKET KEEPERS'
@@ -338,6 +375,13 @@ export interface AuctionState {
   stage_duration_seconds?: number;
   stage_ends_at?: number;
   active_trades_count?: number;
+
+  // Automatic termination metadata
+  status?: string;
+  termination_reason?: string | null;
+  terminated_at?: number | null;
+  terminated_by_system?: boolean;
+  termination_message?: string | null;
 }
 
 export interface ChatMessage {
@@ -518,6 +562,7 @@ export interface SeasonRecap {
 export interface AuctionResults {
   room_code: string;
   completed_at: number;
+  sport_type?: SportType;
   current_stage?: WorkflowStage;
   awards: Award[];
   leaderboard: TeamScoreBreakdown[];
@@ -568,6 +613,7 @@ export interface ClientToServerEvents {
   send_chat: (data: { room_code: string; session_id: string; message: string }) => void;
   send_reaction: (data: { room_code: string; session_id: string; emoji: Reaction['emoji'] }) => void;
   request_sync: (data: { room_code: string; session_id: string }) => void;
+  request_next_player: (data: { room_code: string; session_id: string }) => void;
 
   // New Workflow Events
   stage_change: (data: { room_code: string; session_id: string; stage: WorkflowStage; duration_seconds?: number }) => void;
@@ -651,6 +697,7 @@ export interface ServerToClientEvents {
   auction_paused: () => void;
   auction_resumed: (timer_ends_at: number) => void;
   auction_ended: (results: AuctionResults) => void;
+  auction_terminated: (payload: AuctionTerminatedPayload) => void;
   kicked: (reason: string) => void;
 
   // New Workflow Broadcasts

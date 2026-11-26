@@ -39,7 +39,7 @@ export async function GET(
     } catch {}
 
     // Check direct database record
-    const dbRoom = await db.room.findUnique({
+    const dbRoom: any = await db.room.findUnique({
       where: { room_code: code },
     });
 
@@ -48,8 +48,13 @@ export async function GET(
         exists: true,
         room_code: dbRoom.room_code,
         name: dbRoom.name,
-        phase: 'lobby',
+        status: dbRoom.status,
+        phase: dbRoom.status === 'terminated' ? 'terminated' : dbRoom.status === 'completed' ? 'completed' : 'lobby',
+        sport_type: dbRoom.sport_type || 'IPL',
         participants_count: 1,
+        termination_reason: dbRoom.termination_reason ?? null,
+        terminated_at: dbRoom.terminated_at ? new Date(dbRoom.terminated_at).getTime() : null,
+        terminated_by_system: Boolean(dbRoom.terminated_by_system),
       }, { status: 200 });
     }
 

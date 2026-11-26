@@ -222,10 +222,10 @@ async function runVerification() {
     const regData = await regRes.json();
     const cookieHeader = regRes.headers.get('set-cookie');
     if (cookieHeader) {
-      const match = cookieHeader.match(/ipl_session=([^;]+)/);
+      const match = cookieHeader.match(/ipl_session_token=([^;]+)/);
       if (match) {
         await client.send('Network.setCookie', {
-          name: 'ipl_session',
+          name: 'ipl_session_token',
           value: match[1],
           domain: 'localhost',
           path: '/',
@@ -264,15 +264,16 @@ async function runVerification() {
 
     // Trigger next player transition while Chrome is connected
     console.log('      Triggering live player transition (Player 1 -> Player 2)...');
-    hostSocket.emit('admin_next_player', { room_code: roomCode });
+    hostSocket.emit('request_next_player', { room_code: roomCode, session_id: regData.user.id });
     await new Promise(r => setTimeout(r, 3000));
 
     // Place a bid to verify live timer reset and split-flap number animation
     console.log('      Placing live bid...');
-    hostSocket.emit('bid', {
+    hostSocket.emit('place_bid', {
       room_code: roomCode,
       amount: 25000000,
-      participant_id: regData.user.id,
+      is_explicit_amount: true,
+      session_id: regData.user.id,
     });
     await new Promise(r => setTimeout(r, 2000));
 

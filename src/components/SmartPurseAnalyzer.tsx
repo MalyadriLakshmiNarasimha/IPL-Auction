@@ -21,17 +21,30 @@ export const SmartPurseAnalyzer: React.FC<SmartPurseAnalyzerProps> = ({ particip
   const squadCount = participant.squad.length;
   const avgPrice = squadCount > 0 ? Math.round(spent / squadCount) : 0;
 
+  const isPkl = settings.sport_type === 'PKL';
+  const minReservePerSlot = isPkl ? 9_00_000 : 20_00_000;
   const emptySlots = Math.max(0, settings.squad_size - squadCount);
-  const minReserveNeeded = emptySlots * 20_00_000;
+  const minReserveNeeded = emptySlots * minReservePerSlot;
   const reserveSafe = purseRemaining >= minReserveNeeded;
 
-  const spentByRole = participant.spent_by_role || { BAT: 0, BOWL: 0, AR: 0, WK: 0 };
-  const roleColors = {
-    BAT: '#F5B83D',
-    BOWL: '#4C8DFF',
-    AR: '#2FCB8F',
-    WK: '#A56BFF',
-  };
+  const spentByRole = (participant.spent_by_role || {}) as Record<string, number>;
+  const roleColors: Record<string, string> = isPkl
+    ? {
+        RAID: '#EA580C',
+        DEF: '#2563EB',
+        AR: '#2FCB8F',
+      }
+    : {
+        BAT: '#F5B83D',
+        BOWL: '#4C8DFF',
+        AR: '#2FCB8F',
+        WK: '#A56BFF',
+      };
+
+  const roleKeys = isPkl ? (['RAID', 'DEF', 'AR'] as const) : (['BAT', 'BOWL', 'AR', 'WK'] as const);
+  const roleLabels: Record<string, string> = isPkl
+    ? { RAID: 'Raider', DEF: 'Defender', AR: 'All-Rounder' }
+    : { BAT: 'BAT', BOWL: 'BOWL', AR: 'AR', WK: 'WK' };
 
   return (
     <div className="bg-night rounded-card border border-night-border p-3.5 sm:p-4 shadow-sm space-y-3">
@@ -90,8 +103,8 @@ export const SmartPurseAnalyzer: React.FC<SmartPurseAnalyzerProps> = ({ particip
         <span className="text-[10px] text-floodlight-muted uppercase font-bold tracking-wider flex items-center gap-1">
           <PieChart className="w-3 h-3 text-flare" /> Spending by Role
         </span>
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5">
-          {(['BAT', 'BOWL', 'AR', 'WK'] as const).map(role => {
+        <div className={`grid ${isPkl ? 'grid-cols-3' : 'grid-cols-2 sm:grid-cols-4'} gap-1.5`}>
+          {roleKeys.map(role => {
             const roleSpent = spentByRole[role] || 0;
             const pct = spent > 0 ? Math.round((roleSpent / spent) * 100) : 0;
             return (
@@ -101,7 +114,7 @@ export const SmartPurseAnalyzer: React.FC<SmartPurseAnalyzerProps> = ({ particip
               >
                 <div className="text-[9px] font-bold text-floodlight-muted flex items-center justify-center gap-1">
                   <span className="w-2 h-2 rounded-full" style={{ backgroundColor: roleColors[role] }} />
-                  {role}
+                  {roleLabels[role] || role}
                 </div>
                 <div className="font-display font-black text-xs text-floodlight tabular-nums mt-0.5">
                   {formatCurrency(roleSpent)}

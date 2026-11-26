@@ -16,8 +16,10 @@ import { formatCurrency } from './constants';
 
 export const SCORING_ENGINE_VERSION = '2026.1-5pillar';
 
-export function normalizeRoleToCode(role: string): 'BAT' | 'BOWL' | 'AR' | 'WK' {
+export function normalizeRoleToCode(role: string): 'BAT' | 'BOWL' | 'AR' | 'WK' | 'RAID' | 'DEF' {
   const r = (role || '').toUpperCase();
+  if (r.startsWith('RAID')) return 'RAID';
+  if (r.startsWith('DEF')) return 'DEF';
   if (r.startsWith('BAT')) return 'BAT';
   if (r.startsWith('BOWL')) return 'BOWL';
   if (r.startsWith('ALL') || r === 'AR') return 'AR';
@@ -30,15 +32,44 @@ export function normalizeRoleToCode(role: string): 'BAT' | 'BOWL' | 'AR' | 'WK' 
  */
 export function computeParticipantMetrics(participant: Participant, settings: RoomSettings) {
   const squad = participant.squad || [];
-  const spentByRole = { BAT: 0, BOWL: 0, AR: 0, WK: 0 };
-  const roleCounts = { BAT: 0, BOWL: 0, AR: 0, WK: 0, overseas: 0 };
+  const isPkl = settings.sport_type === 'PKL';
+
+  const spentByRole: {
+    BAT: number;
+    BOWL: number;
+    AR: number;
+    WK: number;
+    RAID?: number;
+    DEF?: number;
+    [key: string]: number | undefined;
+  } = { BAT: 0, BOWL: 0, AR: 0, WK: 0, RAID: 0, DEF: 0 };
+
+  const roleCounts: {
+    BAT: number;
+    BOWL: number;
+    AR: number;
+    WK: number;
+    RAID: number;
+    DEF: number;
+    overseas: number;
+    [key: string]: number;
+  } = { BAT: 0, BOWL: 0, AR: 0, WK: 0, RAID: 0, DEF: 0, overseas: 0 };
 
   let totalSpent = 0;
   for (const item of squad) {
     totalSpent += item.bought_for;
     const code = normalizeRoleToCode(item.player.role);
-    spentByRole[code] += item.bought_for;
-    roleCounts[code]++;
+    if (spentByRole[code] !== undefined) {
+      spentByRole[code] = (spentByRole[code] || 0) + item.bought_for;
+    } else if (isPkl && (code === 'BAT' || code === 'WK')) {
+      spentByRole.RAID = (spentByRole.RAID || 0) + item.bought_for;
+    }
+    if (roleCounts[code] !== undefined) {
+      roleCounts[code] = (roleCounts[code] || 0) + 1;
+    } else if (isPkl && (code === 'BAT' || code === 'WK')) {
+      roleCounts.RAID = (roleCounts.RAID || 0) + 1;
+    }
+
     if (item.player.country !== 'India' && item.player.nationality !== 'India') {
       roleCounts.overseas++;
     }
@@ -48,35 +79,64 @@ export function computeParticipantMetrics(participant: Participant, settings: Ro
   const shortages: string[] = [];
   const excesses: string[] = [];
 
-  const scale = settings.squad_size / 15;
-  const minBat = Math.max(3, Math.round(4 * scale));
-  const minBowl = Math.max(3, Math.round(4 * scale));
-  const minAR = Math.max(1, Math.round(2 * scale));
-  const minWK = 1;
+  if (isPkl) {
+    const scale = settings.squad_size / 14;
+    const minRaid = Math.max(3, Math.round(4 * scale));
+    const minDef = Math.max(4, Math.round(5 * scale));
+    const minAr = Math.max(1, Math.round(2 * scale));
 
-  if (roleCounts.WK < minWK) {
-    shortages.push(`Need at least ${minWK} Wicketkeeper (Current: 0)`);
-  }
-  if (roleCounts.BAT < minBat && squad.length >= Math.round(settings.squad_size * 0.5)) {
-    shortages.push(`Batting shortage: ${roleCounts.BAT}/${minBat} recommended`);
-  }
-  if (roleCounts.BOWL < minBowl && squad.length >= Math.round(settings.squad_size * 0.5)) {
-    shortages.push(`Bowling shortage: ${roleCounts.BOWL}/${minBowl} frontline bowlers recommended`);
-  }
-  if (roleCounts.AR < minAR && squad.length >= Math.round(settings.squad_size * 0.5)) {
-    shortages.push(`All-rounder depth needed: ${roleCounts.AR}/${minAR}`);
-  }
+    if (roleCounts.RAID < minRaid && squad.length >= Math.round(settings.squad_size * 0.5)) {
+      shortages.push(`Raiding shortage: ${roleCounts.RAID}/${minRaid} frontline raiders recommended`);
+    }
+    if (roleCounts.DEF < minDef && squad.length >= Math.round(settings.squad_size * 0.5)) {
+      shortages.push(`Defensive shortage: ${roleCounts.DEF}/${minDef} frontline defenders recommended`);
+    }
+    if (roleCounts.AR < minAr && squad.length >= Math.round(settings.squad_size * 0.5)) {
+      shortages.push(`All-rounder depth needed: ${roleCounts.AR}/${minAr}`);
+    }
 
-  if (roleCounts.overseas > 8) {
-    excesses.push(`Overseas limit exceeded: ${roleCounts.overseas}/8 maximum`);
-  } else if (roleCounts.overseas === 8) {
-    excesses.push(`Overseas slots capped: 8/8 full`);
-  }
-  if (roleCounts.BAT > Math.round(7 * scale)) {
-    excesses.push(`Batting heavy roster: ${roleCounts.BAT} pure batters`);
-  }
-  if (roleCounts.BOWL > Math.round(7 * scale)) {
-    excesses.push(`Bowling heavy roster: ${roleCounts.BOWL} pure bowlers`);
+    if (roleCounts.overseas > 4) {
+      excesses.push(`Overseas limit exceeded: ${roleCounts.overseas}/4 maximum`);
+    } else if (roleCounts.overseas === 4) {
+      excesses.push(`Overseas slots capped: 4/4 full`);
+    }
+    if (roleCounts.RAID > Math.round(7 * scale)) {
+      excesses.push(`Raid-heavy roster: ${roleCounts.RAID} specialist raiders`);
+    }
+    if (roleCounts.DEF > Math.round(8 * scale)) {
+      excesses.push(`Defense-heavy roster: ${roleCounts.DEF} specialist defenders`);
+    }
+  } else {
+    const scale = settings.squad_size / 15;
+    const minBat = Math.max(3, Math.round(4 * scale));
+    const minBowl = Math.max(3, Math.round(4 * scale));
+    const minAR = Math.max(1, Math.round(2 * scale));
+    const minWK = 1;
+
+    if (roleCounts.WK < minWK) {
+      shortages.push(`Need at least ${minWK} Wicketkeeper (Current: 0)`);
+    }
+    if (roleCounts.BAT < minBat && squad.length >= Math.round(settings.squad_size * 0.5)) {
+      shortages.push(`Batting shortage: ${roleCounts.BAT}/${minBat} recommended`);
+    }
+    if (roleCounts.BOWL < minBowl && squad.length >= Math.round(settings.squad_size * 0.5)) {
+      shortages.push(`Bowling shortage: ${roleCounts.BOWL}/${minBowl} frontline bowlers recommended`);
+    }
+    if (roleCounts.AR < minAR && squad.length >= Math.round(settings.squad_size * 0.5)) {
+      shortages.push(`All-rounder depth needed: ${roleCounts.AR}/${minAR}`);
+    }
+
+    if (roleCounts.overseas > 8) {
+      excesses.push(`Overseas limit exceeded: ${roleCounts.overseas}/8 maximum`);
+    } else if (roleCounts.overseas === 8) {
+      excesses.push(`Overseas slots capped: 8/8 full`);
+    }
+    if (roleCounts.BAT > Math.round(7 * scale)) {
+      excesses.push(`Batting heavy roster: ${roleCounts.BAT} pure batters`);
+    }
+    if (roleCounts.BOWL > Math.round(7 * scale)) {
+      excesses.push(`Bowling heavy roster: ${roleCounts.BOWL} pure bowlers`);
+    }
   }
 
   return {
@@ -129,6 +189,124 @@ export function calculate5PillarSquadScore(
 
   const strengths: string[] = [];
   const weaknesses: string[] = [];
+
+  const isPkl = settings.sport_type === 'PKL';
+
+  if (isPkl) {
+    // PKL Kabaddi 5-Pillar Squad Evaluation Model
+    // 1. Individual Player Performance (40 pts max)
+    const playerPointsList = squad.map(s => s.player.player_points || 400).sort((a, b) => b - a);
+    const consideredCount = Math.min(squad.length, 14);
+    const avgTopPoints =
+      consideredCount > 0
+        ? playerPointsList.slice(0, consideredCount).reduce((a, b) => a + b, 0) / consideredCount
+        : 0;
+    const individual_performance_score = Number(Math.min(40, Math.max(5, (avgTopPoints / 750) * 40)).toFixed(1));
+
+    if (avgTopPoints >= 650) {
+      strengths.push(`Elite mat caliber: Squad averages ${Math.round(avgTopPoints)} verified player points.`);
+    } else if (avgTopPoints < 420) {
+      weaknesses.push(`Low star firepower: Squad averages only ${Math.round(avgTopPoints)} player points.`);
+    }
+
+    // 2. Raiding Strength (20 pts max)
+    const raiders = squad.filter(s => {
+      const role = normalizeRoleToCode(s.player.role);
+      return role === 'RAID' || role === 'AR';
+    });
+    let totalRaidPoints = 0;
+    for (const item of raiders) {
+      totalRaidPoints += item.player.stats_2026?.runs || (item.player as any).pkl_stats?.season_12?.raid_points || 0;
+    }
+    const raidingScoreRaw = Math.min(20, Math.max(3, (totalRaidPoints / 250) * 20));
+    const batting_strength_score = Number(raidingScoreRaw.toFixed(1));
+
+    if (totalRaidPoints >= 200) {
+      strengths.push(`Explosive raid unit: ${totalRaidPoints} verified raid points in arsenal.`);
+    } else if (totalRaidPoints < 100) {
+      weaknesses.push(`Shallow raiding attack: Only ${totalRaidPoints} total raid points logged.`);
+    }
+
+    // 3. Tackle Defense Strength (20 pts max)
+    const defenders = squad.filter(s => {
+      const role = normalizeRoleToCode(s.player.role);
+      return role === 'DEF' || role === 'AR';
+    });
+    let totalTacklePoints = 0;
+    for (const item of defenders) {
+      totalTacklePoints += item.player.stats_2026?.wickets || (item.player as any).pkl_stats?.season_12?.tackle_points || 0;
+    }
+    const defenseScoreRaw = Math.min(20, Math.max(3, (totalTacklePoints / 160) * 20));
+    const bowling_strength_score = Number(defenseScoreRaw.toFixed(1));
+
+    if (totalTacklePoints >= 120) {
+      strengths.push(`Impenetrable mat defense: ${totalTacklePoints} certified tackle points across squad.`);
+    } else if (totalTacklePoints < 60) {
+      weaknesses.push(`Fragile defensive line: Frontline defenders logged only ${totalTacklePoints} tackle points.`);
+    }
+
+    // 4. All-Rounder Strength (10 pts max)
+    const allrounders = squad.filter(s => normalizeRoleToCode(s.player.role) === 'AR');
+    const arScoreRaw = Math.min(10, Math.max(2, (allrounders.length / 2.5) * 10));
+    const allrounder_strength_score = Number(arScoreRaw.toFixed(1));
+    if (allrounders.length >= 2) {
+      strengths.push(`Tactical all-rounder depth: ${allrounders.length} multi-discipline players for mat flexibility.`);
+    } else if (allrounders.length === 0) {
+      weaknesses.push(`No specialist all-rounders: Lacks tactical substitution depth.`);
+    }
+
+    // 5. Squad Balance & Rules (10 pts max)
+    const counts = { RAID: 0, DEF: 0, AR: 0, overseas: 0 };
+    for (const item of squad) {
+      const code = normalizeRoleToCode(item.player.role);
+      if (code === 'RAID') counts.RAID++;
+      else if (code === 'DEF') counts.DEF++;
+      else if (code === 'AR') counts.AR++;
+      else counts.RAID++;
+
+      if (item.player.country !== 'India' && item.player.nationality !== 'India') {
+        counts.overseas++;
+      }
+    }
+
+    let balanceScore = 10;
+    if (counts.overseas > 4) {
+      balanceScore -= 5;
+      weaknesses.push(`Rule violation penalty: Exceeded 4 overseas players cap (${counts.overseas}/4).`);
+    } else if (counts.overseas >= 2 && counts.overseas <= 4) {
+      strengths.push(`Optimal international balance: ${counts.overseas} overseas specialists.`);
+    }
+
+    if (counts.RAID < 3) {
+      balanceScore -= 2;
+      weaknesses.push(`Short on specialist raiders (${counts.RAID}/3 minimum).`);
+    }
+    if (counts.DEF < 4) {
+      balanceScore -= 2;
+      weaknesses.push(`Short on specialist defenders (${counts.DEF}/4 minimum).`);
+    }
+
+    const squad_balance_score = Number(Math.min(10, Math.max(1, balanceScore)).toFixed(1));
+    const total_score = Math.round(
+      individual_performance_score +
+      batting_strength_score +
+      bowling_strength_score +
+      allrounder_strength_score +
+      squad_balance_score
+    );
+
+    return {
+      total_score: Math.min(100, Math.max(0, total_score)),
+      individual_performance_score,
+      batting_strength_score,
+      bowling_strength_score,
+      allrounder_strength_score,
+      squad_balance_score,
+      strengths,
+      weaknesses,
+      scoring_version: '2026.1-5pillar-pkl',
+    };
+  }
 
   // Pillar 1: Individual Player Performance (Max 40 points)
   // Evaluates verified 2026 player points of the squad's top 11-15 players
@@ -232,10 +410,10 @@ export function calculate5PillarSquadScore(
   }
 
   // Pillar 5: Squad Balance & Rules (Max 10 points)
-  const counts = { BAT: 0, BOWL: 0, AR: 0, WK: 0, overseas: 0 };
+  const counts: Record<string, number> = { BAT: 0, BOWL: 0, AR: 0, WK: 0, overseas: 0 };
   for (const item of squad) {
     const code = normalizeRoleToCode(item.player.role);
-    counts[code]++;
+    counts[code] = (counts[code] || 0) + 1;
     if (item.player.country !== 'India' && item.player.nationality !== 'India') {
       counts.overseas++;
     }
@@ -341,11 +519,19 @@ export function calculateManagerScore(
   const totalSpent = squad.reduce((sum, item) => sum + (item.bought_for || item.purchase_price || item.player?.base_price || 0), 0);
   const purseRemaining = participant.purse_remaining;
 
+  const isPkl = (settings as any).sport_type === 'PKL' || squad.some(
+    item =>
+      item.player?.id?.startsWith('k-') ||
+      item.player?.id?.startsWith('pkl-') ||
+      ['Raider', 'Defender', 'RAID', 'DEF'].includes(item.player?.role)
+  );
+
   // 1. Purse Utilization Efficiency (Max 25 pts)
   const emptySlots = Math.max(0, settings.squad_size - squad.length);
-  const minReserveNeeded = emptySlots * 20_00_000;
+  const minReservePerSlot = isPkl ? 9_00_000 : 20_00_000;
+  const minReserveNeeded = emptySlots * minReservePerSlot;
   const reserveMaintained = purseRemaining >= minReserveNeeded;
-  const spendRatio = totalSpent / (settings.purse || 100_00_00_000);
+  const spendRatio = totalSpent / (settings.purse || (isPkl ? 5_00_00_000 : 100_00_00_000));
 
   let purseEffScore = 0;
   if (reserveMaintained) {
@@ -370,9 +556,15 @@ export function calculateManagerScore(
     const tier = item.player.tier;
 
     let benchmark = base;
-    if (tier === 'A') benchmark = Math.max(base, 12_00_00_000);
-    else if (tier === 'B') benchmark = Math.max(base, 4_50_00_000);
-    else benchmark = Math.max(base, 1_20_00_000);
+    if (isPkl) {
+      if (tier === 'A') benchmark = Math.max(base, 75_00_000);
+      else if (tier === 'B') benchmark = Math.max(base, 35_00_000);
+      else benchmark = Math.max(base, 15_00_000);
+    } else {
+      if (tier === 'A') benchmark = Math.max(base, 12_00_00_000);
+      else if (tier === 'B') benchmark = Math.max(base, 4_50_00_000);
+      else benchmark = Math.max(base, 1_20_00_000);
+    }
 
     const surplus = benchmark - paid;
     surplusTotal += surplus;
@@ -388,7 +580,8 @@ export function calculateManagerScore(
   }
 
   bargainPicks.sort((a, b) => b.surplus - a.surplus);
-  const vfmScore = Math.min(30, Math.max(5, Math.round(15 + (surplusTotal / 25_00_00_000) * 15)));
+  const maxSurplusScale = isPkl ? 1_50_00_000 : 25_00_00_000;
+  const vfmScore = Math.min(30, Math.max(5, Math.round(15 + (surplusTotal / maxSurplusScale) * 15)));
 
   // 3. Trade Quality Index (Max 20 pts)
   const safeTrades = Array.isArray(allTrades) ? allTrades : [];
@@ -453,6 +646,107 @@ export function calculatePlayingXIScore(submission: PlayingXISubmission): Playin
   const players = submission.players || [];
   const strengths: string[] = [];
   const weaknesses: string[] = [];
+
+  const isPkl =
+    players.length === 7 ||
+    players.some(
+      p =>
+        p.id.startsWith('k-') ||
+        p.id.startsWith('pkl-') ||
+        ['Raider', 'Defender', 'RAID', 'DEF'].includes(p.role)
+    );
+
+  if (isPkl) {
+    if (players.length !== 7) {
+      return {
+        participant_id: submission.participant_id,
+        display_name: submission.display_name,
+        franchise: submission.franchise,
+        total_score: 0,
+        batting_score: 0,
+        bowling_score: 0,
+        allrounder_score: 0,
+        balance_score: 0,
+        rank: 0,
+        strengths: [],
+        weaknesses: [`Incomplete Starting 7: Selected ${players.length}/7 required players.`],
+        openers_rating: 0,
+        middle_order_rating: 0,
+        finishers_rating: 0,
+        pace_spin_ratio: '0:0',
+        overseas_count: 0,
+      };
+    }
+
+    const raiders = players.filter(p => (p.role || '').toUpperCase().includes('RAID'));
+    const defenders = players.filter(p => (p.role || '').toUpperCase().includes('DEF'));
+    const allrounders = players.filter(
+      p => (p.role || '').toUpperCase().includes('ALL') || p.role === 'AR'
+    );
+
+    const raidPts =
+      raiders.reduce((acc, p) => acc + (p.player_points || 400), 0) +
+      allrounders.reduce((acc, p) => acc + (p.player_points || 400) * 0.5, 0);
+    const raidingScore = Number(Math.min(30, Math.max(5, (raidPts / 1600) * 30)).toFixed(1));
+
+    if (raiders.length >= 2) {
+      strengths.push(`Formidable raiding unit: ${raiders.length} specialist strike raiders.`);
+    } else {
+      weaknesses.push(`Thin raiding strike force: Less than 2 specialist raiders in Starting 7.`);
+    }
+
+    const defPts =
+      defenders.reduce((acc, p) => acc + (p.player_points || 400), 0) +
+      allrounders.reduce((acc, p) => acc + (p.player_points || 400) * 0.5, 0);
+    const defensiveScore = Number(Math.min(30, Math.max(5, (defPts / 1600) * 30)).toFixed(1));
+
+    if (defenders.length >= 3) {
+      strengths.push(`Solid mat barrier: ${defenders.length} dedicated defenders commanding the mat.`);
+    } else {
+      weaknesses.push(`Vulnerable mat defense: Less than 3 specialist defenders.`);
+    }
+
+    const allrounderScore = Number(Math.min(20, allrounders.length >= 1 ? 20 : 8).toFixed(1));
+    if (allrounders.length >= 1) {
+      strengths.push(`Tactical all-round depth: ${allrounders.length} all-rounders.`);
+    }
+
+    let balanceScore = 20;
+    let overseasCount = 0;
+    for (const p of players) {
+      if (p.country !== 'India' && p.nationality !== 'India') {
+        overseasCount++;
+      }
+    }
+    if (overseasCount > 2) {
+      balanceScore -= 10;
+      weaknesses.push(
+        `PKL Rule Violation: Lineup has ${overseasCount} overseas players (Maximum 2 allowed in Starting 7).`
+      );
+    }
+    balanceScore = Math.max(5, balanceScore);
+
+    const totalScore = Math.round(raidingScore + defensiveScore + allrounderScore + balanceScore);
+
+    return {
+      participant_id: submission.participant_id,
+      display_name: submission.display_name,
+      franchise: submission.franchise,
+      total_score: Math.min(100, Math.max(0, totalScore)),
+      batting_score: raidingScore,
+      bowling_score: defensiveScore,
+      allrounder_score: allrounderScore,
+      balance_score: balanceScore,
+      rank: 0,
+      strengths,
+      weaknesses,
+      openers_rating: raidingScore,
+      middle_order_rating: defensiveScore,
+      finishers_rating: allrounderScore,
+      pace_spin_ratio: `${raiders.length}R : ${defenders.length}D`,
+      overseas_count: overseasCount,
+    };
+  }
 
   if (players.length !== 11) {
     return {
@@ -600,6 +894,15 @@ export function generateChampionshipAwards(
 ): Award[] {
   const awards: Award[] = [];
 
+  const isPkl = squadLeaderboard.some(s =>
+    s.squad.some(
+      i =>
+        i.player.id.startsWith('k-') ||
+        i.player.id.startsWith('pkl-') ||
+        ['Raider', 'Defender', 'RAID', 'DEF'].includes(i.player.role)
+    )
+  );
+
   // 1. Overall Auction Champion
   if (squadLeaderboard.length > 0) {
     const champ = squadLeaderboard[0];
@@ -614,15 +917,17 @@ export function generateChampionshipAwards(
     });
   }
 
-  // 2. Best Batting Squad
+  // 2. Best Batting / Raiding Squad
   const bestBatting = [...squadLeaderboard].sort(
     (a, b) => (b.batting_strength_score || 0) - (a.batting_strength_score || 0)
   )[0];
   if (bestBatting) {
     awards.push({
       id: 'best_batting',
-      title: '🏏 Best Batting Squad',
-      description: 'Constructed the most destructive, high-run-rate batting powerhouse',
+      title: isPkl ? '⚡ Best Raiding Squad' : '🏏 Best Batting Squad',
+      description: isPkl
+        ? 'Constructed the most destructive, high-impact raiding strike unit'
+        : 'Constructed the most destructive, high-run-rate batting powerhouse',
       winner_name: `${bestBatting.display_name} (${bestBatting.franchise.name})`,
       franchise_short_code: bestBatting.franchise.short_code,
       franchise_color: bestBatting.franchise.color,
@@ -630,15 +935,17 @@ export function generateChampionshipAwards(
     });
   }
 
-  // 3. Best Bowling Squad
+  // 3. Best Bowling / Defensive Squad
   const bestBowling = [...squadLeaderboard].sort(
     (a, b) => (b.bowling_strength_score || 0) - (a.bowling_strength_score || 0)
   )[0];
   if (bestBowling) {
     awards.push({
       id: 'best_bowling',
-      title: '🎯 Best Bowling Squad',
-      description: 'Assembled the most clinical wicket-taking and restrictive bowling attack',
+      title: isPkl ? '🛡️ Best Defensive Squad' : '🎯 Best Bowling Squad',
+      description: isPkl
+        ? 'Assembled the most clinical tackle-hunting and corner-cover defense'
+        : 'Assembled the most clinical wicket-taking and restrictive bowling attack',
       winner_name: `${bestBowling.display_name} (${bestBowling.franchise.name})`,
       franchise_short_code: bestBowling.franchise.short_code,
       franchise_color: bestBowling.franchise.color,
@@ -654,7 +961,9 @@ export function generateChampionshipAwards(
     awards.push({
       id: 'best_balanced',
       title: '⚖️ Best Balanced Squad',
-      description: 'Mastered squad depth, role balance, wicketkeeper coverage and overseas limits',
+      description: isPkl
+        ? 'Mastered squad depth, mat balance, tactical coverage and overseas limits'
+        : 'Mastered squad depth, role balance, wicketkeeper coverage and overseas limits',
       winner_name: `${bestBalanced.display_name} (${bestBalanced.franchise.name})`,
       franchise_short_code: bestBalanced.franchise.short_code,
       franchise_color: bestBalanced.franchise.color,
@@ -703,13 +1012,15 @@ export function generateChampionshipAwards(
     });
   }
 
-  // 7. Strongest Playing XI
+  // 7. Strongest Playing XI / Starting 7
   if (playingXILeaderboard.length > 0) {
     const strongestXI = playingXILeaderboard[0];
     awards.push({
       id: 'strongest_playing_xi',
-      title: '⭐ Strongest Playing XI',
-      description: 'Crafted the most dominant 11-player matchday starting lineup',
+      title: isPkl ? '⭐ Strongest Starting 7' : '⭐ Strongest Playing XI',
+      description: isPkl
+        ? 'Crafted the most dominant 7-player matchday starting lineup'
+        : 'Crafted the most dominant 11-player matchday starting lineup',
       winner_name: `${strongestXI.display_name} (${strongestXI.franchise?.name || 'Independent'})`,
       franchise_short_code: strongestXI.franchise?.short_code || 'IND',
       franchise_color: strongestXI.franchise?.color || '#DCC477',
@@ -730,6 +1041,14 @@ export function generateSeasonRecap(
   championFranchise: any = null
 ): SeasonRecap {
   const activeParticipants = participants.filter(p => p.franchise !== null);
+  const isPkl = activeParticipants.some(p =>
+    p.squad.some(
+      i =>
+        i.player?.id?.startsWith('k-') ||
+        i.player?.id?.startsWith('pkl-') ||
+        ['Raider', 'Defender', 'RAID', 'DEF'].includes(i.player?.role)
+    )
+  );
   const totalSpent = activeParticipants.reduce(
     (sum, p) => sum + p.squad.reduce((s, i) => s + i.bought_for, 0),
     0
@@ -754,7 +1073,9 @@ export function generateSeasonRecap(
   let bestBargain: { player: Player; price: number; franchise: any; surplus: number } | null = null;
   for (const p of activeParticipants) {
     for (const item of p.squad) {
-      const benchmark = item.player.tier === 'A' ? 12_00_00_000 : item.player.tier === 'B' ? 4_50_00_000 : 1_20_00_000;
+      const benchmark = isPkl
+        ? (item.player.tier === 'A' ? 75_00_000 : item.player.tier === 'B' ? 35_00_000 : 15_00_000)
+        : (item.player.tier === 'A' ? 12_00_00_000 : item.player.tier === 'B' ? 4_50_00_000 : 1_20_00_000);
       const surplus = benchmark - item.bought_for;
       if (!bestBargain || surplus > bestBargain.surplus) {
         bestBargain = {
@@ -907,6 +1228,7 @@ export function computeAuctionResults(
   return {
     room_code: roomCode,
     completed_at: Date.now(),
+    sport_type: settings.sport_type || 'IPL',
     awards,
     leaderboard: squadLeaderboard,
     manager_leaderboard: managerLeaderboard,

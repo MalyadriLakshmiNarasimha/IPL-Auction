@@ -15,6 +15,7 @@ interface PlayerSpotlightProps {
   timerSeconds: number;
   timerEndsAt: number;
   serverTime: number;
+  pauseRemainingMs?: number;
   isPaused: boolean;
   passCount?: number;
   totalEligiblePassers?: number;
@@ -26,6 +27,7 @@ export const PlayerSpotlight: React.FC<PlayerSpotlightProps> = ({
   timerSeconds,
   timerEndsAt,
   serverTime,
+  pauseRemainingMs,
   isPaused,
   passCount,
   totalEligiblePassers,
@@ -42,8 +44,18 @@ export const PlayerSpotlight: React.FC<PlayerSpotlightProps> = ({
     );
   }
 
+  const isPkl = Boolean(
+    player.id?.startsWith('k-') ||
+    player.role === 'Raider' ||
+    player.role === 'Defender' ||
+    player.role === 'RAID' ||
+    player.role === 'DEF'
+  );
+
   const roleColor = (() => {
     const r = (player.role || '').toUpperCase();
+    if (r.startsWith('RAID')) return '#EA580C';
+    if (r.startsWith('DEF')) return '#2563EB';
     if (r.startsWith('BAT')) return '#F5B83D';
     if (r.startsWith('BOWL')) return '#4C8DFF';
     if (r.startsWith('ALL') || r === 'AR') return '#2FCB8F';
@@ -75,7 +87,7 @@ export const PlayerSpotlight: React.FC<PlayerSpotlightProps> = ({
             </span>
             <span className="px-2.5 py-0.5 rounded-full bg-flare/15 text-flare border border-flare/30 text-[10px] font-extrabold uppercase tracking-wider flex items-center gap-1">
               <Sparkles className="w-3 h-3" />
-              {player.category || 'IPL Marquee'}
+              {player.category || (isPkl ? 'PKL Marquee' : 'IPL Marquee')}
             </span>
             {player.jersey_number && (
               <span className="px-2 py-0.5 rounded-full bg-night-raised border border-night-border text-[10px] font-bold text-floodlight-muted">
@@ -139,9 +151,21 @@ export const PlayerSpotlight: React.FC<PlayerSpotlightProps> = ({
 
               {/* Style Subtitle */}
               <div className="text-[11px] sm:text-xs text-floodlight-muted flex items-center gap-1.5 mt-0.5 sm:mt-1 truncate">
-                <span className="truncate">{player.batting_style || 'Right Handed'}</span>
-                <span>·</span>
-                <span className="truncate">{player.bowling_style || 'Right Arm Medium'}</span>
+                {isPkl ? (
+                  <>
+                    <span className="truncate font-semibold text-floodlight">
+                      {player.position_detail || player.batting_style || player.role}
+                    </span>
+                    <span>·</span>
+                    <span className="truncate">{player.team}</span>
+                  </>
+                ) : (
+                  <>
+                    <span className="truncate">{player.batting_style || 'Right Handed'}</span>
+                    <span>·</span>
+                    <span className="truncate">{player.bowling_style || 'Right Arm Medium'}</span>
+                  </>
+                )}
               </div>
             </div>
 
@@ -171,6 +195,8 @@ export const PlayerSpotlight: React.FC<PlayerSpotlightProps> = ({
                 <CircularTimerRing
                   timerSeconds={timerSeconds}
                   timerEndsAt={timerEndsAt}
+                  serverTime={serverTime}
+                  pauseRemainingMs={pauseRemainingMs}
                   isPaused={isPaused}
                   size={76}
                   roleColor={roleColor}

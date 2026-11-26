@@ -41,6 +41,61 @@ interface CachedAudio {
 
 const audioCache = new Map<string, CachedAudio>();
 const MAX_CACHE_ENTRIES = 300;
+const PROVIDER_COOLDOWN_MS = 5 * 60 * 1000;
+const providerCooldowns = new Map<string, number>();
+
+function sanitizeTtsLog(msg: unknown): string {
+  const raw = msg instanceof Error ? msg.message : String(msg || 'Unknown error');
+  return raw.replace(/([?&]key=)[^&\s]+/gi, '$1[REDACTED]');
+}
+
+export function isProviderInCooldown(providerName: string): boolean {
+  const until = providerCooldowns.get(providerName);
+  if (!until) return false;
+  if (Date.now() >= until) {
+    providerCooldowns.delete(providerName);
+    return false;
+  }
+  return true;
+}
+
+export function tripProviderCooldown(providerName: string, durationMs: number = PROVIDER_COOLDOWN_MS): void {
+  providerCooldowns.set(providerName, Date.now() + durationMs);
+}
+
+export function resetTtsProviderCircuitBreakers(): void {
+  providerCooldowns.clear();
+}
+
+export interface TtsAvailabilityInfo {
+  externalConfigured: boolean;
+  configuredProvider: TtsProviderType;
+  activeProviders: string[];
+  fallbackMode: 'central_audio' | 'web_speech';
+}
+
+export function getTtsAvailability(): TtsAvailabilityInfo {
+  const configured = getConfiguredProvider();
+  const candidates: string[] = [];
+  if (configured === 'azure' || (configured === 'auto' && Boolean(process.env.AZURE_SPEECH_KEY))) {
+    candidates.push('azure');
+  }
+  if (configured === 'elevenlabs' || (configured === 'auto' && Boolean(process.env.ELEVENLABS_API_KEY))) {
+    candidates.push('elevenlabs');
+  }
+  if (configured === 'google' || (configured === 'auto' && Boolean(process.env.GOOGLE_TTS_API_KEY))) {
+    candidates.push('google');
+  }
+  const externalConfigured = candidates.length > 0;
+  candidates.push('fallback');
+  const activeProviders = candidates.filter(name => !isProviderInCooldown(name));
+  return {
+    externalConfigured,
+    configuredProvider: configured,
+    activeProviders,
+    fallbackMode: activeProviders.length > 0 ? 'central_audio' : 'web_speech',
+  };
+}
 
 function computeTtsHash(
   text: string,
@@ -147,12 +202,19 @@ async function synthesizeWithAzure(
     });
 
     if (res.ok) {
-      const arrayBuffer = await res.arrayBuffer();
-      return Buffer.from(arrayBuffer);
+      const contentType = (res.headers.get('content-type') || '').toLowerCase();
+      if (!contentType || contentType.includes('audio/') || contentType.includes('octet-stream')) {
+        const arrayBuffer = await res.arrayBuffer();
+        if (arrayBuffer.byteLength > 0) {
+          return Buffer.from(arrayBuffer);
+        }
+      }
     }
+    console.warn(`[TTS] Azure Neural TTS unavailable (HTTP ${res.status}). Entering cooldown.`);
   } catch (err) {
-    console.warn('[TTS] Azure Neural TTS call failed:', err);
+    console.warn('[TTS] Azure Neural TTS call failed:', sanitizeTtsLog(err));
   }
+  tripProviderCooldown('azure');
   return null;
 }
 
@@ -198,12 +260,19 @@ async function synthesizeWithElevenLabs(text: string, style: VoiceModulationStyl
     });
 
     if (res.ok) {
-      const arrayBuffer = await res.arrayBuffer();
-      return Buffer.from(arrayBuffer);
+      const contentType = (res.headers.get('content-type') || '').toLowerCase();
+      if (!contentType || contentType.includes('audio/') || contentType.includes('octet-stream')) {
+        const arrayBuffer = await res.arrayBuffer();
+        if (arrayBuffer.byteLength > 0) {
+          return Buffer.from(arrayBuffer);
+        }
+      }
     }
+    console.warn(`[TTS] ElevenLabs unavailable (HTTP ${res.status}). Entering cooldown.`);
   } catch (err) {
-    console.warn('[TTS] ElevenLabs call failed:', err);
+    console.warn('[TTS] ElevenLabs call failed:', sanitizeTtsLog(err));
   }
+  tripProviderCooldown('elevenlabs');
   return null;
 }
 
@@ -217,7 +286,7 @@ async function synthesizeWithGoogleCloud(text: string, style: VoiceModulationSty
 
   if (!key) return null;
 
-  const url = `https://texttospeech.googleapis.com/v1/text:synthesize?key=${key}`;
+  const url = 'https://texttospeech.googleapis.com/v1/text:synthesize';
 
   const speakingRate = style === 'closing' ? 1.12 : 1.10;
   const pitch = style === 'closing' ? 2.5 : (style === 'sold' || style === 'unsold') ? 1.5 : 0.0;
@@ -227,6 +296,7 @@ async function synthesizeWithGoogleCloud(text: string, style: VoiceModulationSty
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
+        'X-Goog-Api-Key': key,
       },
       body: JSON.stringify({
         input: { text },
@@ -250,9 +320,11 @@ async function synthesizeWithGoogleCloud(text: string, style: VoiceModulationSty
         return Buffer.from(data.audioContent, 'base64');
       }
     }
+    console.warn(`[TTS] Google Cloud TTS unavailable (HTTP ${res.status}). Entering cooldown.`);
   } catch (err) {
-    console.warn('[TTS] Google Cloud TTS call failed:', err);
+    console.warn('[TTS] Google Cloud TTS call failed:', sanitizeTtsLog(err));
   }
+  tripProviderCooldown('google');
   return null;
 }
 
@@ -271,16 +343,27 @@ async function synthesizeWithFallback(text: string): Promise<Buffer | null> {
           'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36',
         Referer: 'https://translate.google.com/',
       },
-      signal: AbortSignal.timeout(4000),
+      signal: AbortSignal.timeout(3500),
     });
 
     if (res.ok) {
-      const arrayBuffer = await res.arrayBuffer();
-      return Buffer.from(arrayBuffer);
+      const contentType = (res.headers.get('content-type') || '').toLowerCase();
+      if (contentType.includes('audio/') || contentType.includes('octet-stream')) {
+        const arrayBuffer = await res.arrayBuffer();
+        if (arrayBuffer.byteLength > 0) {
+          return Buffer.from(arrayBuffer);
+        }
+      }
     }
-  } catch {
-    // Network or rate limit failure
+    if (process.env.NODE_ENV === 'development') {
+      console.warn(`[TTS] External fallback TTS unavailable (HTTP ${res.status}); enabling 5m cooldown -> client Web Speech fallback.`);
+    }
+  } catch (err) {
+    if (process.env.NODE_ENV === 'development') {
+      console.warn('[TTS] External fallback TTS network/timeout failure; enabling 5m cooldown:', sanitizeTtsLog(err));
+    }
   }
+  tripProviderCooldown('fallback');
   return null;
 }
 
@@ -368,8 +451,11 @@ export async function synthesizeIndianFemaleVoice(
     };
   }
 
-  // Execute synthesis attempt
+  // Execute synthesis attempt (skipping providers currently in circuit-breaker cooldown)
   for (const p of providersToAttempt) {
+    if (isProviderInCooldown(p.name)) {
+      continue;
+    }
     const buf = await p.synthesize(cleanText, style, context);
     if (buf && buf.length > 0) {
       const result: CachedAudio = {

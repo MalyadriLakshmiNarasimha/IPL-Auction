@@ -25,6 +25,19 @@ const FRANCHISE_NAME_MAP: Record<string, string> = {
   PBKS: 'Punjab Kings',
   GT: 'Gujarat Titans',
   LSG: 'Lucknow Super Giants',
+  // PKL Franchises
+  PAT: 'Patna Pirates',
+  PUN: 'Puneri Paltan',
+  JPP: 'Jaipur Pink Panthers',
+  BB: 'Bengaluru Bulls',
+  DEL: 'Dabang Delhi',
+  MUM: 'U Mumba',
+  BW: 'Bengal Warriorz',
+  GG: 'Gujarat Giants',
+  HAR: 'Haryana Steelers',
+  TAM: 'Tamil Thalaivas',
+  TEL: 'Telugu Titans',
+  UP: 'UP Yoddhas',
 };
 
 /**
@@ -46,6 +59,12 @@ export function expandFranchiseName(nameOrCode?: string | null): string {
  */
 export function formatRoleDescription(role: string): string {
   const lower = (role || '').toLowerCase().trim();
+  if (lower.includes('raider') || lower === 'raid') {
+    return 'raider';
+  }
+  if (lower.includes('defender') || lower === 'def') {
+    return 'defender';
+  }
   if (lower.includes('all-rounder') || lower.includes('all rounder') || lower === 'ar') {
     return 'all-rounder';
   }
@@ -58,7 +77,7 @@ export function formatRoleDescription(role: string): string {
   if (lower.includes('bat')) {
     return 'batter';
   }
-  return lower || 'cricketer';
+  return lower || 'athlete';
 }
 
 /**
@@ -101,6 +120,10 @@ export const NATIONALITY_GRAMMAR_MAP: Record<string, NationalityGrammar> = {
   'Sri Lanka': { article: 'a', demonym: 'Sri Lankan' },
   Bangladesh: { article: 'a', demonym: 'Bangladeshi' },
   Zimbabwe: { article: 'a', demonym: 'Zimbabwean' },
+  Iran: { article: 'an', demonym: 'Iranian' },
+  'South Korea': { article: 'a', demonym: 'South Korean' },
+  Kenya: { article: 'a', demonym: 'Kenyan' },
+  Nepal: { article: 'a', demonym: 'Nepalese' },
 };
 
 /**

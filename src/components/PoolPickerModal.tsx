@@ -1,8 +1,9 @@
 'use client';
 
 import React, { useState, useMemo } from 'react';
-import { Player } from '@/shared/types';
+import { Player, SportType } from '@/shared/types';
 import { ALL_PLAYERS } from '@/shared/player-data';
+import { ALL_PKL_PLAYERS, PKL_FRANCHISES } from '@/shared/pkl-player-data';
 import { formatCurrency } from '@/shared/constants';
 import { Search, X, Check, ArrowUpDown, Filter, RotateCcw } from 'lucide-react';
 
@@ -10,6 +11,7 @@ interface PoolPickerModalProps {
   selectedIds: string[];
   onSave: (newSelectedIds: string[]) => void;
   onClose: () => void;
+  sportType?: SportType;
 }
 
 type SortOption = 'name' | 'team' | 'role' | 'nationality' | 'price';
@@ -31,9 +33,16 @@ export const PoolPickerModal: React.FC<PoolPickerModalProps> = ({
   selectedIds,
   onSave,
   onClose,
+  sportType = 'IPL',
 }) => {
+  const isPkl = sportType === 'PKL';
+  const basePool = isPkl ? ALL_PKL_PLAYERS : ALL_PLAYERS;
+  const franchises = isPkl
+    ? PKL_FRANCHISES.map(f => ({ name: f.name, code: f.short_code, short: f.short_code }))
+    : IPL_FRANCHISES;
+
   const [currentSelection, setCurrentSelection] = useState<Set<string>>(
-    new Set(selectedIds.length > 0 ? selectedIds : ALL_PLAYERS.map(p => p.id))
+    new Set(selectedIds.length > 0 ? selectedIds : basePool.map(p => p.id))
   );
   const [searchTerm, setSearchTerm] = useState('');
   const [roleFilter, setRoleFilter] = useState<string>('ALL');
@@ -44,6 +53,12 @@ export const PoolPickerModal: React.FC<PoolPickerModalProps> = ({
   // Role color helper
   const getRoleBadgeStyle = (role: string) => {
     const r = (role || '').toUpperCase();
+    if (isPkl) {
+      if (r.startsWith('RAID')) return 'bg-orange-500/20 text-orange-300 border-orange-500/30';
+      if (r.startsWith('DEF')) return 'bg-blue-500/20 text-blue-300 border-blue-500/30';
+      if (r.startsWith('ALL') || r === 'AR') return 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30';
+      return 'bg-gray-500/20 text-gray-300 border-gray-500/30';
+    }
     if (r.startsWith('BAT')) return 'bg-amber-500/20 text-amber-300 border-amber-500/30';
     if (r.startsWith('BOWL')) return 'bg-blue-500/20 text-blue-300 border-blue-500/30';
     if (r.startsWith('ALL') || r === 'AR') return 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30';
@@ -55,8 +70,8 @@ export const PoolPickerModal: React.FC<PoolPickerModalProps> = ({
   const filteredPlayers = useMemo(() => {
     const term = searchTerm.toLowerCase().trim();
 
-    const filtered = ALL_PLAYERS.filter(p => {
-      // 1. Search Query: matches player name, team, team code, or nationality
+    const filtered = basePool.filter(p => {
+      // 1. Search Query
       if (term) {
         const matchesName = p.name.toLowerCase().includes(term);
         const matchesTeam = p.team ? p.team.toLowerCase().includes(term) : false;
@@ -68,20 +83,21 @@ export const PoolPickerModal: React.FC<PoolPickerModalProps> = ({
         }
       }
 
-      // 2. Role Filter: Batter, Bowler, All-rounder, Wicketkeeper
+      // 2. Role Filter
       if (roleFilter !== 'ALL') {
         const pRoleNorm = (p.role || '').toLowerCase().replace(/[^a-z]/g, '');
         const targetNorm = roleFilter.toLowerCase().replace(/[^a-z]/g, '');
         if (!pRoleNorm.includes(targetNorm) && !targetNorm.includes(pRoleNorm)) {
-          // Check abbreviation mapping
           if (targetNorm.startsWith('bat') && p.role !== 'BAT') return false;
           if (targetNorm.startsWith('bowl') && p.role !== 'BOWL') return false;
           if (targetNorm.startsWith('all') && p.role !== 'AR') return false;
           if (targetNorm.startsWith('wick') && p.role !== 'WK') return false;
+          if (targetNorm.startsWith('raid') && p.role !== 'RAID') return false;
+          if (targetNorm.startsWith('def') && p.role !== 'DEF') return false;
         }
       }
 
-      // 3. Nationality Filter: Indian vs Overseas
+      // 3. Nationality Filter
       if (nationalityFilter === 'INDIAN' && p.country !== 'India') return false;
       if (nationalityFilter === 'OVERSEAS' && p.country === 'India') return false;
 
@@ -103,19 +119,20 @@ export const PoolPickerModal: React.FC<PoolPickerModalProps> = ({
         case 'team':
           return (a.team || '').localeCompare(b.team || '') || a.name.localeCompare(b.name);
         case 'role': {
-          const roleOrder: Record<string, number> = {
-            Batter: 1, BAT: 1,
-            Wicketkeeper: 2, 'Wicket Keeper': 2, WK: 2,
-            'All-Rounder': 3, 'All Rounder': 3, AR: 3,
-            Bowler: 4, BOWL: 4,
-          };
+          const roleOrder: Record<string, number> = isPkl
+            ? { Raider: 1, RAID: 1, Defender: 2, DEF: 2, 'All-Rounder': 3, AR: 3 }
+            : {
+                Batter: 1, BAT: 1,
+                Wicketkeeper: 2, 'Wicket Keeper': 2, WK: 2,
+                'All-Rounder': 3, 'All Rounder': 3, AR: 3,
+                Bowler: 4, BOWL: 4,
+              };
           const orderA = roleOrder[a.role] || 9;
           const orderB = roleOrder[b.role] || 9;
           if (orderA !== orderB) return orderA - orderB;
           return a.name.localeCompare(b.name);
         }
         case 'nationality': {
-          // India first, then other nations alphabetically
           if (a.country === 'India' && b.country !== 'India') return -1;
           if (a.country !== 'India' && b.country === 'India') return 1;
           return a.country.localeCompare(b.country) || a.name.localeCompare(b.name);
@@ -126,7 +143,7 @@ export const PoolPickerModal: React.FC<PoolPickerModalProps> = ({
           return 0;
       }
     });
-  }, [searchTerm, roleFilter, nationalityFilter, teamFilter, sortBy]);
+  }, [basePool, isPkl, searchTerm, roleFilter, nationalityFilter, teamFilter, sortBy]);
 
   const togglePlayer = (id: string) => {
     setCurrentSelection(prev => {
@@ -137,18 +154,20 @@ export const PoolPickerModal: React.FC<PoolPickerModalProps> = ({
     });
   };
 
-  const applyPreset = (preset: 'ALL' | 'INDIAN' | 'OVERSEAS' | 'STARS' | 'UNCAPPED') => {
+  const applyPreset = (preset: 'ALL' | 'INDIAN' | 'OVERSEAS' | 'STARS' | 'UNCAPPED' | 'TIER_B') => {
     let ids: string[] = [];
     if (preset === 'ALL') {
-      ids = ALL_PLAYERS.map(p => p.id);
+      ids = basePool.map(p => p.id);
     } else if (preset === 'INDIAN') {
-      ids = ALL_PLAYERS.filter(p => p.country === 'India').map(p => p.id);
+      ids = basePool.filter(p => p.country === 'India').map(p => p.id);
     } else if (preset === 'OVERSEAS') {
-      ids = ALL_PLAYERS.filter(p => p.country !== 'India').map(p => p.id);
+      ids = basePool.filter(p => p.country !== 'India').map(p => p.id);
     } else if (preset === 'STARS') {
-      ids = ALL_PLAYERS.filter(p => p.tier === 'A').map(p => p.id);
+      ids = basePool.filter(p => p.tier === 'A').map(p => p.id);
+    } else if (preset === 'TIER_B') {
+      ids = basePool.filter(p => p.tier === 'B').map(p => p.id);
     } else if (preset === 'UNCAPPED') {
-      ids = ALL_PLAYERS.filter(p => !p.capped).map(p => p.id);
+      ids = basePool.filter(p => !p.capped).map(p => p.id);
     }
     setCurrentSelection(new Set(ids));
   };
@@ -193,13 +212,15 @@ export const PoolPickerModal: React.FC<PoolPickerModalProps> = ({
         <div className="p-4 sm:p-5 border-b border-night-border flex items-center justify-between bg-night-raised">
           <div>
             <div className="flex items-center gap-2">
-              <h2 className="text-lg sm:text-xl font-bold text-floodlight">Select Auction Player Pool</h2>
+              <h2 className="text-lg sm:text-xl font-bold text-floodlight">
+                {isPkl ? 'Select PKL Player Pool' : 'Select Auction Player Pool'}
+              </h2>
               <span className="px-2 py-0.5 rounded-full bg-flare/10 text-flare text-xs font-bold border border-flare/20">
-                {ALL_PLAYERS.length} Centralized Database
+                {basePool.length} Centralized Database
               </span>
             </div>
             <p className="text-xs text-floodlight-muted mt-0.5">
-              <span className="font-bold text-floodlight">{currentSelection.size}</span> of {ALL_PLAYERS.length} players selected for auction pool
+              <span className="font-bold text-floodlight">{currentSelection.size}</span> of {basePool.length} players selected for auction pool
             </p>
           </div>
           <button
@@ -219,7 +240,7 @@ export const PoolPickerModal: React.FC<PoolPickerModalProps> = ({
               <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-floodlight-subtle" />
               <input
                 type="text"
-                placeholder="Search player name, franchise, or nationality..."
+                placeholder={isPkl ? "Search player name, kabaddi team, or country..." : "Search player name, franchise, or nationality..."}
                 value={searchTerm}
                 onChange={e => setSearchTerm(e.target.value)}
                 className="w-full bg-night pl-9 pr-8 py-2 text-xs sm:text-sm rounded-pill text-floodlight border border-night-border focus:border-flare focus:outline-none placeholder:text-floodlight-subtle"
@@ -274,7 +295,7 @@ export const PoolPickerModal: React.FC<PoolPickerModalProps> = ({
                 onClick={() => applyPreset('ALL')}
                 className="px-2.5 py-1 rounded-pill text-xs font-semibold bg-night border border-night-border hover:border-flare text-floodlight whitespace-nowrap"
               >
-                All ({ALL_PLAYERS.length})
+                All ({basePool.length})
               </button>
               <button
                 onClick={() => applyPreset('INDIAN')}
@@ -292,14 +313,23 @@ export const PoolPickerModal: React.FC<PoolPickerModalProps> = ({
                 onClick={() => applyPreset('STARS')}
                 className="px-2.5 py-1 rounded-pill text-xs font-semibold bg-night border border-night-border hover:border-flare text-floodlight whitespace-nowrap"
               >
-                Stars (Tier A)
+                {isPkl ? 'Category A' : 'Stars (Tier A)'}
               </button>
-              <button
-                onClick={() => applyPreset('UNCAPPED')}
-                className="px-2.5 py-1 rounded-pill text-xs font-semibold bg-night border border-night-border hover:border-flare text-floodlight whitespace-nowrap"
-              >
-                Uncapped Only
-              </button>
+              {isPkl ? (
+                <button
+                  onClick={() => applyPreset('TIER_B')}
+                  className="px-2.5 py-1 rounded-pill text-xs font-semibold bg-night border border-night-border hover:border-flare text-floodlight whitespace-nowrap"
+                >
+                  Category B
+                </button>
+              ) : (
+                <button
+                  onClick={() => applyPreset('UNCAPPED')}
+                  className="px-2.5 py-1 rounded-pill text-xs font-semibold bg-night border border-night-border hover:border-flare text-floodlight whitespace-nowrap"
+                >
+                  Uncapped Only
+                </button>
+              )}
             </div>
 
             <div className="flex items-center gap-1.5 flex-shrink-0">
@@ -319,18 +349,26 @@ export const PoolPickerModal: React.FC<PoolPickerModalProps> = ({
             </div>
           </div>
 
-          {/* Filter Chips: Role, Nationality, IPL Franchise */}
+          {/* Filter Chips: Role, Nationality, Franchise */}
           <div className="space-y-2 pt-1 border-t border-night-border/40 text-xs">
             {/* Role Filter */}
             <div className="flex flex-wrap items-center gap-1.5">
               <span className="text-floodlight-subtle text-[11px] font-bold w-16 flex-shrink-0">ROLE:</span>
-              {[
-                { label: 'All Roles', value: 'ALL' },
-                { label: 'Batter', value: 'Batter' },
-                { label: 'Bowler', value: 'Bowler' },
-                { label: 'All-rounder', value: 'All-Rounder' },
-                { label: 'Wicketkeeper', value: 'Wicketkeeper' },
-              ].map(r => (
+              {(isPkl
+                ? [
+                    { label: 'All Roles', value: 'ALL' },
+                    { label: 'Raider', value: 'Raider' },
+                    { label: 'Defender', value: 'Defender' },
+                    { label: 'All-Rounder', value: 'All-Rounder' },
+                  ]
+                : [
+                    { label: 'All Roles', value: 'ALL' },
+                    { label: 'Batter', value: 'Batter' },
+                    { label: 'Bowler', value: 'Bowler' },
+                    { label: 'All-rounder', value: 'All-Rounder' },
+                    { label: 'Wicketkeeper', value: 'Wicketkeeper' },
+                  ]
+              ).map(r => (
                 <button
                   key={r.value}
                   onClick={() => setRoleFilter(r.value)}
@@ -377,7 +415,7 @@ export const PoolPickerModal: React.FC<PoolPickerModalProps> = ({
               >
                 All Teams
               </button>
-              {IPL_FRANCHISES.map(f => (
+              {franchises.map(f => (
                 <button
                   key={f.code}
                   onClick={() => setTeamFilter(f.code)}
@@ -478,7 +516,7 @@ export const PoolPickerModal: React.FC<PoolPickerModalProps> = ({
         {/* Footer */}
         <div className="p-3 sm:p-4 border-t border-night-border bg-night-raised flex items-center justify-between">
           <div className="text-xs text-floodlight-muted">
-            Showing <span className="font-bold text-floodlight">{filteredPlayers.length}</span> of {ALL_PLAYERS.length} players |{' '}
+            Showing <span className="font-bold text-floodlight">{filteredPlayers.length}</span> of {basePool.length} players |{' '}
             <span className="font-bold text-flare">{currentSelection.size}</span> selected in pool
           </div>
           <div className="flex items-center gap-2">

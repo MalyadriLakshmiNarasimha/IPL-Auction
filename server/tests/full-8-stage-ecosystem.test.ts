@@ -140,7 +140,15 @@ describe('Comprehensive 8-Stage IPL Auction & Team Management Ecosystem Verifica
 
     room.participants.set('mgr-A', teamA);
     room.participants.set('mgr-B', teamB);
+    room.pool = [];
+    room.unsold_pool = [];
+    room.auction_state.round1_completed = true;
+    room.auction_state.round2_completed = true;
     room.stage = 'trading_window';
+    room.auction_state.stage = 'trading_window';
+    room.auction_state.phase = 'trading';
+    room.auction_state.trading_started = true;
+    room.auction_state.trading_completed = false;
 
     // Step 1: Team A proposes 1-for-1 trade: offer Kohli for Bumrah
     const propResult = roomManager.proposeTrade(roomCode, 'mgr-A', 'mgr-B', pA.id, pB.id);

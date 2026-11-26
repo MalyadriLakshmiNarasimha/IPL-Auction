@@ -133,7 +133,7 @@ export const PlayingXILeaderboardView: React.FC<PlayingXILeaderboardViewProps> =
                           )}
                         </div>
                         <div className="text-[11px] text-floodlight-muted">
-                          Manager: {lineup.display_name} · OS: {lineup.overseas_count}/4
+                          Manager: {lineup.display_name} · OS: {lineup.overseas_count}/{lineup.pace_spin_ratio?.includes('R :') ? 2 : 4}
                         </div>
                       </div>
                     </div>
@@ -172,7 +172,7 @@ export const PlayingXILeaderboardView: React.FC<PlayingXILeaderboardViewProps> =
                       {selectedLineup.franchise?.name}
                     </h2>
                     <div className="text-xs text-floodlight-muted">
-                      Lineup Rank #{selectedLineup.rank} · Overseas Players: {selectedLineup.overseas_count}/4
+                      Lineup Rank #{selectedLineup.rank} · Overseas Players: {selectedLineup.overseas_count}/{selectedLineup.pace_spin_ratio?.includes('R :') ? 2 : 4}
                     </div>
                   </div>
                 </div>

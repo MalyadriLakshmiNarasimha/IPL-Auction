@@ -45,8 +45,10 @@ export const NavigationShell: React.FC<{ children: React.ReactNode }> = ({ child
       setIsAuthenticated(!!customEvent.detail);
     };
 
+    window.addEventListener('ipl-auth-change', handleAuthChange);
     window.addEventListener('auth-change', handleAuthChange);
     return () => {
+      window.removeEventListener('ipl-auth-change', handleAuthChange);
       window.removeEventListener('auth-change', handleAuthChange);
     };
   }, []);
@@ -97,9 +99,11 @@ export const NavigationShell: React.FC<{ children: React.ReactNode }> = ({ child
                 <span>Home</span>
               </Link>
               <Link
-                href="/history?tab=ongoing"
-                className={`flex items-center gap-1.5 px-3 py-1 rounded-full transition-all hover:text-flare ${
-                  pathname === '/history' ? 'text-flare' : ''
+                href="/my-rooms"
+                className={`flex items-center gap-1.5 px-3.5 py-1 rounded-full transition-all ${
+                  pathname === '/my-rooms'
+                    ? 'bg-amber-400/20 text-amber-300 font-bold border border-amber-400/30 shadow-sm'
+                    : 'hover:text-flare'
                 }`}
               >
                 <Users className="w-3.5 h-3.5" />
@@ -107,7 +111,11 @@ export const NavigationShell: React.FC<{ children: React.ReactNode }> = ({ child
               </Link>
               <Link
                 href="/history"
-                className="flex items-center gap-1.5 px-3 py-1 rounded-full transition-all hover:text-flare"
+                className={`flex items-center gap-1.5 px-3.5 py-1 rounded-full transition-all ${
+                  pathname === '/history'
+                    ? 'bg-amber-400/20 text-amber-300 font-bold border border-amber-400/30 shadow-sm'
+                    : 'hover:text-flare'
+                }`}
               >
                 <HistoryIcon className="w-3.5 h-3.5" />
                 <span>History</span>
@@ -120,13 +128,15 @@ export const NavigationShell: React.FC<{ children: React.ReactNode }> = ({ child
                 <Trophy className="w-3.5 h-3.5 text-amber-400" />
                 <span>Leaderboard</span>
               </button>
-              <a
-                href="/#stats"
-                className="flex items-center gap-1.5 px-3 py-1 rounded-full transition-all hover:text-flare"
+              <Link
+                href="/stats"
+                className={`flex items-center gap-1.5 px-3 py-1 rounded-full transition-all hover:text-flare ${
+                  pathname === '/stats' ? 'text-amber-400 font-semibold bg-white/5' : ''
+                }`}
               >
                 <BarChart2 className="w-3.5 h-3.5" />
                 <span>Stats</span>
-              </a>
+              </Link>
             </nav>
 
             {/* Right Controls (Desktop & Mobile) */}
@@ -209,9 +219,13 @@ export const NavigationShell: React.FC<{ children: React.ReactNode }> = ({ child
                 </Link>
 
                 <Link
-                  href="/history?tab=ongoing"
+                  href="/my-rooms"
                   onClick={() => setMobileMenuOpen(false)}
-                  className="px-3 py-2 rounded-xl hover:bg-white/5 hover:text-flare transition-colors flex items-center gap-2"
+                  className={`px-3 py-2 rounded-xl transition-colors flex items-center gap-2 ${
+                    pathname === '/my-rooms'
+                      ? 'bg-amber-400/15 text-amber-300 font-bold'
+                      : 'hover:bg-white/5 hover:text-flare'
+                  }`}
                 >
                   <Users className="w-4 h-4" />
                   <span>My Rooms</span>
@@ -220,7 +234,11 @@ export const NavigationShell: React.FC<{ children: React.ReactNode }> = ({ child
                 <Link
                   href="/history"
                   onClick={() => setMobileMenuOpen(false)}
-                  className="px-3 py-2 rounded-xl hover:bg-white/5 hover:text-flare transition-colors flex items-center gap-2"
+                  className={`px-3 py-2 rounded-xl transition-colors flex items-center gap-2 ${
+                    pathname === '/history'
+                      ? 'bg-amber-400/15 text-amber-300 font-bold'
+                      : 'hover:bg-white/5 hover:text-flare'
+                  }`}
                 >
                   <HistoryIcon className="w-4 h-4" />
                   <span>History & Results</span>
@@ -238,14 +256,16 @@ export const NavigationShell: React.FC<{ children: React.ReactNode }> = ({ child
                   <span>Leaderboard</span>
                 </button>
 
-                <a
-                  href="/#stats"
+                <Link
+                  href="/stats"
                   onClick={() => setMobileMenuOpen(false)}
-                  className="px-3 py-2 rounded-xl hover:bg-white/5 hover:text-flare transition-colors flex items-center gap-2"
+                  className={`px-3 py-2 rounded-xl hover:bg-white/5 hover:text-flare transition-colors flex items-center gap-2 ${
+                    pathname === '/stats' ? 'text-amber-400 font-semibold bg-white/5' : ''
+                  }`}
                 >
                   <BarChart2 className="w-4 h-4 text-amber-400" />
-                  <span>Platform Stats</span>
-                </a>
+                  <span>Player Discovery & Stats</span>
+                </Link>
               </nav>
             </div>
           )}
@@ -300,12 +320,12 @@ export const NavigationShell: React.FC<{ children: React.ReactNode }> = ({ child
 
             {/* 2. My Rooms */}
             <Link
-              href="/history?tab=ongoing"
+              href="/my-rooms"
               className={`flex-1 min-h-[44px] flex flex-col items-center justify-center py-1 rounded-xl transition-colors ${
-                pathname === '/history' ? 'text-amber-300 font-bold' : 'text-floodlight-muted hover:text-white'
+                pathname === '/my-rooms' ? 'text-amber-300 font-bold' : 'text-floodlight-muted hover:text-white'
               }`}
             >
-              <div className="p-1 rounded-lg">
+              <div className={`p-1 rounded-lg ${pathname === '/my-rooms' ? 'bg-amber-400/15' : ''}`}>
                 <Users className="w-5 h-5" />
               </div>
               <span className="text-[10px] mt-0.5">My Rooms</span>
@@ -314,24 +334,28 @@ export const NavigationShell: React.FC<{ children: React.ReactNode }> = ({ child
             {/* 3. History */}
             <Link
               href="/history"
-              className="flex-1 min-h-[44px] flex flex-col items-center justify-center py-1 rounded-xl text-floodlight-muted hover:text-white transition-colors"
+              className={`flex-1 min-h-[44px] flex flex-col items-center justify-center py-1 rounded-xl transition-colors ${
+                pathname === '/history' ? 'text-amber-300 font-bold' : 'text-floodlight-muted hover:text-white'
+              }`}
             >
-              <div className="p-1 rounded-lg">
+              <div className={`p-1 rounded-lg ${pathname === '/history' ? 'bg-amber-400/15' : ''}`}>
                 <HistoryIcon className="w-5 h-5" />
               </div>
               <span className="text-[10px] mt-0.5">History</span>
             </Link>
 
             {/* 4. Stats */}
-            <a
-              href="/#stats"
-              className="flex-1 min-h-[44px] flex flex-col items-center justify-center py-1 rounded-xl text-floodlight-muted hover:text-white transition-colors"
+            <Link
+              href="/stats"
+              className={`flex-1 min-h-[44px] flex flex-col items-center justify-center py-1 rounded-xl transition-colors ${
+                pathname === '/stats' ? 'text-amber-400 font-semibold' : 'text-floodlight-muted hover:text-white'
+              }`}
             >
               <div className="p-1 rounded-lg">
                 <BarChart2 className="w-5 h-5" />
               </div>
               <span className="text-[10px] mt-0.5">Stats</span>
-            </a>
+            </Link>
 
             {/* 5. Profile */}
             <button

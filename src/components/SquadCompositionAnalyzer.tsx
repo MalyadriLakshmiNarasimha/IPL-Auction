@@ -15,22 +15,33 @@ export const SquadCompositionAnalyzer: React.FC<SquadCompositionAnalyzerProps> =
 }) => {
   if (!participant || !participant.franchise) return null;
 
-  const counts = participant.role_counts || { BAT: 0, BOWL: 0, AR: 0, WK: 0, overseas: 0 };
+  const isPkl = settings.sport_type === 'PKL';
+  const counts = (participant.role_counts || { BAT: 0, BOWL: 0, AR: 0, WK: 0, overseas: 0 }) as any;
   const shortages = participant.squad_shortages || [];
   const excesses = participant.squad_excesses || [];
 
-  const scale = settings.squad_size / 15;
+  const maxOverseas = isPkl ? 4 : 8;
+
+  const scale = settings.squad_size / (isPkl ? 14 : 15);
   const targetBAT = Math.round(5 * scale);
   const targetBOWL = Math.round(5 * scale);
-  const targetAR = Math.round(3 * scale);
+  const targetAR = isPkl ? Math.max(1, Math.round(3 * scale)) : Math.round(3 * scale);
   const targetWK = Math.max(1, Math.round(2 * scale));
+  const targetRAID = Math.max(3, Math.round(5 * scale));
+  const targetDEF = Math.max(4, Math.round(6 * scale));
 
-  const roleConfigs = [
-    { key: 'BAT', label: 'Batters', count: counts.BAT, target: targetBAT, color: '#F5B83D' },
-    { key: 'BOWL', label: 'Bowlers', count: counts.BOWL, target: targetBOWL, color: '#4C8DFF' },
-    { key: 'AR', label: 'All-Rounders', count: counts.AR, target: targetAR, color: '#2FCB8F' },
-    { key: 'WK', label: 'Wicketkeepers', count: counts.WK, target: targetWK, color: '#A56BFF' },
-  ] as const;
+  const roleConfigs = isPkl
+    ? [
+        { key: 'RAID', label: 'Raiders', count: counts.RAID || counts.Raider || 0, target: targetRAID, color: '#EA580C' },
+        { key: 'DEF', label: 'Defenders', count: counts.DEF || counts.Defender || 0, target: targetDEF, color: '#2563EB' },
+        { key: 'AR', label: 'All-Rounders', count: counts.AR || counts['All-Rounder'] || 0, target: targetAR, color: '#2FCB8F' },
+      ]
+    : [
+        { key: 'BAT', label: 'Batters', count: counts.BAT || 0, target: targetBAT, color: '#F5B83D' },
+        { key: 'BOWL', label: 'Bowlers', count: counts.BOWL || 0, target: targetBOWL, color: '#4C8DFF' },
+        { key: 'AR', label: 'All-Rounders', count: counts.AR || 0, target: targetAR, color: '#2FCB8F' },
+        { key: 'WK', label: 'Wicketkeepers', count: counts.WK || 0, target: targetWK, color: '#A56BFF' },
+      ];
 
   const totalPlayers = participant.squad.length;
   const depthPct = Math.min(100, Math.round((totalPlayers / settings.squad_size) * 100));
@@ -48,14 +59,14 @@ export const SquadCompositionAnalyzer: React.FC<SquadCompositionAnalyzerProps> =
         <div className="flex items-center gap-1.5 text-[11px] font-bold text-floodlight-muted">
           <Globe className="w-3.5 h-3.5 text-flare" />
           <span>Overseas:</span>
-          <span className={`tabular-nums ${counts.overseas > 8 ? 'text-hammer' : 'text-flare'}`}>
-            {counts.overseas}/8
+          <span className={`tabular-nums ${counts.overseas > maxOverseas ? 'text-hammer' : 'text-flare'}`}>
+            {counts.overseas}/{maxOverseas}
           </span>
         </div>
       </div>
 
       {/* Role Counts vs Benchmarks */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+      <div className={`grid ${isPkl ? 'grid-cols-3' : 'grid-cols-2 sm:grid-cols-4'} gap-2`}>
         {roleConfigs.map(({ key, label, count, target, color }) => {
           const isTargetMet = count >= target;
           return (

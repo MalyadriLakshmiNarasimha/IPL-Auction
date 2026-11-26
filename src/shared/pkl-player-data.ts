@@ -112,6 +112,23 @@ export const RAW_PKL_PLAYERS: PklDatabaseRecord[] = rawPklPlayers as PklDatabase
 // Fast lookup table for stats registry
 const STATS_MAP = (pklStatsData as any)?.players || {};
 
+export function getPklPlayerStats(playerIdOrPlayer: string | Player | undefined | null): {
+  season_12: PklRawStats | null;
+  career: PklRawStats | null;
+  data_status: string;
+} | undefined {
+  if (!playerIdOrPlayer) return undefined;
+  const id = typeof playerIdOrPlayer === 'string' ? playerIdOrPlayer : playerIdOrPlayer.id;
+  const canonicalId = id.startsWith('pkl-') ? LEGACY_PKL_ID_MAP[id] || id : id;
+  const entry = STATS_MAP[canonicalId];
+  if (!entry) return undefined;
+  return {
+    season_12: entry.season_12 || null,
+    career: entry.career || null,
+    data_status: entry.data_status || (entry.season_12 ? 'VERIFIED_S12' : 'DEBUTANT_BENCH'),
+  };
+}
+
 // Deterministic Legacy Mapping for pkl-001 through pkl-072
 export const LEGACY_PKL_ID_MAP: Record<string, string> = (() => {
   const map: Record<string, string> = {};
@@ -175,7 +192,7 @@ function adaptPklRecord(raw: PklDatabaseRecord): Player {
       const photosEnabled = process.env.NEXT_PUBLIC_PKL_PHOTOS !== 'off';
       if (!photosEnabled) return fallbackAvatar;
       const imgEntry = PKL_PLAYER_IMAGES[raw.id];
-      if (imgEntry && imgEntry.verificationStatus === 'verified' && imgEntry.imagePath) {
+      if (imgEntry && (imgEntry.verificationStatus === 'verified' || imgEntry.verificationStatus === 'silhouette_placeholder') && imgEntry.imagePath) {
         const imageBaseUrl = process.env.NEXT_PUBLIC_PKL_IMAGE_BASE_URL || '';
         return imageBaseUrl
           ? `${imageBaseUrl.replace(/\/$/, '')}/${raw.id}.webp`
@@ -187,17 +204,18 @@ function adaptPklRecord(raw: PklDatabaseRecord): Player {
       const photosEnabled = process.env.NEXT_PUBLIC_PKL_PHOTOS !== 'off';
       if (!photosEnabled) return false;
       const imgEntry = PKL_PLAYER_IMAGES[raw.id];
-      return Boolean(imgEntry && imgEntry.verificationStatus === 'verified' && imgEntry.imagePath);
+      return Boolean(imgEntry && (imgEntry.verificationStatus === 'verified' || imgEntry.verificationStatus === 'silhouette_placeholder') && imgEntry.imagePath);
     })(),
     photo_source: (() => {
       const photosEnabled = process.env.NEXT_PUBLIC_PKL_PHOTOS !== 'off';
       if (!photosEnabled) return 'Procedural PKL POOL Fallback';
       const imgEntry = PKL_PLAYER_IMAGES[raw.id];
-      return imgEntry && imgEntry.verificationStatus === 'verified' && imgEntry.imagePath
+      return imgEntry && (imgEntry.verificationStatus === 'verified' || imgEntry.verificationStatus === 'silhouette_placeholder') && imgEntry.imagePath
         ? imgEntry.sourceName
         : 'Procedural PKL POOL Fallback';
     })(),
     player_points: total_points,
+    has_verified_stats: Boolean(statsEntry && statsEntry.season_12 !== null),
     stats_2026: {
       season: '2026',
       source: 'Official PKL Match Center',
@@ -223,6 +241,12 @@ function adaptPklRecord(raw: PklDatabaseRecord): Player {
       player_points: total_points,
     },
     data_status: raw.data_status as any,
+    position_detail: raw.position_detail,
+    pkl_stats: {
+      season_12: seasonStats,
+      career: careerStats,
+      data_status: statsEntry?.data_status || (seasonStats ? 'VERIFIED_S12' : 'DEBUTANT_BENCH'),
+    },
     achievements: [
       `${raw.category} Star`,
       raw.position_detail,

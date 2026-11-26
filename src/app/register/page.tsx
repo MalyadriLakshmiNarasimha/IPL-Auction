@@ -9,15 +9,28 @@ import { Shield, ArrowRight, AlertCircle, User, Mail, Lock } from 'lucide-react'
 function RegisterForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const redirectTarget = searchParams.get('redirect') || '/';
+  const rawRedirect = searchParams?.get('redirect') || '/';
+  const redirectTarget =
+    !rawRedirect ||
+    rawRedirect === '/login' ||
+    rawRedirect === '/register' ||
+    rawRedirect.startsWith('http:') ||
+    rawRedirect.startsWith('https:') ||
+    rawRedirect.startsWith('//')
+      ? '/'
+      : rawRedirect;
 
   // If already authenticated, redirect immediately to target without displaying registration form
   React.useEffect(() => {
+    let isMounted = true;
     apiFetch('/api/auth/me').then(({ ok, data }) => {
-      if (ok && data?.authenticated && data?.user) {
+      if (isMounted && ok && data?.authenticated && data?.user) {
         window.location.href = redirectTarget;
       }
     }).catch(() => {});
+    return () => {
+      isMounted = false;
+    };
   }, [redirectTarget]);
 
   const [name, setName] = useState('');
@@ -30,13 +43,28 @@ function RegisterForm() {
     e.preventDefault();
     setError(null);
 
-    // Frontend validation
-    if (!name.trim()) {
+    const cleanName = name.trim();
+    const cleanEmail = email.trim().toLowerCase();
+
+    // Frontend validation matching mandatory authentication tests
+    if (!cleanName) {
       setError('Please enter your full name.');
       return;
     }
-    if (!email.trim() || !email.includes('@')) {
+    if (cleanName.length < 2) {
+      setError('Name must be at least 2 characters long.');
+      return;
+    }
+    if (!cleanEmail) {
+      setError('Please enter your email address.');
+      return;
+    }
+    if (!cleanEmail.includes('@') || !cleanEmail.includes('.')) {
       setError('Please enter a valid email address.');
+      return;
+    }
+    if (!password) {
+      setError('Please enter a password.');
       return;
     }
     if (password.length < 6) {
@@ -50,8 +78,8 @@ function RegisterForm() {
       const res = await apiFetch<{ user: { id: string; name: string; email: string }; socket_token?: string }>('/api/auth/register', {
         method: 'POST',
         body: JSON.stringify({
-          name: name.trim(),
-          email: email.trim().toLowerCase(),
+          name: cleanName,
+          email: cleanEmail,
           password,
         }),
       });
@@ -103,7 +131,7 @@ function RegisterForm() {
           </div>
         )}
 
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <form onSubmit={handleSubmit} noValidate className="space-y-4">
           {/* Field 1: Name */}
           <div>
             <label className="block text-xs font-bold uppercase tracking-wider text-floodlight-muted mb-1.5">
@@ -116,7 +144,6 @@ function RegisterForm() {
                 value={name}
                 onChange={e => setName(e.target.value)}
                 placeholder="Virat K."
-                required
                 maxLength={50}
                 className="w-full bg-night pl-10 pr-4 py-2.5 rounded-lg text-sm text-floodlight border border-night-border focus:border-flare focus:outline-none placeholder:text-floodlight-subtle"
               />
@@ -135,7 +162,6 @@ function RegisterForm() {
                 value={email}
                 onChange={e => setEmail(e.target.value)}
                 placeholder="virat@example.com"
-                required
                 className="w-full bg-night pl-10 pr-4 py-2.5 rounded-lg text-sm text-floodlight border border-night-border focus:border-flare focus:outline-none placeholder:text-floodlight-subtle"
               />
             </div>
@@ -153,8 +179,6 @@ function RegisterForm() {
                 value={password}
                 onChange={e => setPassword(e.target.value)}
                 placeholder="At least 6 characters"
-                required
-                minLength={6}
                 className="w-full bg-night pl-10 pr-4 py-2.5 rounded-lg text-sm text-floodlight border border-night-border focus:border-flare focus:outline-none placeholder:text-floodlight-subtle"
               />
             </div>

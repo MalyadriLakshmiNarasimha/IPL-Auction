@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import './globals.css';
 import { NavigationShell } from '@/components/NavigationShell';
+import { DevErrorMonitor } from '@/components/DevErrorMonitor';
 
 export const metadata: Metadata = {
   title: 'SPORTS AUCTION — The Bidding Arena',
@@ -20,6 +21,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="en" className="dark">
       <body className="floodlight-vignette min-h-screen flex flex-col selection:bg-flare selection:text-black">
+        <DevErrorMonitor />
         <NavigationShell>{children}</NavigationShell>
         <div id="accessibility-announcer" aria-live="polite" aria-atomic="true" className="sr-only" />
       </body>

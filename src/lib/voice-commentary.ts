@@ -32,10 +32,14 @@ class VoiceCommentaryService {
   private speechRate: number = 1.10; // Default 1.10x speed as requested
   private isSpeaking: boolean = false;
   private currentAudio: HTMLAudioElement | null = null;
+  private currentAbortController: AbortController | null = null;
+  private currentObjectUrl: string | null = null;
   private currentWatchdogTimer: any = null;
   private selectedVoice: SpeechSynthesisVoice | null = null;
   private detectedVoiceName: string = 'Detecting Indian English Female Voice...';
   private preferCentralAudio: boolean = true;
+  private centralAudioCooldownUntil: number = 0;
+  private static readonly CENTRAL_COOLDOWN_MS = 5 * 60 * 1000;
   private lastSpokenPlayerId: string | null = null;
   private lastSoldPlayerId: string | null = null;
   private lastUnsoldPlayerId: string | null = null;
@@ -70,6 +74,42 @@ class VoiceCommentaryService {
       }
 
       this.initVoiceSelection();
+      try {
+        const storedCooldown = sessionStorage.getItem('ipl_tts_central_cooldown_until');
+        if (storedCooldown) {
+          const parsedUntil = parseInt(storedCooldown, 10);
+          if (!isNaN(parsedUntil) && parsedUntil > Date.now()) {
+            this.centralAudioCooldownUntil = parsedUntil;
+          }
+        }
+      } catch {}
+    }
+  }
+
+  public isCentralAudioBlocked(): boolean {
+    if (this.centralAudioCooldownUntil <= Date.now()) {
+      this.centralAudioCooldownUntil = 0;
+      return false;
+    }
+    return true;
+  }
+
+  public tripCentralAudioCooldown(durationMs: number = VoiceCommentaryService.CENTRAL_COOLDOWN_MS): void {
+    const until = Date.now() + durationMs;
+    this.centralAudioCooldownUntil = until;
+    if (typeof window !== 'undefined') {
+      try {
+        window.sessionStorage?.setItem('ipl_tts_central_cooldown_until', String(until));
+      } catch {}
+    }
+  }
+
+  public resetCentralAudioCooldown(): void {
+    this.centralAudioCooldownUntil = 0;
+    if (typeof window !== 'undefined') {
+      try {
+        window.sessionStorage?.removeItem('ipl_tts_central_cooldown_until');
+      } catch {}
     }
   }
 
@@ -468,52 +508,129 @@ class VoiceCommentaryService {
     const estimatedSeconds = Math.max(2.0, words / (effectiveRate * 2.6) + 1.0);
     this.currentWatchdogTimer = setTimeout(finish, Math.round(estimatedSeconds * 1000));
 
-    // Tier 1: High quality central server-side audio (Azure Neerja / ElevenLabs / Google Neural2)
-    if (this.preferCentralAudio && typeof window !== 'undefined') {
-      try {
-        let audioUrl = `/api/tts?text=${encodeURIComponent(text)}&style=${encodeURIComponent(style)}`;
-        if (context?.nationality) {
-          audioUrl += `&nationality=${encodeURIComponent(context.nationality)}`;
-        }
-        if (context?.role) {
-          audioUrl += `&role=${encodeURIComponent(context.role)}`;
-        }
-        const audio = new Audio(audioUrl);
-        audio.volume = this.volume;
-        audio.playbackRate = effectiveRate;
-
-        audio.onended = () => {
-          audio.onended = null;
-          audio.onerror = null;
-          finish();
-        };
-
-        audio.onerror = () => {
-          audio.onended = null;
-          audio.onerror = null;
-          this.currentAudio = null;
-          // Fallback to SpeechSynthesis
-          this.speakViaSpeechSynthesis(text, style, finish, context);
-        };
-
-        this.currentAudio = audio;
-        const playPromise = audio.play();
-        if (playPromise) {
-          playPromise.catch(() => {
-            audio.onended = null;
-            audio.onerror = null;
-            this.currentAudio = null;
-            this.speakViaSpeechSynthesis(text, style, finish, context);
-          });
-        }
-        return;
-      } catch {
-        // Fall through to SpeechSynthesis
-      }
+    // Tier 1: High quality central server-side audio (with circuit-breaker cooldown)
+    if (
+      this.preferCentralAudio &&
+      typeof window !== 'undefined' &&
+      typeof fetch === 'function' &&
+      !this.isCentralAudioBlocked()
+    ) {
+      void this.playCentralAudioWithFallback(text, style, effectiveRate, finish, context);
+      return;
     }
 
     // Tier 2: Browser SpeechSynthesis
     this.speakViaSpeechSynthesis(text, style, finish, context);
+  }
+
+  private async playCentralAudioWithFallback(
+    text: string,
+    style: VoiceModulationStyle,
+    effectiveRate: number,
+    finish: () => void,
+    context?: { nationality?: string; role?: string }
+  ): Promise<void> {
+    const controller = new AbortController();
+    this.currentAbortController = controller;
+    const fetchTimeout = setTimeout(() => {
+      try {
+        controller.abort();
+      } catch {}
+    }, 2500);
+
+    try {
+      let audioUrl = `/api/tts?text=${encodeURIComponent(text)}&style=${encodeURIComponent(style)}`;
+      if (context?.nationality) {
+        audioUrl += `&nationality=${encodeURIComponent(context.nationality)}`;
+      }
+      if (context?.role) {
+        audioUrl += `&role=${encodeURIComponent(context.role)}`;
+      }
+
+      const res = await fetch(audioUrl, {
+        signal: controller.signal,
+        headers: { Accept: 'audio/mpeg, application/json' },
+      });
+
+      clearTimeout(fetchTimeout);
+      if (controller.signal.aborted || this.currentAbortController !== controller) {
+        return;
+      }
+
+      const contentType = (res.headers.get('content-type') || '').toLowerCase();
+      if (!res.ok || (!contentType.includes('audio/') && !contentType.includes('octet-stream'))) {
+        this.currentAbortController = null;
+        this.tripCentralAudioCooldown();
+        this.speakViaSpeechSynthesis(text, style, finish, context);
+        return;
+      }
+
+      const blob = await res.blob();
+      if (controller.signal.aborted || this.currentAbortController !== controller) {
+        return;
+      }
+      if (!blob || blob.size === 0) {
+        this.currentAbortController = null;
+        this.tripCentralAudioCooldown();
+        this.speakViaSpeechSynthesis(text, style, finish, context);
+        return;
+      }
+
+      const objectUrl = URL.createObjectURL(blob);
+      this.currentObjectUrl = objectUrl;
+      this.currentAbortController = null;
+
+      const audio = new Audio(objectUrl);
+      audio.volume = this.volume;
+      audio.playbackRate = effectiveRate;
+
+      const cleanupObjectUrl = () => {
+        if (this.currentObjectUrl === objectUrl) {
+          this.currentObjectUrl = null;
+        }
+        try {
+          URL.revokeObjectURL(objectUrl);
+        } catch {}
+      };
+
+      audio.onended = () => {
+        audio.onended = null;
+        audio.onerror = null;
+        cleanupObjectUrl();
+        finish();
+      };
+
+      audio.onerror = () => {
+        audio.onended = null;
+        audio.onerror = null;
+        this.currentAudio = null;
+        cleanupObjectUrl();
+        this.tripCentralAudioCooldown();
+        this.speakViaSpeechSynthesis(text, style, finish, context);
+      };
+
+      this.currentAudio = audio;
+      const playPromise = audio.play();
+      if (playPromise) {
+        playPromise.catch(() => {
+          audio.onended = null;
+          audio.onerror = null;
+          this.currentAudio = null;
+          cleanupObjectUrl();
+          this.speakViaSpeechSynthesis(text, style, finish, context);
+        });
+      }
+    } catch {
+      clearTimeout(fetchTimeout);
+      if (controller.signal.aborted && this.currentAbortController !== controller) {
+        return;
+      }
+      if (this.currentAbortController === controller) {
+        this.currentAbortController = null;
+      }
+      this.tripCentralAudioCooldown();
+      this.speakViaSpeechSynthesis(text, style, finish, context);
+    }
   }
 
   /**
@@ -614,6 +731,13 @@ class VoiceCommentaryService {
       this.currentWatchdogTimer = null;
     }
 
+    if (this.currentAbortController) {
+      try {
+        this.currentAbortController.abort();
+      } catch {}
+      this.currentAbortController = null;
+    }
+
     if (this.currentAudio) {
       try {
         this.currentAudio.onended = null;
@@ -622,6 +746,13 @@ class VoiceCommentaryService {
         this.currentAudio.currentTime = 0;
       } catch {}
       this.currentAudio = null;
+    }
+
+    if (this.currentObjectUrl) {
+      try {
+        URL.revokeObjectURL(this.currentObjectUrl);
+      } catch {}
+      this.currentObjectUrl = null;
     }
 
     if (typeof window !== 'undefined' && 'speechSynthesis' in window) {

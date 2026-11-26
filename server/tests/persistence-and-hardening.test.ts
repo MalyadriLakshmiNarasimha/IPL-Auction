@@ -416,6 +416,13 @@ describe('Phase 2A: Database & Persistence Hardening Verification', () => {
       p2.squad = [{ player_id: ALL_PLAYERS[2].id, player: ALL_PLAYERS[2], bought_for: 20000000, timestamp: Date.now() }];
       room.stage = 'trading_window';
       room.auction_state.stage = 'trading_window';
+      room.auction_state.phase = 'trading';
+      room.auction_state.round_number = 2;
+      room.auction_state.round1_completed = true;
+      room.auction_state.round2_completed = true;
+      room.auction_state.trading_started = true;
+      room.auction_state.trading_completed = false;
+      room.auction_state.stage_ends_at = Date.now() + 120_000;
 
       const tradeOffer: TradeOffer = {
         id: 'trade-offer-test-999',
@@ -715,6 +722,14 @@ describe('Phase 2A: Database & Persistence Hardening Verification', () => {
       pa.squad = [{ player_id: ALL_PLAYERS[10].id, player: ALL_PLAYERS[10], bought_for: 20000000, timestamp: Date.now() }];
       pb.squad = [{ player_id: ALL_PLAYERS[11].id, player: ALL_PLAYERS[11], bought_for: 20000000, timestamp: Date.now() }];
       room.stage = 'trading_window';
+      room.auction_state.stage = 'trading_window';
+      room.auction_state.phase = 'trading';
+      room.auction_state.round_number = 2;
+      room.auction_state.round1_completed = true;
+      room.auction_state.round2_completed = true;
+      room.auction_state.trading_started = true;
+      room.auction_state.trading_completed = false;
+      room.auction_state.stage_ends_at = Date.now() + 120_000;
 
       const tradeOffer: TradeOffer = {
         id: 'offer-double-test-1',

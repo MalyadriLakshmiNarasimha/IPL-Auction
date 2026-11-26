@@ -9,7 +9,15 @@ import {
 import { voiceCommentary } from '../../src/lib/voice-commentary';
 import { RoomManager } from '../room';
 import { Player } from '../../src/shared/types';
-import { synthesizeIndianFemaleVoice, getConfiguredProvider } from '../../src/lib/server-tts';
+import {
+  synthesizeIndianFemaleVoice,
+  getConfiguredProvider,
+  isProviderInCooldown,
+  resetTtsProviderCircuitBreakers,
+  getTtsAvailability,
+} from '../../src/lib/server-tts';
+import { GET as getTtsRoute } from '../../src/app/api/tts/route';
+import { NextRequest } from 'next/server';
 
 describe('IPL Auction — Natural Indian Female Voice & Two-Event Voice System', () => {
   beforeEach(() => {
@@ -226,6 +234,152 @@ describe('IPL Auction — Natural Indian Female Voice & Two-Event Voice System',
         expect(res.buffer.length).toBeGreaterThan(0);
         expect(res.contentType).toBe('audio/mpeg');
       }
+    });
+  });
+
+  describe('7. Permanent HTTP 503 Fix, Circuit Breaker & Web Speech Fallback', () => {
+    afterEach(() => {
+      resetTtsProviderCircuitBreakers();
+      voiceCommentary.resetCentralAudioCooldown();
+      vi.unstubAllGlobals();
+    });
+
+    it('returns HTTP 400 on missing or over-length text without crashing', async () => {
+      const emptyReq = new NextRequest('http://localhost:3000/api/tts?text=');
+      const emptyRes = await getTtsRoute(emptyReq);
+      expect(emptyRes.status).toBe(400);
+
+      const longText = 'A'.repeat(501);
+      const longReq = new NextRequest(`http://localhost:3000/api/tts?text=${longText}`);
+      const longRes = await getTtsRoute(longReq);
+      expect(longRes.status).toBe(400);
+    });
+
+    it('returns HTTP 200 fallback directive (never 503) and trips server circuit breaker when external TTS fails', async () => {
+      resetTtsProviderCircuitBreakers();
+      const fetchSpy = vi.fn().mockRejectedValue(new Error('External TTS network unreachable'));
+      vi.stubGlobal('fetch', fetchSpy);
+
+      const req1 = new NextRequest(
+        'http://localhost:3000/api/tts?text=Up%20next%20we%20have%20Virat%20Kohli&style=intro&nationality=India&role=Batter'
+      );
+      const res1 = await getTtsRoute(req1);
+      expect(res1.status).toBe(200);
+      const body1 = await res1.json();
+      expect(body1.fallbackToClient).toBe(true);
+      expect(body1.mode).toBe('web_speech');
+      expect(body1.rate).toBe(1.1);
+      expect(isProviderInCooldown('fallback')).toBe(true);
+
+      const callsAfterFirst = fetchSpy.mock.calls.length;
+      expect(callsAfterFirst).toBeGreaterThanOrEqual(1);
+
+      // Consecutive player intro (PKL) must NOT retry the cooled-down external provider
+      const req2 = new NextRequest(
+        'http://localhost:3000/api/tts?text=Up%20next%20we%20have%20Pardeep%20Narwal&style=intro&nationality=India&role=Raider'
+      );
+      const res2 = await getTtsRoute(req2);
+      expect(res2.status).toBe(200);
+      const body2 = await res2.json();
+      expect(body2.fallbackToClient).toBe(true);
+      expect(fetchSpy.mock.calls.length).toBe(callsAfterFirst);
+
+      const availability = getTtsAvailability();
+      expect(availability.fallbackMode).toBe('web_speech');
+    });
+
+    it('supports IPL & PKL player introduction templates and trips client cooldown cleanly', async () => {
+      const iplIntro = buildPlayerIntroduction({
+        id: 'p-kohli',
+        name: 'Virat Kohli',
+        country: 'India',
+        role: 'Batter',
+        base_price: 2_00_00_000,
+      } as unknown as Player);
+      const pklIntro = buildPlayerIntroduction({
+        id: 'k-pardeep',
+        name: 'Pardeep Narwal',
+        country: 'India',
+        role: 'Raider',
+        base_price: 30_00_000,
+      } as unknown as Player);
+      expect(iplIntro).toContain('Virat Kohli');
+      expect(pklIntro).toContain('Pardeep Narwal');
+
+      // Simulate browser environment with mocked SpeechSynthesis + JSON fallback /api/tts response
+      const spokenUtterances: any[] = [];
+      const mockSpeechSynthesis = {
+        paused: false,
+        onvoiceschanged: null,
+        getVoices: () => [
+          { name: 'Microsoft Neerja Online (Natural) - English (India)', lang: 'en-IN' },
+        ],
+        speak: vi.fn((utt: any) => {
+          spokenUtterances.push(utt);
+          if (typeof utt.onend === 'function') utt.onend();
+        }),
+        cancel: vi.fn(),
+        resume: vi.fn(),
+      };
+      class MockUtterance {
+        text: string;
+        rate = 1;
+        pitch = 1;
+        volume = 1;
+        voice: any = null;
+        onend: any = null;
+        onerror: any = null;
+        constructor(t: string) {
+          this.text = t;
+        }
+      }
+
+      const storageMap = new Map<string, string>();
+      vi.stubGlobal('SpeechSynthesisUtterance', MockUtterance);
+      vi.stubGlobal('window', {
+        speechSynthesis: mockSpeechSynthesis,
+        localStorage: {
+          getItem: (k: string) => storageMap.get(k) ?? null,
+          setItem: (k: string, v: string) => storageMap.set(k, v),
+        },
+        sessionStorage: {
+          getItem: (k: string) => storageMap.get(k) ?? null,
+          setItem: (k: string, v: string) => storageMap.set(k, v),
+          removeItem: (k: string) => storageMap.delete(k),
+        },
+      });
+      const clientFetch = vi.fn().mockResolvedValue(
+        new Response(JSON.stringify({ available: false, fallbackToClient: true, mode: 'web_speech' }), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        })
+      );
+      vi.stubGlobal('fetch', clientFetch);
+
+      voiceCommentary.resetCentralAudioCooldown();
+      voiceCommentary.initVoiceSelection();
+
+      // Player 1 (IPL): hits /api/tts once, receives fallback directive, speaks via Web Speech 1.10x, trips cooldown
+      await new Promise<void>(resolve => {
+        voiceCommentary.speakPlayerIntroduction(
+          { id: 'ipl-1', name: 'Virat Kohli', country: 'India', role: 'Batter', base_price: 2_00_00_000 } as any,
+          resolve
+        );
+      });
+      expect(clientFetch).toHaveBeenCalledTimes(1);
+      expect(voiceCommentary.isCentralAudioBlocked()).toBe(true);
+
+      // Player 2 (PKL): does NOT retry /api/tts at all; speaks directly via Web Speech API
+      await new Promise<void>(resolve => {
+        voiceCommentary.speakPlayerIntroduction(
+          { id: 'pkl-1', name: 'Pardeep Narwal', country: 'India', role: 'Raider', base_price: 30_00_000 } as any,
+          resolve
+        );
+      });
+      expect(clientFetch).toHaveBeenCalledTimes(1);
+      expect(spokenUtterances.length).toBe(2);
+      expect(spokenUtterances[0].rate).toBe(1.1);
+      expect(spokenUtterances[0].voice?.lang).toBe('en-IN');
     });
   });
 });

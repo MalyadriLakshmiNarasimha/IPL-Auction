@@ -8,6 +8,7 @@ import { formatCurrency } from '@/shared/constants';
 import {
   Gavel,
   Trophy,
+  Medal,
   Users,
   Play,
   RotateCcw,
@@ -23,14 +24,17 @@ import {
   Check,
   ChevronRight,
   TrendingUp,
+  Ban,
 } from 'lucide-react';
 
 interface OngoingAuction {
   room_code: string;
   name: string;
+  sport_type?: 'IPL' | 'PKL';
   host_name: string;
   is_host: boolean;
   participant_count: number;
+  participating_teams?: string[];
   status: string;
   stage: string;
   last_activity: string;
@@ -45,9 +49,11 @@ interface OngoingAuction {
 interface CompletedAuction {
   room_code: string;
   name: string;
+  sport_type?: 'IPL' | 'PKL';
   host_name: string;
   is_host: boolean;
   participant_count: number;
+  participating_teams?: string[];
   status: string;
   completed_at: string;
   sold_count: number;
@@ -56,35 +62,51 @@ interface CompletedAuction {
   champion_name: string | null;
   user_team_name: string | null;
   user_squad_count: number | null;
+  user_rank?: number | null;
   awards: any[];
   leaderboard: any[];
 }
 
+interface TerminatedAuction {
+  room_code: string;
+  name: string;
+  sport_type?: 'IPL' | 'PKL';
+  host_name: string;
+  is_host: boolean;
+  participant_count: number;
+  participating_teams?: string[];
+  status: 'terminated';
+  termination_reason: string;
+  terminated_at: string;
+  sold_count: number;
+  unsold_count: number;
+  total_pool_count: number;
+  user_team_name: string | null;
+  user_purse_remaining: number | null;
+  user_participation_status: string;
+}
+
 export default function HistoryPage() {
   const router = useRouter();
-  const [activeTab, setActiveTab] = useState<'ongoing' | 'completed'>('ongoing');
+  const [activeTab, setActiveTab] = useState<'ongoing' | 'completed' | 'terminated'>('completed');
   const [ongoing, setOngoing] = useState<OngoingAuction[]>([]);
   const [completed, setCompleted] = useState<CompletedAuction[]>([]);
+  const [terminated, setTerminated] = useState<TerminatedAuction[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null);
   const [copiedCode, setCopiedCode] = useState<string | null>(null);
   const [selectedCompleted, setSelectedCompleted] = useState<CompletedAuction | null>(null);
 
   const fetchHistory = useCallback(async () => {
-    // Check if user is authenticated first to avoid unnecessary 401 console error for guests
-    let hasAuth = false;
-    try {
-      hasAuth = !!localStorage.getItem('ipl_auth_cache');
-    } catch {}
-
-    if (!hasAuth) {
-      setIsAuthenticated(false);
-      setIsLoading(false);
-      return;
-    }
-
     setIsLoading(true);
     try {
+      const authRes = await apiFetch<{ authenticated: boolean }>('/api/auth/me');
+      if (!authRes.ok || !authRes.data?.authenticated) {
+        setIsAuthenticated(false);
+        setIsLoading(false);
+        return;
+      }
+
       const { ok, status, data } = await apiFetch('/api/history');
       if (status === 401) {
         setIsAuthenticated(false);
@@ -95,13 +117,25 @@ export default function HistoryPage() {
         setIsAuthenticated(true);
         setOngoing(data.ongoing || []);
         setCompleted(data.completed || []);
-        // If there are no ongoing auctions but completed exist, default to completed tab
-        if ((!data.ongoing || data.ongoing.length === 0) && data.completed?.length > 0) {
+        setTerminated(data.terminated || []);
+        const urlTab = typeof window !== 'undefined'
+          ? new URLSearchParams(window.location.search).get('tab')
+          : null;
+        if (urlTab === 'ongoing' && data.ongoing?.length > 0) {
+          setActiveTab('ongoing');
+        } else if (urlTab === 'terminated' && data.terminated?.length > 0) {
+          setActiveTab('terminated');
+        } else if (urlTab === 'completed') {
+          setActiveTab('completed');
+        } else if ((!data.completed || data.completed.length === 0) && data.ongoing?.length > 0) {
+          setActiveTab('ongoing');
+        } else {
           setActiveTab('completed');
         }
       }
     } catch (e) {
       console.warn('[HISTORY] Fetch failed:', e);
+      setIsAuthenticated(false);
     } finally {
       setIsLoading(false);
     }
@@ -152,16 +186,26 @@ export default function HistoryPage() {
           </p>
         </div>
 
-        {/* Tab switch: exactly two categories */}
-        <div className="flex items-center bg-night-raised border border-night-border rounded-xl p-1 shrink-0">
-          <button
-            onClick={() => setActiveTab('ongoing')}
-            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold transition-all ${
-              activeTab === 'ongoing'
-                ? 'bg-flare text-[#17130A] shadow-flare'
-                : 'text-floodlight-muted hover:text-floodlight'
-            }`}
+        {/* Quick link to My Rooms + Tab switch: exactly two categories */}
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 shrink-0">
+          <Link
+            href="/my-rooms"
+            className="flex items-center justify-center gap-2 px-3.5 py-2 rounded-xl bg-night-raised hover:bg-white/10 text-floodlight border border-night-border text-xs font-bold transition-all shadow-sm"
           >
+            <Users className="w-3.5 h-3.5 text-flare" />
+            <span>Manage My Rooms</span>
+            <ArrowRight className="w-3.5 h-3.5 text-flare" />
+          </Link>
+
+          <div className="flex items-center bg-night-raised border border-night-border rounded-xl p-1 shrink-0">
+            <button
+              onClick={() => setActiveTab('ongoing')}
+              className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold transition-all ${
+                activeTab === 'ongoing'
+                  ? 'bg-flare text-[#17130A] shadow-flare'
+                  : 'text-floodlight-muted hover:text-floodlight'
+              }`}
+            >
             <span className="relative flex h-2 w-2">
               <span className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 ${activeTab === 'ongoing' ? 'bg-[#17130A]' : 'bg-turf'}`} />
               <span className={`relative inline-flex rounded-full h-2 w-2 ${activeTab === 'ongoing' ? 'bg-[#17130A]' : 'bg-turf'}`} />
@@ -190,8 +234,26 @@ export default function HistoryPage() {
               {completed.length}
             </span>
           </button>
+
+          <button
+            onClick={() => setActiveTab('terminated')}
+            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold transition-all ${
+              activeTab === 'terminated'
+                ? 'bg-red-500 text-white shadow-sm'
+                : 'text-floodlight-muted hover:text-floodlight'
+            }`}
+          >
+            <Ban className="w-3.5 h-3.5" />
+            <span>Terminated</span>
+            <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-extrabold ${
+              activeTab === 'terminated' ? 'bg-black/20 text-white' : 'bg-night-border text-floodlight-muted'
+            }`}>
+              {terminated.length}
+            </span>
+          </button>
         </div>
       </div>
+    </div>
 
       {/* Unauthenticated State */}
       {isAuthenticated === false && !isLoading && (
@@ -275,9 +337,18 @@ export default function HistoryPage() {
                       {/* Top metadata */}
                       <div>
                         <div className="flex items-center justify-between gap-2 mb-3">
-                          <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-turf/15 border border-turf/30 text-turf text-[10px] font-extrabold uppercase tracking-wider">
-                            <span className="w-1.5 h-1.5 rounded-full bg-turf animate-pulse" />
-                            Live Auction
+                          <div className="flex items-center gap-2">
+                            <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-turf/15 border border-turf/30 text-turf text-[10px] font-extrabold uppercase tracking-wider">
+                              <span className="w-1.5 h-1.5 rounded-full bg-turf animate-pulse" />
+                              Live Auction
+                            </div>
+                            <span className={`px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-wider ${
+                              room.sport_type === 'PKL'
+                                ? 'bg-purple-500/20 text-purple-300 border border-purple-500/30'
+                                : 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
+                            }`}>
+                              {room.sport_type || 'IPL'}
+                            </span>
                           </div>
 
                           <button
@@ -310,6 +381,22 @@ export default function HistoryPage() {
                             <Users className="w-3 h-3 text-flare" /> {room.participant_count}
                           </span>
                         </div>
+
+                        {/* Participating Teams Chips */}
+                        {room.participating_teams && room.participating_teams.length > 0 && (
+                          <div className="flex flex-wrap gap-1 mt-2.5">
+                            {room.participating_teams.slice(0, 3).map((team, idx) => (
+                              <span key={idx} className="px-1.5 py-0.5 rounded bg-white/[0.04] border border-white/5 text-[9.5px] text-floodlight-muted font-medium truncate max-w-[110px]">
+                                {team}
+                              </span>
+                            ))}
+                            {room.participating_teams.length > 3 && (
+                              <span className="text-[9.5px] text-floodlight-subtle self-center">
+                                +{room.participating_teams.length - 3} more
+                              </span>
+                            )}
+                          </div>
+                        )}
 
                         {/* Live auction status pill */}
                         <div className="mt-4 p-3 rounded-xl bg-night border border-night-border space-y-2 text-xs">
@@ -398,9 +485,18 @@ export default function HistoryPage() {
                     >
                       <div>
                         <div className="flex items-center justify-between gap-2 mb-3">
-                          <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-white/[.06] border border-white/10 text-floodlight-muted text-[10px] font-bold uppercase tracking-wider">
-                            <CheckCircle2 className="w-3 h-3 text-turf" />
-                            Completed
+                          <div className="flex items-center gap-2">
+                            <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-white/[.06] border border-white/10 text-floodlight-muted text-[10px] font-bold uppercase tracking-wider">
+                              <CheckCircle2 className="w-3 h-3 text-turf" />
+                              Completed
+                            </div>
+                            <span className={`px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-wider ${
+                              room.sport_type === 'PKL'
+                                ? 'bg-purple-500/20 text-purple-300 border border-purple-500/30'
+                                : 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
+                            }`}>
+                              {room.sport_type || 'IPL'}
+                            </span>
                           </div>
 
                           <span className="font-mono text-xs text-floodlight-muted font-bold px-2 py-0.5 rounded bg-night-border/40">
@@ -426,6 +522,25 @@ export default function HistoryPage() {
                                 <Trophy className="w-3 h-3 text-flare" /> Champion:
                               </span>
                               <span className="font-bold text-flare truncate max-w-[150px]">{room.champion_name}</span>
+                            </div>
+                          )}
+
+                          {room.user_rank && (
+                            <div className="flex items-center justify-between pt-1 border-t border-night-border/60">
+                              <span className="text-floodlight-muted text-[11px] flex items-center gap-1">
+                                <Medal className="w-3 h-3 text-flare" /> Final Rank:
+                              </span>
+                              <span className={`font-display text-xs font-black px-2 py-0.5 rounded ${
+                                room.user_rank === 1 ? 'bg-amber-400/20 text-amber-300 border border-amber-400/30' :
+                                room.user_rank === 2 ? 'bg-slate-300/20 text-slate-200 border border-slate-300/30' :
+                                room.user_rank === 3 ? 'bg-amber-700/20 text-amber-500 border border-amber-700/30' :
+                                'bg-white/5 text-floodlight'
+                              }`}>
+                                {room.user_rank === 1 ? '🏆 1ST PLACE' :
+                                 room.user_rank === 2 ? '🥈 2ND PLACE' :
+                                 room.user_rank === 3 ? '🥉 3RD PLACE' :
+                                 `RANK #${room.user_rank}`}
+                              </span>
                             </div>
                           )}
 
@@ -460,17 +575,107 @@ export default function HistoryPage() {
                       {/* Action: View Results */}
                       <div className="mt-5 pt-3 border-t border-night-border/50 flex items-center justify-between gap-3">
                         <span className="text-[11px] text-floodlight-muted">
-                          {room.participant_count} participants
+                          {room.participant_count} teams
                         </span>
                         <div className="flex items-center gap-2">
                           <Link
-                            href={`/room/${room.room_code}`}
+                            href={`/results/${room.room_code}`}
                             className="px-4 py-2 rounded-full border border-flare/40 hover:bg-flare hover:text-[#17130A] text-flare font-bold text-xs shadow-sm flex items-center gap-1.5 transition-all"
                           >
                             <span>View Results</span>
                             <ExternalLink className="w-3.5 h-3.5" />
                           </Link>
                         </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* CATEGORY 3: TERMINATED AUCTIONS */}
+          {activeTab === 'terminated' && (
+            <div>
+              {terminated.length === 0 ? (
+                <div className="rounded-2xl border border-white/[.08] bg-night-raised/40 p-10 sm:p-16 text-center max-w-xl mx-auto my-8">
+                  <div className="w-12 h-12 rounded-xl bg-red-500/10 border border-red-500/20 flex items-center justify-center text-red-400 mx-auto mb-4">
+                    <Ban className="w-6 h-6" />
+                  </div>
+                  <h3 className="font-display text-xl font-bold text-floodlight mb-1">
+                    No Terminated Auctions
+                  </h3>
+                  <p className="text-xs text-floodlight-muted leading-relaxed">
+                    Auctions automatically terminated when all franchise managers exit appear here for audit and historical reference.
+                  </p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
+                  {terminated.map(room => (
+                    <div
+                      key={room.room_code}
+                      className="group rounded-2xl border border-red-500/30 bg-gradient-to-b from-[#181214] to-[#0D0B0C] p-5 sm:p-6 hover:border-red-500/60 transition-all flex flex-col justify-between shadow-lg relative"
+                    >
+                      <div>
+                        <div className="flex items-center justify-between gap-2 mb-3">
+                          <div className="flex items-center gap-2">
+                            <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-red-500/15 border border-red-500/30 text-red-300 text-[10px] font-extrabold uppercase tracking-wider">
+                              <Ban className="w-3 h-3" />
+                              Terminated
+                            </div>
+                            <span className={`px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-wider ${
+                              room.sport_type === 'PKL'
+                                ? 'bg-purple-500/20 text-purple-300 border border-purple-500/30'
+                                : 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
+                            }`}>
+                              {room.sport_type || 'IPL'}
+                            </span>
+                          </div>
+                          <span className="font-mono text-xs text-floodlight-muted font-bold px-2 py-0.5 rounded bg-night-border/40">
+                            {room.room_code}
+                          </span>
+                        </div>
+
+                        <h2 className="font-display text-xl font-bold text-floodlight truncate">
+                          {room.name}
+                        </h2>
+                        <div className="flex items-center gap-2 text-xs text-floodlight-muted mt-1">
+                          <span>Host: <strong className="text-floodlight">{room.host_name}</strong></span>
+                          <span className="text-floodlight-subtle">•</span>
+                          <span suppressHydrationWarning>{formatDate(room.terminated_at)}</span>
+                        </div>
+
+                        <div className="mt-4 p-3 rounded-xl bg-night border border-night-border space-y-2 text-xs">
+                          <div className="flex items-center justify-between">
+                            <span className="text-floodlight-muted text-[11px]">Reason:</span>
+                            <span className="font-mono font-bold text-red-300 text-[11px]">{room.termination_reason}</span>
+                          </div>
+                          <div className="flex items-center justify-between">
+                            <span className="text-floodlight-muted text-[11px]">Status:</span>
+                            <span className="px-2 py-0.5 rounded bg-red-500/20 border border-red-500/30 text-red-300 font-black text-[10px]">
+                              {room.user_participation_status || 'DISQUALIFIED'}
+                            </span>
+                          </div>
+                          <div className="flex items-center justify-between">
+                            <span className="text-floodlight-muted text-[11px]">Players Auctioned:</span>
+                            <span className="font-mono text-floodlight font-semibold">
+                              {room.sold_count} sold {room.total_pool_count > 0 ? `/ ${room.total_pool_count}` : ''}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="mt-5 pt-3 border-t border-night-border/50 flex items-center justify-between gap-3">
+                        <span className="text-[11px] text-floodlight-muted">
+                          {room.participant_count} teams
+                        </span>
+                        <Link
+                          href={`/room/${room.room_code}`}
+                          className="px-4 py-2 rounded-full border border-red-500/40 hover:bg-red-500/20 text-red-300 font-bold text-xs flex items-center gap-1.5 transition-all"
+                        >
+                          <span>View Notice</span>
+                          <ExternalLink className="w-3.5 h-3.5" />
+                        </Link>
                       </div>
                     </div>
                   ))}

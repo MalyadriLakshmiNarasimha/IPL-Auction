@@ -1,17 +1,19 @@
 'use client';
 
-import React, { useEffect, useState, useMemo } from 'react';
+import React, { useEffect, useState, useMemo, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { getSocket } from '@/lib/socket';
 import { apiFetch } from '@/lib/api';
 import {
   AuctionResults,
   AuctionState,
+  AuctionTerminatedPayload,
   ChatMessage,
   FranchiseIdentity,
   Participant,
   Reaction,
   RoomSettings,
+  SportType,
   WorkflowStage,
   TradeOffer,
   TradeTransaction,
@@ -20,6 +22,8 @@ import {
   Player,
 } from '@/shared/types';
 import { DEFAULT_ROOM_SETTINGS, FRANCHISE_PRESETS, OFFICIAL_IPL_FRANCHISES, formatCurrency, getMinAuctionParticipants, MIN_AUCTION_PARTICIPANTS } from '@/shared/constants';
+import { ALL_PLAYERS } from '@/shared/player-data';
+import { ALL_PKL_PLAYERS } from '@/shared/pkl-player-data';
 import { validateAuctionStart } from '@/shared/validation';
 import { soundFX } from '@/lib/sound-effects';
 import { SplitFlapNumber } from '@/components/SplitFlapNumber';
@@ -29,6 +33,7 @@ import { TeamsDrawer } from '@/components/TeamsDrawer';
 import { ReactionRail } from '@/components/ReactionRail';
 import { LiveChat } from '@/components/LiveChat';
 import { GavelOverlay } from '@/components/GavelOverlay';
+import { ExitAuctionModal } from '@/components/ExitAuctionModal';
 import { PoolPickerModal } from '@/components/PoolPickerModal';
 import { HostControlsModal } from '@/components/HostControlsModal';
 import { ResultsView } from '@/components/ResultsView';
@@ -65,6 +70,8 @@ import {
   Palette,
   Sparkles,
   Sliders,
+  Ban,
+  Home,
 } from 'lucide-react';
 import { validateTeamName, deriveTeamShortCode, TEAM_COLOR_PALETTE } from '@/shared/team-validation';
 import { voiceCommentary } from '@/lib/voice-commentary';
@@ -103,6 +110,9 @@ export default function RoomPage() {
   const [inspectPlayer, setInspectPlayer] = useState<Player | null>(null);
   const [soundEnabled, setSoundEnabled] = useState(true);
   const [isAudioSettingsOpen, setIsAudioSettingsOpen] = useState(false);
+  const [isExitModalOpen, setIsExitModalOpen] = useState(false);
+  const [dismissedResultPlayerId, setDismissedResultPlayerId] = useState<string | null>(null);
+  const [terminationInfo, setTerminationInfo] = useState<AuctionTerminatedPayload | null>(null);
 
   // Custom Team State
   const [teamNameInput, setTeamNameInput] = useState('');
@@ -133,6 +143,7 @@ export default function RoomPage() {
 
   useEffect(() => {
     let active = true;
+    const cleanups: Array<() => void> = [];
 
     // Verify user authentication via centralized authenticated api client
     apiFetch('/api/auth/me')
@@ -148,217 +159,389 @@ export default function RoomPage() {
         setDisplayName(user.name);
 
         if (data.socket_token) {
-          try { localStorage.setItem('ipl_session_token', data.socket_token); } catch {}
+          try { localStorage.setItem('ipl_session_token', data.socket_token); } catch { }
         }
 
         const socket = getSocket(data.socket_token);
 
-        socket.on('connect', () => {
+        const onConnect = () => {
           setIsConnected(true);
           socket.emit('room_join', {
             room_code: roomCode,
             display_name: user.name,
             session_id: user.id,
           });
-        });
+        };
 
-        socket.on('connect_error', (err) => {
+        const onConnectError = (err: Error) => {
           console.warn('[ROOM] Socket connection warning:', err.message);
-          // Do NOT redirect an already-authenticated user to /login on socket blip
-        });
+        };
 
-        socket.on('disconnect', () => {
+        const onDisconnect = () => {
           setIsConnected(false);
-        });
+        };
 
-        socket.on('state_sync', data => {
-          setSettings(data.settings);
-          setParticipants(data.participants);
-          setAuctionState(data.auction_state);
-          if (data.results) setResults(data.results);
-          if (data.trades) setCompletedTrades(data.trades);
-          if (data.pending_trade_offers) setPendingTradeOffers(data.pending_trade_offers);
-          if (data.playing_xi_submissions) setPlayingXISubmissions(data.playing_xi_submissions);
-          if (data.commentary) setCommentaryEvents(data.commentary);
+        const onStateSync = (payload: any) => {
+          setSettings(payload.settings);
+          setParticipants(payload.participants);
+          setAuctionState(payload.auction_state);
+          if (payload.results !== undefined) setResults(payload.results);
+          if (payload.trades) setCompletedTrades(payload.trades);
+          if (payload.pending_trade_offers) setPendingTradeOffers(payload.pending_trade_offers);
+          if (payload.playing_xi_submissions) setPlayingXISubmissions(payload.playing_xi_submissions);
+          if (payload.commentary) setCommentaryEvents(payload.commentary);
+          if (payload.auction_state?.phase === 'terminated' || payload.auction_state?.status === 'terminated') {
+            setTerminationInfo({
+              roomCode: payload.room_code || roomCode,
+              reason: payload.auction_state?.termination_reason || 'ALL_MANAGERS_EXITED',
+              terminatedAt: payload.auction_state?.terminated_at || Date.now(),
+              message:
+                payload.auction_state?.termination_message ||
+                'All managers have exited this auction. The auction has been terminated and all participants have been disqualified.',
+              sportType: payload.settings?.sport_type,
+              participants: payload.participants,
+            });
+          }
           setIsJoined(true);
-        });
+        };
 
-        socket.on('bid_success', data => {
-          setAuctionState(data.auction_state);
-          soundFX.playBid();
-          // Cancel active closing announcement immediately if a new bid arrives
-          voiceCommentary.cancelClosingAnnouncement();
-          const el = document.getElementById('accessibility-announcer');
-          if (el) {
-            el.innerText = `New bid: ${data.bid.franchise_short_code} bid ${formatCurrency(data.bid.amount)}`;
-          }
-        });
-
-        socket.on('auction_closing_warning', data => {
-          const teamCode = data.highest_bidder_short_code || data.highest_bidder_team || null;
-          const playerName = data.player_name || null;
-          voiceCommentary.speakClosingAnnouncement(teamCode, data.current_bid, playerName);
-        });
-
-        socket.on('player_sold', data => {
-          setAuctionState(data.auction_state);
-          // 1. Play gavel hammer sound exactly once
-          soundFX.playGavel();
-          // 2. Stop any playing closing speech
-          voiceCommentary.cancelClosingAnnouncement();
-          const winningTeam = data.winner.team_name || data.winner.franchise?.name || 'the winning franchise';
-          if (lastSoldPlayerId.current !== data.player.id) {
-            lastSoldPlayerId.current = data.player.id;
-            // 3. Play sold announcement immediately after hammer strike completes
-            setTimeout(() => {
-              voiceCommentary.speakSoldAnnouncement(data.player.name, winningTeam, data.price, data.player.id);
-            }, 350);
-          }
-          const el = document.getElementById('accessibility-announcer');
-          if (el) {
-            el.innerText = `${data.player.name} sold to ${winningTeam} for ${formatCurrency(data.price)}`;
-          }
-        });
-
-        socket.on('player_unsold', data => {
-          setAuctionState(data.auction_state);
-          // 1. Play gavel hammer sound exactly once
-          soundFX.playGavel();
-          // 2. Stop any pending closing speech; announce UNSOLD officially confirmed by server
-          voiceCommentary.cancelClosingAnnouncement();
-          if (data.player && lastUnsoldPlayerId.current !== data.player.id) {
-            lastUnsoldPlayerId.current = data.player.id;
-            // 3. Play unsold announcement immediately after hammer strike completes
-            setTimeout(() => {
-              voiceCommentary.speakUnsoldAnnouncement(data.player.name, data.player.id);
-            }, 350);
-          }
-          const el = document.getElementById('accessibility-announcer');
-          if (el && data.player) {
-            el.innerText = `${data.player.name} remains unsold.`;
-          }
-        });
-
-        socket.on('next_player', data => {
-          if (data?.auction_state) {
-            setAuctionState(data.auction_state);
-          } else if (data?.player) {
-            setAuctionState(prev => (prev ? { ...prev, current_player: data.player, phase: 'announcing' } : prev));
-          }
+        const onAuctionTerminated = (payload: AuctionTerminatedPayload) => {
           voiceCommentary.cancelPending();
-        });
-
-        socket.on('bidding_started', data => {
-          if (data?.auction_state) {
-            setAuctionState(data.auction_state);
-          } else if (data?.player) {
-            setAuctionState(prev =>
-              prev
-                ? {
-                    ...prev,
-                    current_player: data.player,
-                    phase: 'bidding',
-                    timer_ends_at: data.timer_ends_at || prev.timer_ends_at,
-                  }
-                : prev
-            );
-          }
-        });
-
-        socket.on('pass_updated', data => {
+          voiceCommentary.cancelClosingAnnouncement();
+          setIsExitModalOpen(false);
+          setIsHostControlsOpen(false);
+          setIsPoolModalOpen(false);
+          setTerminationInfo(payload);
           setAuctionState(prev =>
             prev
               ? {
-                  ...prev,
-                  pass_count: data.pass_count,
-                  total_eligible_passers: data.total_eligible,
-                  passed_participant_ids: data.passed_participant_ids,
-                }
+                ...prev,
+                phase: 'terminated',
+                status: 'terminated',
+                is_paused: false,
+                termination_reason: payload.reason,
+                terminated_at: payload.terminatedAt,
+                terminated_by_system: true,
+                termination_message: payload.message,
+              }
               : prev
           );
-        });
+          if (Array.isArray(payload.participants)) {
+            setParticipants(payload.participants);
+          }
+          setIsJoined(true);
+        };
 
-        socket.on('withdraw_success', data => {
-          setParticipants(prev =>
-            prev.map(p => (p.id === data.participant_id ? { ...p, has_withdrawn_current: true } : p))
+        const onBidSuccess = (payload: any) => {
+          setAuctionState(payload.auction_state);
+          soundFX.playBid();
+          voiceCommentary.cancelClosingAnnouncement();
+          const el = document.getElementById('accessibility-announcer');
+          if (el) {
+            el.innerText = `New bid: ${payload.bid.franchise_short_code} bid ${formatCurrency(payload.bid.amount)}`;
+          }
+        };
+
+        const onClosingWarning = (payload: any) => {
+          const teamCode = payload.highest_bidder_short_code || payload.highest_bidder_team || null;
+          const playerName = payload.player_name || null;
+          voiceCommentary.speakClosingAnnouncement(teamCode, payload.current_bid, playerName);
+        };
+
+        const onPlayerSold = (payload: any) => {
+          setAuctionState(payload.auction_state);
+          soundFX.playGavel();
+          voiceCommentary.cancelClosingAnnouncement();
+          const winningTeam = payload.winner?.team_name || payload.winner?.franchise?.name || 'the winning franchise';
+          if (payload.player && lastSoldPlayerId.current !== payload.player.id) {
+            lastSoldPlayerId.current = payload.player.id;
+            const roundNum = payload?.auction_state?.round_number ?? 1;
+            const soldStorageKey = `ipl_tts_res_${roomCode}`;
+            const eventTag = `sold:${payload.player.id}:r${roundNum}`;
+            let alreadySpoken = false;
+            try {
+              alreadySpoken = sessionStorage.getItem(soldStorageKey) === eventTag;
+              if (!alreadySpoken) sessionStorage.setItem(soldStorageKey, eventTag);
+            } catch { }
+            if (!alreadySpoken) {
+              setTimeout(() => {
+                voiceCommentary.speakSoldAnnouncement(payload.player.name, winningTeam, payload.price, payload.player.id);
+              }, 350);
+            }
+          }
+          const el = document.getElementById('accessibility-announcer');
+          if (el && payload.player) {
+            el.innerText = `${payload.player.name} sold to ${winningTeam} for ${formatCurrency(payload.price)}`;
+          }
+        };
+
+        const onPlayerUnsold = (payload: any) => {
+          setAuctionState(payload.auction_state);
+          soundFX.playGavel();
+          voiceCommentary.cancelClosingAnnouncement();
+          if (payload.player && lastUnsoldPlayerId.current !== payload.player.id) {
+            lastUnsoldPlayerId.current = payload.player.id;
+            const roundNum = payload?.auction_state?.round_number ?? 1;
+            const unsoldStorageKey = `ipl_tts_res_${roomCode}`;
+            const eventTag = `unsold:${payload.player.id}:r${roundNum}`;
+            let alreadySpoken = false;
+            try {
+              alreadySpoken = sessionStorage.getItem(unsoldStorageKey) === eventTag;
+              if (!alreadySpoken) sessionStorage.setItem(unsoldStorageKey, eventTag);
+            } catch { }
+            if (!alreadySpoken) {
+              setTimeout(() => {
+                voiceCommentary.speakUnsoldAnnouncement(payload.player.name, payload.player.id);
+              }, 350);
+            }
+          }
+          const el = document.getElementById('accessibility-announcer');
+          if (el && payload.player) {
+            el.innerText = `${payload.player.name} remains unsold.`;
+          }
+        };
+
+        const onNextPlayer = (payload: any) => {
+          setDismissedResultPlayerId(null);
+          if (payload?.auction_state) {
+            setAuctionState(payload.auction_state);
+          } else if (payload?.player) {
+            setAuctionState(prev => (prev ? { ...prev, current_player: payload.player, phase: 'announcing' } : prev));
+          }
+          voiceCommentary.cancelPending();
+        };
+
+        const onBiddingStarted = (payload: any) => {
+          setDismissedResultPlayerId(null);
+          if (payload?.auction_state) {
+            setAuctionState(payload.auction_state);
+          } else if (payload?.player) {
+            setAuctionState(prev =>
+              prev
+                ? {
+                  ...prev,
+                  current_player: payload.player,
+                  phase: 'bidding',
+                  timer_ends_at: payload.timer_ends_at || prev.timer_ends_at,
+                }
+                : prev
+            );
+          }
+        };
+
+        const onTimerTick = (payload: { timer_remaining: number; server_time: number }) => {
+          setAuctionState(prev => {
+            if (!prev || prev.phase !== 'bidding' || prev.is_paused) return prev;
+            const localRemaining = Math.ceil(Math.max(0, prev.timer_ends_at - Date.now()) / 1000);
+            // Re-sync only when client timer drifts by >= 2s from authoritative server clock
+            if (Math.abs(localRemaining - payload.timer_remaining) < 2) {
+              return prev;
+            }
+            return {
+              ...prev,
+              server_time: payload.server_time,
+              timer_ends_at: Date.now() + payload.timer_remaining * 1000,
+            };
+          });
+        };
+
+        const onAuctionPaused = () => {
+          setAuctionState(prev =>
+            prev
+              ? {
+                ...prev,
+                is_paused: true,
+                pause_remaining_ms:
+                  prev.timer_ends_at > Date.now()
+                    ? prev.timer_ends_at - Date.now()
+                    : prev.pause_remaining_ms,
+              }
+              : prev
           );
-        });
+        };
 
-        socket.on('team_name_updated', data => {
+        const onAuctionResumed = (newTimerEndsAt: number) => {
+          setAuctionState(prev =>
+            prev
+              ? {
+                ...prev,
+                is_paused: false,
+                pause_remaining_ms: undefined,
+                timer_ends_at:
+                  typeof newTimerEndsAt === 'number' && newTimerEndsAt > 0
+                    ? newTimerEndsAt
+                    : prev.timer_ends_at,
+                server_time: Date.now(),
+              }
+              : prev
+          );
+        };
+
+        const onPassUpdated = (payload: any) => {
+          setAuctionState(prev =>
+            prev
+              ? {
+                ...prev,
+                pass_count: payload.pass_count,
+                total_eligible_passers: payload.total_eligible,
+                passed_participant_ids: payload.passed_participant_ids,
+              }
+              : prev
+          );
+        };
+
+        const onWithdrawSuccess = (payload: any) => {
+          setParticipants(prev =>
+            prev.map(p => (p.id === payload.participant_id ? { ...p, has_withdrawn_current: true } : p))
+          );
+        };
+
+        const onTeamNameUpdated = (payload: any) => {
           setParticipants(prev =>
             prev.map(p =>
-              p.id === data.session_id
+              p.id === payload.session_id
                 ? {
-                    ...p,
-                    team_name: data.team_name,
-                    team_short_code: data.team_short_code,
-                    team_color: data.team_color,
-                    franchise: {
-                      id: `custom-${data.team_short_code.toLowerCase()}`,
-                      name: data.team_name,
-                      short_code: data.team_short_code,
-                      color: data.team_color,
-                    },
-                  }
+                  ...p,
+                  team_name: payload.team_name,
+                  team_short_code: payload.team_short_code,
+                  team_color: payload.team_color,
+                  franchise: {
+                    id: `custom-${payload.team_short_code.toLowerCase()}`,
+                    name: payload.team_name,
+                    short_code: payload.team_short_code,
+                    color: payload.team_color,
+                  },
+                }
                 : p
             )
           );
-        });
+        };
 
-        socket.on('auction_ended', finalResults => {
+        const onAuctionEnded = (finalResults: AuctionResults) => {
           setResults(finalResults);
           soundFX.playSold();
-        });
+        };
 
-        socket.on('stage_transitioned', data => {
-          setAuctionState(data.auction_state);
-        });
+        const onStageTransitioned = (payload: any) => {
+          setAuctionState(payload.auction_state);
+        };
 
-        socket.on('commentary_broadcast', comment => {
+        const onCommentaryBroadcast = (comment: CommentaryEvent) => {
           setCommentaryEvents(prev => [...prev.slice(-30), comment]);
-        });
+        };
 
-        socket.on('trade_offer_received', offer => {
+        const onTradeOfferReceived = (offer: TradeOffer) => {
           setPendingTradeOffers(prev => [...prev.filter(o => o.id !== offer.id), offer]);
-        });
+        };
 
-        socket.on('trade_offer_updated', offer => {
+        const onTradeOfferUpdated = (offer: TradeOffer) => {
           setPendingTradeOffers(prev => {
             if (offer.status === 'accepted' || offer.status === 'rejected' || offer.status === 'cancelled') {
               return prev.filter(o => o.id !== offer.id);
             }
             return prev.map(o => (o.id === offer.id ? offer : o));
           });
-        });
+        };
 
-        socket.on('trade_executed', data => {
-          setCompletedTrades(prev => [data.trade, ...prev]);
+        const onTradeExecuted = (payload: any) => {
+          setCompletedTrades(prev => [payload.trade, ...prev]);
           soundFX.playSold();
-        });
+        };
 
-        socket.on('playing_xi_updated', submission => {
+        const onPlayingXIUpdated = (submission: PlayingXISubmission) => {
           setPlayingXISubmissions(prev => [
             ...prev.filter(s => s.participant_id !== submission.participant_id),
             submission,
           ]);
-        });
+        };
 
-        socket.on('new_chat', msg => {
+        const onNewChat = (msg: ChatMessage) => {
           setChatMessages(prev => [...prev.slice(-49), msg]);
-        });
+        };
 
-        socket.on('new_reaction', rx => {
+        const onNewReaction = (rx: Reaction) => {
           setReactions(prev => [...prev.slice(-20), rx]);
-        });
+        };
 
-        socket.on('error_message', err => {
+        const onErrorMessage = (err: { message: string; code?: string }) => {
+          if (err?.code === 'AUCTION_TERMINATED') {
+            setTerminationInfo(prev =>
+              prev || {
+                roomCode,
+                reason: 'ALL_MANAGERS_EXITED',
+                terminatedAt: Date.now(),
+                message: err.message,
+                sportType: roomCode.startsWith('K') ? 'PKL' : 'IPL',
+              }
+            );
+          }
           setErrorMessage(err.message);
           setTimeout(() => setErrorMessage(null), 4000);
-        });
+        };
 
-        socket.on('kicked', reason => {
+        const onKicked = (reason: string) => {
           alert(`You were removed from the room: ${reason}`);
           router.push('/');
+        };
+
+        socket.on('connect', onConnect);
+        socket.on('connect_error', onConnectError);
+        socket.on('disconnect', onDisconnect);
+        socket.on('state_sync', onStateSync);
+        socket.on('bid_success', onBidSuccess);
+        socket.on('auction_closing_warning', onClosingWarning);
+        socket.on('player_sold', onPlayerSold);
+        socket.on('player_unsold', onPlayerUnsold);
+        socket.on('next_player', onNextPlayer);
+        socket.on('bidding_started', onBiddingStarted);
+        socket.on('timer_tick', onTimerTick);
+        socket.on('auction_paused', onAuctionPaused);
+        socket.on('auction_resumed', onAuctionResumed);
+        socket.on('pass_updated', onPassUpdated);
+        socket.on('withdraw_success', onWithdrawSuccess);
+        socket.on('team_name_updated', onTeamNameUpdated);
+        socket.on('auction_ended', onAuctionEnded);
+        socket.on('auction_terminated', onAuctionTerminated);
+        socket.on('stage_transitioned', onStageTransitioned);
+        socket.on('commentary_broadcast', onCommentaryBroadcast);
+        socket.on('trade_offer_received', onTradeOfferReceived);
+        socket.on('trade_offer_updated', onTradeOfferUpdated);
+        socket.on('trade_executed', onTradeExecuted);
+        socket.on('playing_xi_updated', onPlayingXIUpdated);
+        socket.on('new_chat', onNewChat);
+        socket.on('new_reaction', onNewReaction);
+        socket.on('error_message', onErrorMessage);
+        socket.on('kicked', onKicked);
+
+        cleanups.push(() => {
+          socket.off('connect', onConnect);
+          socket.off('connect_error', onConnectError);
+          socket.off('disconnect', onDisconnect);
+          socket.off('state_sync', onStateSync);
+          socket.off('bid_success', onBidSuccess);
+          socket.off('auction_closing_warning', onClosingWarning);
+          socket.off('player_sold', onPlayerSold);
+          socket.off('player_unsold', onPlayerUnsold);
+          socket.off('next_player', onNextPlayer);
+          socket.off('bidding_started', onBiddingStarted);
+          socket.off('timer_tick', onTimerTick);
+          socket.off('auction_paused', onAuctionPaused);
+          socket.off('auction_resumed', onAuctionResumed);
+          socket.off('pass_updated', onPassUpdated);
+          socket.off('withdraw_success', onWithdrawSuccess);
+          socket.off('team_name_updated', onTeamNameUpdated);
+          socket.off('auction_ended', onAuctionEnded);
+          socket.off('auction_terminated', onAuctionTerminated);
+          socket.off('stage_transitioned', onStageTransitioned);
+          socket.off('commentary_broadcast', onCommentaryBroadcast);
+          socket.off('trade_offer_received', onTradeOfferReceived);
+          socket.off('trade_offer_updated', onTradeOfferUpdated);
+          socket.off('trade_executed', onTradeExecuted);
+          socket.off('playing_xi_updated', onPlayingXIUpdated);
+          socket.off('new_chat', onNewChat);
+          socket.off('new_reaction', onNewReaction);
+          socket.off('error_message', onErrorMessage);
+          socket.off('kicked', onKicked);
         });
 
         if (socket.connected) {
@@ -375,26 +558,8 @@ export default function RoomPage() {
 
     return () => {
       active = false;
-      const socket = getSocket();
-      socket.off('state_sync');
-      socket.off('bid_success');
-      socket.off('auction_closing_warning');
-      socket.off('player_sold');
-      socket.off('player_unsold');
-      socket.off('next_player');
-      socket.off('bidding_started');
-      socket.off('team_name_updated');
-      socket.off('auction_ended');
-      socket.off('stage_transitioned');
-      socket.off('commentary_broadcast');
-      socket.off('trade_offer_received');
-      socket.off('trade_offer_updated');
-      socket.off('trade_executed');
-      socket.off('playing_xi_updated');
-      socket.off('new_chat');
-      socket.off('new_reaction');
-      socket.off('error_message');
-      socket.off('kicked');
+      cleanups.forEach(fn => fn());
+      voiceCommentary.cancelPending();
     };
   }, [roomCode, router]);
 
@@ -516,25 +681,41 @@ export default function RoomPage() {
     }
   }, [currentUser, hasEditedName]);
 
-  // Authoritative Voice Announcement sequencing (Player Introduction triggered exactly once)
+  // Authoritative Voice Announcement sequencing (Player Introduction triggered exactly once per cycle)
   useEffect(() => {
     if (auctionState?.phase === 'announcing' && auctionState.current_player) {
       const currentPlayer = auctionState.current_player;
       const currentPlayerId = currentPlayer.id;
-      if (lastAnnouncedPlayerId.current !== currentPlayerId) {
-        lastAnnouncedPlayerId.current = currentPlayerId;
+      const introKey = `${roomCode}:${currentPlayerId}:${auctionState.announcement_started_at || auctionState.round_number || 1}`;
+      if (lastAnnouncedPlayerId.current !== introKey) {
+        lastAnnouncedPlayerId.current = introKey;
 
-        voiceCommentary.speakPlayerIntroduction(currentPlayer, () => {
+        const storageKey = `ipl_tts_intro_${roomCode}`;
+        let alreadyAnnouncedInBrowser = false;
+        try {
+          alreadyAnnouncedInBrowser = sessionStorage.getItem(storageKey) === introKey;
+          if (!alreadyAnnouncedInBrowser) {
+            sessionStorage.setItem(storageKey, introKey);
+          }
+        } catch { }
+
+        const notifyCompleted = () => {
           const socket = getSocket();
           socket.emit('announcement_completed', {
             room_code: roomCode,
             session_id: sessionId,
             player_id: currentPlayerId,
           });
-        });
+        };
+
+        if (alreadyAnnouncedInBrowser) {
+          notifyCompleted();
+        } else {
+          voiceCommentary.speakPlayerIntroduction(currentPlayer, notifyCompleted);
+        }
       }
     }
-  }, [auctionState?.phase, auctionState?.current_player, roomCode, sessionId]);
+  }, [auctionState?.phase, auctionState?.current_player, auctionState?.announcement_started_at, auctionState?.round_number, roomCode, sessionId]);
 
   // Voice Modulation B: Final 5-Second Closing Announcement Watcher (Client-side synchronized trigger)
   useEffect(() => {
@@ -598,6 +779,7 @@ export default function RoomPage() {
     setTimeout(() => setIsSavedBanner(false), 2500);
   };
 
+  const totalSportPoolSize = settings.sport_type === 'PKL' ? ALL_PKL_PLAYERS.length : ALL_PLAYERS.length;
   const minAuctionParticipants = useMemo(() => getMinAuctionParticipants(), []);
   const activeTeamsCount = participants.filter(
     p => !p.is_spectator && (p.team_name || p.franchise)
@@ -606,14 +788,195 @@ export default function RoomPage() {
   const poolCount =
     settings.selected_player_ids && settings.selected_player_ids.length > 0
       ? settings.selected_player_ids.length
-      : 274;
+      : totalSportPoolSize;
 
   const startValidation = useMemo(() => {
-    return validateAuctionStart(currentUser, participants, settings, 274);
-  }, [currentUser, participants, settings]);
+    return validateAuctionStart(currentUser, participants, settings, totalSportPoolSize);
+  }, [currentUser, participants, settings, totalSportPoolSize]);
 
   const canStart = startValidation.valid;
   const startValidationMessage = startValidation.reason || null;
+
+  const handleGavelDismiss = useCallback(() => {
+    if (auctionState?.current_player) {
+      setDismissedResultPlayerId(auctionState.current_player.id);
+    }
+    // Inform authoritative server to advance if stuck in unsold/sold
+    try {
+      const socket = getSocket();
+      socket.emit('request_next_player', {
+        room_code: roomCode,
+        session_id: sessionId,
+      });
+    } catch { }
+  }, [auctionState?.current_player, roomCode, sessionId]);
+
+  const handleConfirmExit = useCallback(() => {
+    try {
+      voiceCommentary.cancelPending();
+      const socket = getSocket();
+      socket.emit('room_leave', {
+        room_code: roomCode,
+        session_id: sessionId,
+      });
+    } catch (err) {
+      console.warn('[EXIT] Socket leave error:', err);
+    }
+    setIsExitModalOpen(false);
+    router.push('/my-rooms');
+  }, [roomCode, sessionId, router]);
+
+  const isTerminated =
+    Boolean(terminationInfo) ||
+    auctionState?.phase === 'terminated' ||
+    auctionState?.status === 'terminated';
+
+  if (isTerminated) {
+    const resolvedRoomCode = terminationInfo?.roomCode || roomCode;
+    const resolvedSport: SportType =
+      terminationInfo?.sportType ||
+      settings?.sport_type ||
+      (resolvedRoomCode.startsWith('K') ? 'PKL' : 'IPL');
+    const resolvedReason =
+      terminationInfo?.reason ||
+      auctionState?.termination_reason ||
+      'ALL_MANAGERS_EXITED';
+    const resolvedTimestamp =
+      terminationInfo?.terminatedAt ||
+      auctionState?.terminated_at ||
+      Date.now();
+    const participatingManagers = (
+      terminationInfo?.participants && terminationInfo.participants.length > 0
+        ? terminationInfo.participants
+        : participants
+    ).filter(p => !p.is_spectator && p.role !== 'spectator');
+
+    const formattedTimestamp = (() => {
+      try {
+        return new Date(resolvedTimestamp).toLocaleString('en-IN', {
+          day: 'numeric',
+          month: 'short',
+          year: 'numeric',
+          hour: '2-digit',
+          minute: '2-digit',
+          second: '2-digit',
+        });
+      } catch {
+        return String(resolvedTimestamp);
+      }
+    })();
+
+    return (
+      <div
+        data-testid="auction-terminated-screen"
+        className="min-h-screen bg-[#08090B] text-floodlight flex items-center justify-center p-4 sm:p-6"
+      >
+        <div className="max-w-xl w-full rounded-3xl border border-red-500/40 bg-gradient-to-b from-[#161113] via-[#100D0F] to-[#08090B] p-6 sm:p-8 shadow-2xl space-y-6 relative overflow-hidden">
+          <div className="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-red-600 via-amber-500 to-red-600" />
+
+          <div className="flex flex-col items-center text-center space-y-3 pt-2">
+            <div className="w-16 h-16 rounded-2xl bg-red-500/15 border border-red-500/40 flex items-center justify-center text-red-400">
+              <Ban className="w-8 h-8" />
+            </div>
+            <span className="px-3 py-1 rounded-full bg-red-500/15 border border-red-500/30 text-red-300 text-[11px] font-black uppercase tracking-widest">
+              System Termination Notice
+            </span>
+            <h1 className="font-display text-3xl sm:text-4xl font-black text-white tracking-tight">
+              AUCTION TERMINATED
+            </h1>
+            <p className="text-sm text-floodlight-muted leading-relaxed max-w-md">
+              All managers have exited this auction. The auction has been terminated and all participants have been disqualified.
+            </p>
+          </div>
+
+          <div className="rounded-2xl bg-night border border-night-border p-4 sm:p-5 space-y-3 text-xs">
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-floodlight-muted">Auction Room Code</span>
+              <span className="font-mono font-black text-sm text-flare tracking-widest px-2.5 py-0.5 rounded bg-flare/10 border border-flare/30">
+                {resolvedRoomCode}
+              </span>
+            </div>
+
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-floodlight-muted">Sport Type</span>
+              <span
+                className={`px-2.5 py-0.5 rounded font-black uppercase tracking-wider text-[11px] border ${resolvedSport === 'PKL'
+                  ? 'bg-orange-500/15 border-orange-500/30 text-orange-400'
+                  : 'bg-blue-500/15 border-blue-500/30 text-blue-400'
+                  }`}
+              >
+                {resolvedSport}
+              </span>
+            </div>
+
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-floodlight-muted">Termination Reason</span>
+              <span className="font-mono font-bold text-red-300">{resolvedReason}</span>
+            </div>
+
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-floodlight-muted">Terminated At</span>
+              <span className="font-mono font-semibold text-floodlight" suppressHydrationWarning>
+                {formattedTimestamp}
+              </span>
+            </div>
+
+            <div className="flex items-center justify-between gap-2 pt-2 border-t border-night-border">
+              <span className="text-floodlight-muted">Disqualification Status</span>
+              <span className="px-2.5 py-0.5 rounded-full bg-red-500/20 border border-red-500/40 text-red-300 font-black uppercase tracking-wider text-[11px]">
+                DISQUALIFIED
+              </span>
+            </div>
+          </div>
+
+          {participatingManagers.length > 0 && (
+            <div className="rounded-2xl bg-night/70 border border-night-border p-4 space-y-2">
+              <div className="text-[11px] font-bold uppercase tracking-wider text-floodlight-muted">
+                Participating Managers ({participatingManagers.length})
+              </div>
+              <div className="space-y-1.5 max-h-40 overflow-y-auto">
+                {participatingManagers.map(p => (
+                  <div
+                    key={p.id}
+                    className="flex items-center justify-between text-xs px-3 py-2 rounded-xl bg-night-raised border border-night-border/70"
+                  >
+                    <div className="flex items-center gap-2 min-w-0">
+                      <span
+                        className="w-2.5 h-2.5 rounded-full shrink-0"
+                        style={{ backgroundColor: p.team_color || p.franchise?.color || '#EF4444' }}
+                      />
+                      <span className="font-bold text-floodlight truncate">
+                        {p.display_name}
+                        {(p.team_name || p.franchise?.name) && (
+                          <span className="text-floodlight-muted font-normal ml-1">
+                            ({p.team_short_code || p.franchise?.short_code || p.team_name || p.franchise?.name})
+                          </span>
+                        )}
+                      </span>
+                    </div>
+                    <span className="text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded bg-red-500/15 border border-red-500/30 text-red-400 shrink-0">
+                      {p.participation_status || 'DISQUALIFIED'}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          <div className="pt-2 flex justify-center">
+            <button
+              type="button"
+              onClick={() => router.push('/')}
+              className="w-full sm:w-auto px-8 py-3.5 rounded-full bg-flare hover:bg-flare-hover text-[#17130A] font-extrabold text-sm shadow-flare flex items-center justify-center gap-2 transition-all active:scale-[0.98]"
+            >
+              <Home className="w-4 h-4" />
+              <span>Return to Dashboard</span>
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   if (!isJoined || !auctionState) {
     return (
@@ -632,22 +995,19 @@ export default function RoomPage() {
     <div className="min-h-screen flex flex-col justify-between bg-[#08090B] text-floodlight selection:bg-flare selection:text-black">
       <div id="accessibility-announcer" className="sr-only" aria-live="polite" />
 
-      {/* Space-Efficient Dedicated Top Bar (Replaces duplicate marketing header) */}
-      <header className="sticky top-0 z-40 bg-[#08090B]/95 backdrop-blur-md border-b border-night-border px-3 py-2 sm:px-6 shadow-sm">
+      {/* Space-Efficient Dedicated Top Bar with Permanent Exit Button (z-[60] so it remains accessible during modals & overlays) */}
+      <header className="sticky top-0 z-[60] bg-[#08090B]/95 backdrop-blur-md border-b border-night-border px-3 py-2 sm:px-6 shadow-sm">
         <div className="max-w-7xl mx-auto flex items-center justify-between gap-2 sm:gap-4">
-          {/* Left: Exit/Leave & Room Code */}
+          {/* Left: Exit Auction & Room Code */}
           <div className="flex items-center gap-2 sm:gap-3 min-w-0">
             <button
-              onClick={() => {
-                if (window.confirm('Are you sure you want to leave this room?')) {
-                  router.push('/');
-                }
-              }}
-              className="p-1.5 sm:px-2.5 sm:py-1 rounded-lg bg-night-raised hover:bg-night-border border border-night-border text-floodlight-muted hover:text-white text-xs font-semibold flex items-center gap-1 transition-colors"
-              title="Leave Room"
+              onClick={() => setIsExitModalOpen(true)}
+              className="px-2.5 py-1.5 sm:px-3 sm:py-1.5 rounded-lg bg-red-500/10 hover:bg-red-500/20 border border-red-500/30 hover:border-red-500/60 text-red-400 text-xs font-bold flex items-center gap-1.5 transition-all shadow-sm active:scale-95"
+              title="Exit this auction room"
+              aria-label="Exit Auction"
             >
-              <LogOut className="w-3.5 h-3.5 text-hammer" />
-              <span className="hidden sm:inline">Leave</span>
+              <LogOut className="w-3.5 h-3.5" />
+              <span>Exit</span>
             </button>
 
             <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-night-raised border border-night-border">
@@ -664,12 +1024,25 @@ export default function RoomPage() {
 
             {auctionState?.phase !== 'lobby' && (
               <span className="hidden md:inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-flare/10 border border-flare/30 text-flare text-[11px] font-bold">
-                <span>{auctionState?.round_number === 2 ? 'Accelerated' : 'Round 1'} · Player {(auctionState?.current_player_index ?? 0) + 1} of {auctionState?.total_pool_count ?? 274}</span>
-                {auctionState?.current_category && (
-                  <span className="px-1.5 py-0.5 rounded bg-flare/20 text-white font-extrabold uppercase tracking-wider text-[9px]">
-                    {auctionState.current_category}
-                  </span>
-                )}
+                <span>
+                  {currentStage === 'trading_window'
+                    ? 'Trade Round'
+                    : currentStage === 'squad_evaluation' ||
+                      currentStage === 'playing_xi_selection' ||
+                      currentStage === 'playing_xi_evaluation' ||
+                      currentStage === 'championship_recap' ||
+                      auctionState?.phase === 'completed'
+                      ? 'Final Results'
+                      : auctionState?.round_number === 2
+                        ? `Round 2 · Player ${(auctionState?.current_player_index ?? 0) + 1} of ${auctionState?.total_pool_count ?? totalSportPoolSize}`
+                        : `Round 1 · Player ${(auctionState?.current_player_index ?? 0) + 1} of ${auctionState?.total_pool_count ?? totalSportPoolSize}`}
+                </span>
+                {auctionState?.current_category &&
+                  (currentStage === 'main_auction' || currentStage === 'unsold_auction') && (
+                    <span className="px-1.5 py-0.5 rounded bg-flare/20 text-white font-extrabold uppercase tracking-wider text-[9px]">
+                      {auctionState.current_category}
+                    </span>
+                  )}
               </span>
             )}
           </div>
@@ -737,6 +1110,63 @@ export default function RoomPage() {
           </div>
         </div>
       </header>
+
+      {/* Lifecycle Stage Progress Indicator (ROUND 1 -> ROUND 2 -> TRADE ROUND -> FINAL RESULTS) */}
+      {auctionState?.phase !== 'lobby' && (
+        <div
+          data-testid="lifecycle-stage-bar"
+          className="bg-[#0B0D11] border-b border-night-border/70 px-2 py-1.5 sm:px-6"
+        >
+          <div className="max-w-7xl mx-auto flex flex-wrap items-center justify-center gap-1 sm:gap-2.5 text-[9px] sm:text-[11px] font-bold tracking-wider uppercase">
+            {(() => {
+              const r1Done = Boolean(auctionState.round1_completed);
+              const r2Done = Boolean(auctionState.round2_completed);
+              const tDone = Boolean(auctionState.trading_completed);
+              const activeKey =
+                currentStage === 'championship_recap' ||
+                  auctionState.phase === 'completed' ||
+                  currentStage === 'squad_evaluation' ||
+                  currentStage === 'playing_xi_selection' ||
+                  currentStage === 'playing_xi_evaluation'
+                  ? 'final'
+                  : currentStage === 'trading_window'
+                    ? 'trade'
+                    : currentStage === 'unsold_auction' || auctionState.round_number === 2
+                      ? 'round2'
+                      : 'round1';
+
+              const steps = [
+                { key: 'round1', label: 'ROUND 1', done: r1Done },
+                { key: 'round2', label: 'ROUND 2', done: r2Done },
+                { key: 'trade', label: 'TRADE ROUND', done: tDone },
+                { key: 'final', label: 'FINAL RESULTS', done: auctionState.phase === 'completed' },
+              ];
+
+              return steps.map((st, idx) => {
+                const isActive = activeKey === st.key;
+                return (
+                  <React.Fragment key={st.key}>
+                    <span
+                      className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full border transition-colors ${isActive
+                        ? 'bg-flare/20 border-flare text-flare shadow-sm'
+                        : st.done
+                          ? 'bg-turf/15 border-turf/40 text-turf'
+                          : 'bg-night border-night-border/60 text-floodlight-subtle'
+                        }`}
+                    >
+                      {st.done && !isActive && <Check className="w-3 h-3" />}
+                      <span>{st.label}</span>
+                    </span>
+                    {idx < steps.length - 1 && (
+                      <span className="text-floodlight-subtle/60">→</span>
+                    )}
+                  </React.Fragment>
+                );
+              });
+            })()}
+          </div>
+        </div>
+      )}
 
       {/* Reconnecting banner */}
       {!isConnected && (
@@ -908,11 +1338,10 @@ export default function RoomPage() {
                             setTeamColorInput(color);
                             setHasEditedName(true);
                           }}
-                          className={`w-7 h-7 rounded-full transition-transform border-2 relative flex items-center justify-center ${
-                            isSelected
-                              ? 'scale-125 border-white ring-2 ring-flare shadow-md'
-                              : 'border-transparent hover:scale-110'
-                          }`}
+                          className={`w-7 h-7 rounded-full transition-transform border-2 relative flex items-center justify-center ${isSelected
+                            ? 'scale-125 border-white ring-2 ring-flare shadow-md'
+                            : 'border-transparent hover:scale-110'
+                            }`}
                           style={{ backgroundColor: color }}
                           title={color}
                         >
@@ -967,11 +1396,23 @@ export default function RoomPage() {
                     onChange={e => handleUpdateSettings({ purse: Number(e.target.value) })}
                     className="w-full bg-night-raised border border-night-border rounded-lg p-2 text-floodlight font-semibold"
                   >
-                    <option value={80_00_00_000}>₹80.00 Cr</option>
-                    <option value={90_00_00_000}>₹90.00 Cr</option>
-                    <option value={100_00_00_000}>₹100.00 Cr</option>
-                    <option value={120_00_00_000}>₹120.00 Cr</option>
-                    <option value={150_00_00_000}>₹150.00 Cr</option>
+                    {settings.sport_type === 'PKL' ? (
+                      <>
+                        <option value={4_00_00_000}>₹4.00 Cr</option>
+                        <option value={4_50_00_000}>₹4.50 Cr</option>
+                        <option value={5_00_00_000}>₹5.00 Cr</option>
+                        <option value={6_00_00_000}>₹6.00 Cr</option>
+                        <option value={7_00_00_000}>₹7.00 Cr</option>
+                      </>
+                    ) : (
+                      <>
+                        <option value={80_00_00_000}>₹80.00 Cr</option>
+                        <option value={90_00_00_000}>₹90.00 Cr</option>
+                        <option value={100_00_00_000}>₹100.00 Cr</option>
+                        <option value={120_00_00_000}>₹120.00 Cr</option>
+                        <option value={150_00_00_000}>₹150.00 Cr</option>
+                      </>
+                    )}
                   </select>
                 </div>
 
@@ -984,10 +1425,21 @@ export default function RoomPage() {
                     onChange={e => handleUpdateSettings({ squad_size: Number(e.target.value) })}
                     className="w-full bg-night-raised border border-night-border rounded-lg p-2 text-floodlight font-semibold"
                   >
-                    <option value={15}>15 Players</option>
-                    <option value={18}>18 Players</option>
-                    <option value={20}>20 Players</option>
-                    <option value={25}>25 Players</option>
+                    {settings.sport_type === 'PKL' ? (
+                      <>
+                        <option value={12}>12 Players</option>
+                        <option value={14}>14 Players</option>
+                        <option value={16}>16 Players</option>
+                        <option value={18}>18 Players</option>
+                      </>
+                    ) : (
+                      <>
+                        <option value={15}>15 Players</option>
+                        <option value={18}>18 Players</option>
+                        <option value={20}>20 Players</option>
+                        <option value={25}>25 Players</option>
+                      </>
+                    )}
                   </select>
                 </div>
 
@@ -1016,7 +1468,11 @@ export default function RoomPage() {
                     onChange={e => handleUpdateSettings({ order_type: e.target.value as any })}
                     className="w-full bg-night-raised border border-night-border rounded-lg p-2 text-floodlight font-semibold"
                   >
-                    <option value="role">By Role (Batters, Bowlers, All-Rounders, Wicket Keepers)</option>
+                    <option value="role">
+                      {settings.sport_type === 'PKL'
+                        ? 'By Role (Raiders, Defenders, All-Rounders)'
+                        : 'By Role (Batters, Bowlers, All-Rounders, Wicket Keepers)'}
+                    </option>
                     <option value="random">Random (Surprise)</option>
                     <option value="base_price">By Base Price (High to Low)</option>
                   </select>
@@ -1129,71 +1585,74 @@ export default function RoomPage() {
       )}
 
       {/* ============================================================ */}
-      {/* 2. UNSOLD AUCTION STAGE                                      */}
+      {/* 2. UNSOLD AUCTION STAGE (Round 2 Configuration / Break)      */}
       {/* ============================================================ */}
-      {currentStage === 'unsold_auction' && auctionState.phase !== 'lobby' && (
-        <UnsoldAuctionBoard
-          unsoldPlayers={auctionState.current_player ? [auctionState.current_player] : []}
-          isHost={isHost}
-          onReEnter={(playerIds, orderType) => {
-            const socket = getSocket();
-            socket.emit('unsold_pool_configure', {
-              room_code: roomCode,
-              session_id: sessionId,
-              player_ids: playerIds,
-              order_type: orderType,
-            });
-            handleTransitionStage('unsold_auction');
-          }}
-          onProceedToTrading={() => handleTransitionStage('trading_window', 180)}
-          onOpenDossier={player => setInspectPlayer(player)}
-        />
-      )}
+      {currentStage === 'unsold_auction' &&
+        (auctionState.phase === 'unsold_round' || auctionState.phase === 'round_break') && (
+          <UnsoldAuctionBoard
+            unsoldPlayers={auctionState.current_player ? [auctionState.current_player] : []}
+            isHost={isHost}
+            onReEnter={(playerIds, orderType) => {
+              const socket = getSocket();
+              socket.emit('unsold_pool_configure', {
+                room_code: roomCode,
+                session_id: sessionId,
+                player_ids: playerIds,
+                order_type: orderType,
+              });
+            }}
+            onOpenDossier={player => setInspectPlayer(player)}
+          />
+        )}
 
       {/* ============================================================ */}
-      {/* 3. TRADING WINDOW STAGE                                      */}
+      {/* 3. TRADING WINDOW STAGE (Strict Round 1 + Round 2 Gate)      */}
       {/* ============================================================ */}
-      {currentStage === 'trading_window' && auctionState.phase !== 'lobby' && (
-        <TradingWindowView
-          participants={participants}
-          currentUserId={sessionId}
-          isHost={isHost}
-          roomCode={roomCode}
-          pendingOffers={pendingTradeOffers}
-          tradeHistory={completedTrades}
-          stageEndsAt={auctionState.stage_ends_at}
-          onProposeTrade={(targetParticipantId, offeredPlayerId, requestedPlayerId) => {
-            const socket = getSocket();
-            socket.emit('trade_propose', {
-              room_code: roomCode,
-              session_id: sessionId,
-              target_participant_id: targetParticipantId,
-              offered_player_id: offeredPlayerId,
-              requested_player_id: requestedPlayerId,
-            });
-          }}
-          onRespondTrade={(tradeId, action, counterPlayerId) => {
-            const socket = getSocket();
-            socket.emit('trade_respond', {
-              room_code: roomCode,
-              session_id: sessionId,
-              trade_id: tradeId,
-              action,
-              counter_player_id: counterPlayerId,
-            });
-          }}
-          onCancelTrade={tradeId => {
-            const socket = getSocket();
-            socket.emit('trade_cancel', {
-              room_code: roomCode,
-              session_id: sessionId,
-              trade_id: tradeId,
-            });
-          }}
-          onCloseTradingWindow={() => handleTransitionStage('squad_evaluation')}
-          onOpenDossier={player => setInspectPlayer(player)}
-        />
-      )}
+      {currentStage === 'trading_window' &&
+        auctionState.phase === 'trading' &&
+        auctionState.round1_completed === true &&
+        auctionState.round2_completed === true &&
+        auctionState.trading_completed !== true && (
+          <TradingWindowView
+            participants={participants}
+            currentUserId={sessionId}
+            isHost={isHost}
+            roomCode={roomCode}
+            pendingOffers={pendingTradeOffers}
+            tradeHistory={completedTrades}
+            stageEndsAt={auctionState.stage_ends_at}
+            onProposeTrade={(targetParticipantId, offeredPlayerId, requestedPlayerId) => {
+              const socket = getSocket();
+              socket.emit('trade_propose', {
+                room_code: roomCode,
+                session_id: sessionId,
+                target_participant_id: targetParticipantId,
+                offered_player_id: offeredPlayerId,
+                requested_player_id: requestedPlayerId,
+              });
+            }}
+            onRespondTrade={(tradeId, action, counterPlayerId) => {
+              const socket = getSocket();
+              socket.emit('trade_respond', {
+                room_code: roomCode,
+                session_id: sessionId,
+                trade_id: tradeId,
+                action,
+                counter_player_id: counterPlayerId,
+              });
+            }}
+            onCancelTrade={tradeId => {
+              const socket = getSocket();
+              socket.emit('trade_cancel', {
+                room_code: roomCode,
+                session_id: sessionId,
+                trade_id: tradeId,
+              });
+            }}
+            onCloseTradingWindow={() => handleTransitionStage('squad_evaluation')}
+            onOpenDossier={player => setInspectPlayer(player)}
+          />
+        )}
 
       {/* ============================================================ */}
       {/* 4. POST-AUCTION SQUAD EVALUATION STAGE                       */}
@@ -1273,11 +1732,16 @@ export default function RoomPage() {
       {/* ============================================================ */}
       {/* 7. LIVE AUCTION SCOREBOARD VIEW                             */}
       {/* ============================================================ */}
-      {(currentStage === 'main_auction' || currentStage === 'lobby') &&
+      {(currentStage === 'main_auction' || currentStage === 'unsold_auction' || currentStage === 'lobby') &&
         auctionState.phase !== 'lobby' &&
         auctionState.phase !== 'starting' &&
+        auctionState.phase !== 'unsold_round' &&
+        auctionState.phase !== 'round_break' &&
         auctionState.phase !== 'completed' && (
-          <div className="flex-1 flex flex-col justify-between max-w-7xl mx-auto w-full px-3 sm:px-6 pt-2 pb-2 space-y-3">
+          <div
+            className={`flex-1 flex flex-col justify-between max-w-7xl mx-auto w-full px-3 sm:px-6 pt-2 space-y-3 ${settings?.sport_type === 'PKL' ? 'pb-28 sm:pb-32' : 'pb-2'
+              }`}
+          >
             {/* Spectator Alert */}
             {isSpectator && (
               <div className="bg-night-raised border border-flare/40 px-4 py-2 rounded-card text-xs text-floodlight flex items-center justify-between">
@@ -1296,8 +1760,36 @@ export default function RoomPage() {
               </div>
             )}
 
+            {/* Auction Paused Banner */}
+            {auctionState.is_paused && (
+              <div
+                data-testid="auction-paused-banner"
+                className="bg-amber-500/15 border border-amber-400/60 rounded-xl px-4 py-2.5 text-amber-200 font-semibold text-xs flex flex-wrap items-center justify-between gap-2 shadow-md"
+              >
+                <div className="flex items-center gap-2">
+                  <AlertTriangle className="w-4 h-4 text-amber-400 flex-shrink-0" />
+                  <span>
+                    AUCTION PAUSED — Countdown and bidding are temporarily paused.
+                  </span>
+                </div>
+                {isHost && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const socket = getSocket();
+                      socket.emit('host_resume', { room_code: roomCode, session_id: sessionId });
+                    }}
+                    className="px-3 py-1 rounded-pill bg-turf hover:bg-turf/90 text-white font-bold text-xs flex items-center gap-1.5 transition-transform active:scale-95"
+                  >
+                    <Play className="w-3.5 h-3.5" />
+                    <span>Resume Auction</span>
+                  </button>
+                )}
+              </div>
+            )}
+
             {/* Announcing Phase Spotlight Banner */}
-            {auctionState.phase === 'announcing' && (
+            {auctionState.phase === 'announcing' && !auctionState.is_paused && (
               <div className="bg-gradient-to-r from-flare/20 via-flare/30 to-flare/20 border border-flare rounded-xl px-4 py-2.5 text-center text-flare font-bold text-xs flex items-center justify-center gap-2 animate-pulse shadow-flare">
                 <Sparkles className="w-4 h-4 text-flare animate-spin" />
                 <span>SPOTLIGHT ANNOUNCEMENT IN PROGRESS — BIDDING WILL START AUTOMATICALLY</span>
@@ -1314,6 +1806,7 @@ export default function RoomPage() {
                   timerEndsAt={auctionState.timer_ends_at}
                   timerSeconds={settings.timer_seconds}
                   serverTime={auctionState.server_time}
+                  pauseRemainingMs={auctionState.pause_remaining_ms}
                   isPaused={auctionState.is_paused}
                   passCount={auctionState.pass_count}
                   totalEligiblePassers={auctionState.total_eligible_passers}
@@ -1364,15 +1857,18 @@ export default function RoomPage() {
             )}
 
             {/* Gavel Overlay */}
-            {(auctionState.phase === 'sold' || auctionState.phase === 'unsold') && (
-              <GavelOverlay
-                phase={auctionState.phase}
-                player={auctionState.current_player}
-                winner={participants.find(p => p.id === auctionState.current_bidder_id)}
-                price={auctionState.current_bid}
-                currentUserId={sessionId}
-              />
-            )}
+            {(auctionState.phase === 'sold' || auctionState.phase === 'unsold') &&
+              dismissedResultPlayerId !== auctionState.current_player?.id && (
+                <GavelOverlay
+                  key={`${auctionState.current_player?.id || 'none'}-${auctionState.phase}`}
+                  phase={auctionState.phase}
+                  player={auctionState.current_player}
+                  winner={participants.find(p => p.id === auctionState.current_bidder_id)}
+                  price={auctionState.current_bid}
+                  currentUserId={sessionId}
+                  onDismiss={handleGavelDismiss}
+                />
+              )}
 
             {/* Floating Emoji Reactions Vertical Rail */}
             <div className="fixed right-2 sm:right-4 bottom-28 sm:bottom-32 z-40">
@@ -1418,6 +1914,7 @@ export default function RoomPage() {
           selectedIds={settings.selected_player_ids}
           onSave={newIds => handleUpdateSettings({ selected_player_ids: newIds })}
           onClose={() => setIsPoolModalOpen(false)}
+          sportType={settings.sport_type}
         />
       )}
 
@@ -1432,6 +1929,7 @@ export default function RoomPage() {
         <HostControlsModal
           isPaused={auctionState.is_paused}
           currentStage={currentStage}
+          auctionState={auctionState}
           participants={participants}
           currentUserId={sessionId}
           onPause={() => {
@@ -1477,6 +1975,15 @@ export default function RoomPage() {
           onClose={() => setIsAudioSettingsOpen(false)}
         />
       )}
+
+      {/* Exit Auction Confirmation Modal */}
+      <ExitAuctionModal
+        isOpen={isExitModalOpen}
+        roomCode={roomCode}
+        isHost={isHost}
+        onClose={() => setIsExitModalOpen(false)}
+        onConfirmExit={handleConfirmExit}
+      />
     </div>
   );
 }

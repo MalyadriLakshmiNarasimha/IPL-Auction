@@ -7,6 +7,7 @@ interface CircularTimerRingProps {
   timerSeconds: number;
   timerEndsAt: number;
   serverTime?: number;
+  pauseRemainingMs?: number;
   isPaused: boolean;
   size?: number;
   roleColor?: string;
@@ -20,6 +21,8 @@ interface CircularTimerRingProps {
 export const CircularTimerRing: React.FC<CircularTimerRingProps> = ({
   timerSeconds,
   timerEndsAt,
+  serverTime,
+  pauseRemainingMs,
   isPaused,
   size = 92,
   roleColor = '#DCC477',
@@ -28,28 +31,47 @@ export const CircularTimerRing: React.FC<CircularTimerRingProps> = ({
   const [remaining, setRemaining] = useState<number>(timerSeconds);
   const [progress, setProgress] = useState<number>(1);
   const lastHeartbeatSec = useRef<number>(-1);
+  const serverOffsetRef = useRef<number>(0);
 
   useEffect(() => {
     setIsMounted(true);
   }, []);
 
   useEffect(() => {
-    if (timerEndsAt <= 0) {
+    if (typeof serverTime === 'number' && serverTime > 0) {
+      serverOffsetRef.current = serverTime - Date.now();
+    }
+  }, [serverTime]);
+
+  useEffect(() => {
+    if (timerEndsAt <= 0 && !isPaused) {
       setRemaining(timerSeconds);
       setProgress(1);
       return;
     }
-    if (isPaused) return;
+
+    const totalMs = timerSeconds * 1000;
+
+    if (isPaused) {
+      const adjustedNow = Date.now() + serverOffsetRef.current;
+      const frozenMs =
+        typeof pauseRemainingMs === 'number'
+          ? Math.max(0, pauseRemainingMs)
+          : timerEndsAt > 0
+          ? Math.max(0, timerEndsAt - adjustedNow)
+          : totalMs;
+      setRemaining(Math.ceil(frozenMs / 1000));
+      setProgress(totalMs > 0 ? Math.min(1, Math.max(0, frozenMs / totalMs)) : 0);
+      return;
+    }
 
     const updateTimer = () => {
-      const now = Date.now();
+      const now = Date.now() + serverOffsetRef.current;
       const remainingMs = Math.max(0, timerEndsAt - now);
       const remainingSec = Math.ceil(remainingMs / 1000);
       setRemaining(remainingSec);
 
-      const totalMs = timerSeconds * 1000;
-      const currentMs = Math.max(0, timerEndsAt - now);
-      const newProgress = totalMs > 0 ? Math.min(1, Math.max(0, currentMs / totalMs)) : 0;
+      const newProgress = totalMs > 0 ? Math.min(1, Math.max(0, remainingMs / totalMs)) : 0;
       setProgress(newProgress);
 
       // Play heartbeat sound on last 5 seconds
@@ -63,7 +85,7 @@ export const CircularTimerRing: React.FC<CircularTimerRingProps> = ({
     const interval = setInterval(updateTimer, 100);
 
     return () => clearInterval(interval);
-  }, [timerEndsAt, isPaused, timerSeconds]);
+  }, [timerEndsAt, isPaused, timerSeconds, pauseRemainingMs]);
 
   const strokeWidth = 6;
   const radius = (size - strokeWidth) / 2;

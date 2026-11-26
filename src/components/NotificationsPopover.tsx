@@ -72,9 +72,11 @@ export const NotificationsPopover: React.FC = () => {
       }
     };
 
+    window.addEventListener('ipl-auth-change', handleAuthChange);
     window.addEventListener('auth-change', handleAuthChange);
     window.addEventListener('storage', handleStorageChange);
     return () => {
+      window.removeEventListener('ipl-auth-change', handleAuthChange);
       window.removeEventListener('auth-change', handleAuthChange);
       window.removeEventListener('storage', handleStorageChange);
     };

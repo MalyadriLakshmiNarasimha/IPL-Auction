@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { AUTH_COOKIE_NAME, validateSessionToken } from '@/lib/auth';
 import { db } from '@/lib/db';
 import { DEFAULT_ROOM_SETTINGS, DEFAULT_PKL_ROOM_SETTINGS } from '@/shared/constants';
+import { ALL_PLAYERS } from '@/shared/player-data';
+import { ALL_PKL_PLAYERS } from '@/shared/pkl-player-data';
 
 export const dynamic = 'force-dynamic';
 
@@ -106,12 +108,19 @@ export async function POST(req: NextRequest) {
         name: roomName,
         host_user_id: sessionData.user.id,
         status: 'lobby',
+        sport_type: isPkl ? 'PKL' : 'IPL',
       },
     });
 
     // Create initial room snapshot in database so Socket.IO server can hydrate it on join
     try {
-      const roomSettings = isPkl ? DEFAULT_PKL_ROOM_SETTINGS : DEFAULT_ROOM_SETTINGS;
+      const baseSettings = isPkl ? DEFAULT_PKL_ROOM_SETTINGS : DEFAULT_ROOM_SETTINGS;
+      const poolIds = (isPkl ? ALL_PKL_PLAYERS : ALL_PLAYERS).map(p => p.id);
+      const roomSettings = {
+        ...baseSettings,
+        selected_player_ids: poolIds,
+        sport_type: isPkl ? 'PKL' : 'IPL',
+      };
       await db.roomSnapshot.create({
         data: {
           room_code: code,
@@ -124,32 +133,49 @@ export async function POST(req: NextRequest) {
             host_session_id: sessionData.user.id,
             host_disconnect_time: null,
             settings: roomSettings,
-              participants: [{
-                id: sessionData.user.id,
-                room_code: code,
-                display_name: sessionData.user.name,
-                is_host: true,
-                is_connected: false,
-                purse_remaining: roomSettings.purse,
-                total_spent: 0,
-                squad: [],
-                role_counts: isPkl
-                  ? { Raider: 0, Defender: 0, 'All-Rounder': 0 }
-                  : { Batsman: 0, Bowler: 0, 'All-Rounder': 0, 'Wicket-Keeper': 0 },
-                overseas_count: 0,
-                runtm_joined: Date.now(),
-                last_active: Date.now(),
-              }],
-              auction_state: {
-                phase: 'lobby',
-                current_player: null,
-                current_bid: 0,
-                current_bidder_id: null,
-                timer_remaining: roomSettings.timer_seconds,
-                is_paused: false,
-                bid_history: [],
-                announcement_text: null,
-              },
+            participants: [{
+              id: sessionData.user.id,
+              room_code: code,
+              display_name: sessionData.user.name,
+              is_host: true,
+              is_connected: false,
+              is_spectator: false,
+              role: 'host',
+              last_active: Date.now(),
+              franchise: null,
+              purse_remaining: roomSettings.purse,
+              squad: [],
+              has_withdrawn_current: false,
+              amount_spent: 0,
+              avg_purchase_price: 0,
+              spent_by_role: isPkl ? { RAID: 0, DEF: 0, AR: 0 } : { BAT: 0, BOWL: 0, AR: 0, WK: 0 },
+              role_counts: isPkl ? { RAID: 0, DEF: 0, AR: 0, overseas: 0 } : { BAT: 0, BOWL: 0, AR: 0, WK: 0, overseas: 0 },
+              squad_shortages: [],
+              squad_excesses: [],
+            }],
+            auction_state: {
+              room_code: code,
+              phase: 'lobby',
+              stage: 'lobby',
+              round_number: 1,
+              current_player_index: 0,
+              current_player: null,
+              current_bid: 0,
+              current_bidder_id: null,
+              timer_seconds: roomSettings.timer_seconds,
+              timer_ends_at: 0,
+              server_time: Date.now(),
+              bids: [],
+              withdrawn_participant_ids: [],
+              pass_count: 0,
+              total_eligible_passers: 0,
+              passed_participant_ids: [],
+              total_pool_count: poolIds.length,
+              remaining_pool_count: poolIds.length,
+              sold_count: 0,
+              unsold_count: 0,
+              is_paused: false,
+            },
             pool: [],
             unsold_pool: [],
             all_completed_bids: [],

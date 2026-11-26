@@ -54,6 +54,7 @@ export interface PklRawStats {
   super_10s?: number;
   high_5s?: number;
   super_tackles?: number;
+  tackles?: number;
   do_or_die_points?: number;
   tackle_success_rate?: number;
   not_out_percentage?: number;

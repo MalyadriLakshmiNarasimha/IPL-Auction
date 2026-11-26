@@ -1,6 +1,6 @@
 import http from 'http';
 import { Server as SocketIOServer } from 'socket.io';
-import { RoomManager } from './room';
+import { RoomManager, AUCTION_TERMINATED_ERROR, ALL_MANAGERS_EXITED_REASON, ALL_MANAGERS_EXITED_MESSAGE } from './room';
 import { initDatabase, initDatabaseWithRetry, validateProductionEnv, getPersistedResults } from './db';
 import { applyCorsHeaders, isAllowedOrigin, getAllowedOrigins } from './cors';
 import { ClientToServerEvents, ServerToClientEvents, Reaction, ChatMessage } from '../src/shared/types';
@@ -19,23 +19,15 @@ import {
 } from '../src/lib/auth';
 import { db, prisma, checkMySqlConnection } from '../src/lib/db';
 import { getPlayerById } from '../src/shared/player-data';
+import { getPklPlayerById, getPklPlayerStats } from '../src/shared/pkl-player-data';
 import { getIplCareerStats, getIplSeasonStats, resolvePlayerId } from '../src/shared/player-career-data';
 import { parseCookie } from 'cookie';
 import dotenv from 'dotenv';
 
 dotenv.config();
 
-if (process.env.NODE_ENV === 'production' || process.env.RENDER) {
-  if (!process.env.CLIENT_ORIGIN) {
-    process.env.CLIENT_ORIGIN = 'https://ipl-auction-live-game.vercel.app';
-  }
-  if (!process.env.SESSION_SECRET && !process.env.JWT_SECRET) {
-    process.env.SESSION_SECRET = 'ipl_auction_production_default_session_secret_2026_super_secure';
-  }
-}
-
 const PORT = parseInt(process.env.PORT || '3001', 10);
-const CLIENT_ORIGIN = process.env.CLIENT_ORIGIN || (process.env.NODE_ENV === 'production' ? 'https://ipl-auction-live-game.vercel.app' : 'http://localhost:3000');
+const CLIENT_ORIGIN = process.env.CLIENT_ORIGIN || (process.env.NODE_ENV === 'production' ? '' : 'http://localhost:3000');
 
 const server = http.createServer(async (req, res) => {
   // Centralized CORS policy enforcement
@@ -74,6 +66,17 @@ const server = http.createServer(async (req, res) => {
       req.on('error', () => resolve({}));
     });
   };
+
+  // Lightweight development-only HTTP API failure monitor
+  if (process.env.NODE_ENV === 'development') {
+    const origWriteHead = res.writeHead.bind(res);
+    res.writeHead = ((statusCode: number, ...rest: any[]) => {
+      if (statusCode >= 400) {
+        console.warn(`[DEV-MONITOR][SERVER-API] ${req.method || 'GET'} ${url.pathname} -> HTTP ${statusCode}`);
+      }
+      return origWriteHead(statusCode, ...rest);
+    }) as any;
+  }
 
   // Health check: pings DB and returns 200 (connected) or 503 (disconnected)
   if (url.pathname === '/health') {
@@ -256,8 +259,9 @@ const server = http.createServer(async (req, res) => {
     try {
       const parsed = await parseJsonBody();
 
-      // Allow fallback for automated bot stress tests, otherwise require verified authenticated user
-      const isBotTest = typeof parsed.host_session_id === 'string' && parsed.host_session_id.startsWith('bot-');
+      // Allow bot simulation ONLY in test or explicit local non-production bot test mode
+      const allowBotAuth = process.env.NODE_ENV === 'test' || (process.env.NODE_ENV !== 'production' && process.env.ALLOW_BOT_SIMULATION === 'true');
+      const isBotTest = allowBotAuth && typeof parsed.host_session_id === 'string' && parsed.host_session_id.startsWith('bot-');
       if (!authenticatedUser && !isBotTest) {
         res.writeHead(401, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ error: 'Authentication required to create a room.' }));
@@ -266,9 +270,10 @@ const server = http.createServer(async (req, res) => {
 
       const hostId = authenticatedUser ? authenticatedUser.id : parsed.host_session_id;
       const hostName = authenticatedUser ? authenticatedUser.name : (parsed.host_display_name || 'Host');
+      const sportType = parsed.sport_type === 'PKL' ? 'PKL' : 'IPL';
       const roomName = typeof parsed.room_name === 'string' && parsed.room_name.trim().length > 0
         ? parsed.room_name.trim().slice(0, 50)
-        : 'IPL Auction Room';
+        : (sportType === 'PKL' ? 'PKL Auction Room' : 'IPL Auction Room');
 
       // Generate unique 6-character room code (uppercase letters/numbers without confusing chars 0/O, 1/I)
       const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
@@ -280,17 +285,9 @@ const server = http.createServer(async (req, res) => {
           code += chars.charAt(Math.floor(Math.random() * chars.length));
         }
         attempts++;
-      } while (roomManager.getRoom(code) && attempts < 10);
+      } while ((roomManager.getRoom(code) || await db.room.findUnique({ where: { room_code: code } }).catch(() => null)) && attempts < 10);
 
-      const room = roomManager.createRoom(
-        code,
-        roomName,
-        hostId,
-        hostName,
-        parsed.sport_type === 'PKL' ? 'PKL' : 'IPL'
-      );
-
-      // Persist room in database (upsert bot user if running automated bot simulator)
+      // Persist room in database FIRST so FK constraints on commentary/participants succeed cleanly
       try {
         if (isBotTest) {
           try {
@@ -310,18 +307,43 @@ const server = http.createServer(async (req, res) => {
         await db.room.create({
           data: {
             room_code: code,
-            name: room.name,
+            name: roomName,
             host_user_id: hostId,
             status: 'lobby',
+            sport_type: sportType,
           },
         });
       } catch (dbErr: any) {
         if (process.env.NODE_ENV !== 'test') {
-          roomManager.removeRoom(code);
           res.writeHead(503, { 'Content-Type': 'application/json' });
           res.end(JSON.stringify({ error: 'Database unavailable: unable to persist room' }));
           return;
         }
+      }
+
+      const room = roomManager.createRoom(
+        code,
+        roomName,
+        hostId,
+        hostName,
+        sportType
+      );
+
+      // Save initial snapshot & host participant record so My Rooms reflects room immediately
+      roomManager.saveRoomSnapshot(code, 'room_created').catch(() => {});
+      if (authenticatedUser) {
+        db.roomParticipant.upsert({
+          where: { room_code_session_id: { room_code: code, session_id: hostId } },
+          create: {
+            room_code: code,
+            user_id: hostId,
+            session_id: hostId,
+            display_name: hostName,
+            is_host: true,
+            is_spectator: false,
+          },
+          update: { user_id: hostId, display_name: hostName, is_host: true },
+        }).catch(() => {});
       }
 
       res.writeHead(201, { 'Content-Type': 'application/json' });
@@ -347,14 +369,42 @@ const server = http.createServer(async (req, res) => {
           exists: true,
           room_code: room.room_code,
           name: room.name,
+          status: room.status || 'live',
           phase: room.auction_state.phase,
+          sport_type: room.settings.sport_type || 'IPL',
           participants_count: room.participants.size,
+          termination_reason: room.termination_reason ?? null,
+          terminated_at: room.terminated_at ?? null,
+          terminated_by_system: Boolean(room.terminated_by_system),
         })
       );
-    } else {
-      res.writeHead(404, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ exists: false, error: 'Room not found' }));
+      return;
     }
+
+    try {
+      const dbRoom: any = await db.room.findUnique({ where: { room_code: code } });
+      if (dbRoom) {
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(
+          JSON.stringify({
+            exists: true,
+            room_code: dbRoom.room_code,
+            name: dbRoom.name,
+            status: dbRoom.status,
+            phase: dbRoom.status === 'terminated' ? 'terminated' : dbRoom.status === 'completed' ? 'completed' : 'lobby',
+            sport_type: dbRoom.sport_type || 'IPL',
+            participants_count: 1,
+            termination_reason: dbRoom.termination_reason ?? null,
+            terminated_at: dbRoom.terminated_at ? new Date(dbRoom.terminated_at).getTime() : null,
+            terminated_by_system: Boolean(dbRoom.terminated_by_system),
+          })
+        );
+        return;
+      }
+    } catch {}
+
+    res.writeHead(404, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ exists: false, error: 'Room not found' }));
     return;
   }
 
@@ -393,6 +443,31 @@ const server = http.createServer(async (req, res) => {
     const player = getPlayerById(resolvedId);
 
     if (!player) {
+      const pklPlayer = getPklPlayerById(rawId);
+      if (pklPlayer) {
+        const pklStats = getPklPlayerStats(pklPlayer.id);
+        res.writeHead(200, {
+          'Content-Type': 'application/json',
+          'Cache-Control': 'public, max-age=3600, s-maxage=3600',
+        });
+        res.end(
+          JSON.stringify({
+            player_id: pklPlayer.id,
+            canonical_name: pklPlayer.name,
+            role: pklPlayer.role,
+            position_detail: pklPlayer.position_detail,
+            nationality: pklPlayer.nationality || pklPlayer.country,
+            team: pklPlayer.team,
+            sport: 'PKL',
+            status: pklStats?.data_status || 'VERIFIED_S12',
+            career: pklStats?.career || null,
+            season_12: pklStats?.season_12 || null,
+            stats_2026: pklPlayer.stats_2026,
+          })
+        );
+        return;
+      }
+
       res.writeHead(404, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({ error: `Player '${rawId}' not found in database registry`, status: 'MAPPING_ERROR' }));
       return;
@@ -463,9 +538,11 @@ io.use(async (socket, next) => {
       token = parsed[AUTH_COOKIE_NAME];
     }
 
+    const allowBotAuth = process.env.NODE_ENV === 'test' || (process.env.NODE_ENV !== 'production' && process.env.ALLOW_BOT_SIMULATION === 'true');
+
     if (!token) {
-      // In automated test runs with bots, accept bot-auth tokens
-      if (socket.handshake.auth?.isBotTest && socket.handshake.auth?.botUser) {
+      // In automated test runs with bots, accept bot-auth tokens strictly outside production
+      if (allowBotAuth && socket.handshake.auth?.isBotTest && socket.handshake.auth?.botUser) {
         (socket as any).user = socket.handshake.auth.botUser;
         return next();
       }
@@ -474,8 +551,8 @@ io.use(async (socket, next) => {
 
     const sessionData = await validateSessionToken(token);
     if (!sessionData || !sessionData.user) {
-      // Allow bot simulation test tokens
-      if (token.startsWith('bot_token_')) {
+      // Allow bot simulation test tokens strictly outside production
+      if (allowBotAuth && token.startsWith('bot_token_')) {
         const botId = token.replace('bot_token_', '');
         (socket as any).user = {
           id: botId,
@@ -529,18 +606,43 @@ io.on('connection', socket => {
     let room = roomManager.getRoom(boundRoomCode);
     if (!room) {
       try {
-        const dbRoom = await db.room.findUnique({ where: { room_code: boundRoomCode } });
+        const dbRoom: any = await db.room.findUnique({ where: { room_code: boundRoomCode } });
         if (dbRoom) {
           const restored = await roomManager.restoreRoomFromSnapshot(boundRoomCode);
           if (restored) {
             room = restored;
           } else {
-            room = roomManager.createRoom(dbRoom.room_code, dbRoom.name, dbRoom.host_user_id, 'Host');
+            room = roomManager.createRoom(
+              dbRoom.room_code,
+              dbRoom.name,
+              dbRoom.host_user_id,
+              'Host',
+              dbRoom.sport_type === 'PKL' ? 'PKL' : 'IPL'
+            );
+          }
+
+          // Ensure DB terminated status is authoritative even if snapshot was missing/older
+          if (dbRoom.status === 'terminated' && !roomManager.isRoomTerminated(room)) {
+            room.status = 'terminated';
+            room.termination_reason = dbRoom.termination_reason || ALL_MANAGERS_EXITED_REASON;
+            room.terminated_at = dbRoom.terminated_at ? new Date(dbRoom.terminated_at).getTime() : Date.now();
+            room.terminated_by_system = dbRoom.terminated_by_system ?? true;
+            room.auction_state.phase = 'terminated';
+            room.auction_state.status = 'terminated';
+            room.auction_state.termination_reason = room.termination_reason;
+            room.auction_state.terminated_at = room.terminated_at;
+            room.auction_state.terminated_by_system = room.terminated_by_system;
+            room.auction_state.termination_message = ALL_MANAGERS_EXITED_MESSAGE;
           }
         }
       } catch (err: any) {
         console.warn(`[SERVER room_join] Database lookup error for ${boundRoomCode}:`, err.message);
       }
+    }
+
+    if (room && roomManager.isRoomTerminated(room)) {
+      roomManager.joinRoom(boundRoomCode, userId, userName, socket.id, data.is_spectator || false);
+      return;
     }
 
     socket.join(boundRoomCode);
@@ -550,8 +652,22 @@ io.on('connection', socket => {
     }
   });
 
+  const rejectIfTerminated = (roomCode?: string): boolean => {
+    if (!roomCode) return false;
+    const room = roomManager.getRoom(roomCode);
+    if (room && roomManager.isRoomTerminated(room)) {
+      socket.emit('error_message', {
+        code: AUCTION_TERMINATED_ERROR,
+        message: `${AUCTION_TERMINATED_ERROR}: ${room.auction_state.termination_message || ALL_MANAGERS_EXITED_MESSAGE}`,
+      });
+      return true;
+    }
+    return false;
+  };
+
   socket.on('set_team_name', data => {
     if (!data?.room_code) return;
+    if (rejectIfTerminated(data.room_code)) return;
     const room = roomManager.getRoom(data.room_code);
     if (!room || !room.participants.has(userId)) return;
 
@@ -563,6 +679,7 @@ io.on('connection', socket => {
 
   socket.on('announcement_completed', data => {
     if (!data?.room_code) return;
+    if (rejectIfTerminated(data.room_code)) return;
     const room = roomManager.getRoom(data.room_code);
     if (!room || !room.participants.has(userId)) return;
 
@@ -571,6 +688,7 @@ io.on('connection', socket => {
 
   socket.on('franchise_pick', data => {
     if (!data?.room_code) return;
+    if (rejectIfTerminated(data.room_code)) return;
     const room = roomManager.getRoom(data.room_code);
     if (!room || !room.participants.has(userId)) return;
 
@@ -582,6 +700,7 @@ io.on('connection', socket => {
 
   socket.on('settings_update', data => {
     if (!data?.room_code) return;
+    if (rejectIfTerminated(data.room_code)) return;
     const room = roomManager.getRoom(data.room_code);
     if (!room || room.host_session_id !== userId) return;
 
@@ -590,6 +709,7 @@ io.on('connection', socket => {
 
   socket.on('start_auction', data => {
     if (!data?.room_code) return;
+    if (rejectIfTerminated(data.room_code)) return;
     const room = roomManager.getRoom(data.room_code);
     if (!room || room.host_session_id !== userId) return;
 
@@ -598,6 +718,7 @@ io.on('connection', socket => {
 
   socket.on('place_bid', data => {
     if (!data?.room_code) return;
+    if (rejectIfTerminated(data.room_code)) return;
     const room = roomManager.getRoom(data.room_code);
     if (!room || !room.participants.has(userId)) return;
 
@@ -612,6 +733,7 @@ io.on('connection', socket => {
 
   socket.on('withdraw_bid', data => {
     if (!data?.room_code) return;
+    if (rejectIfTerminated(data.room_code)) return;
     const room = roomManager.getRoom(data.room_code);
     if (!room || !room.participants.has(userId)) return;
 
@@ -620,6 +742,7 @@ io.on('connection', socket => {
 
   socket.on('pass_player', data => {
     if (!data?.room_code) return;
+    if (rejectIfTerminated(data.room_code)) return;
     const room = roomManager.getRoom(data.room_code);
     if (!room || !room.participants.has(userId)) return;
 
@@ -628,6 +751,7 @@ io.on('connection', socket => {
 
   socket.on('host_pause', data => {
     if (!data?.room_code) return;
+    if (rejectIfTerminated(data.room_code)) return;
     const room = roomManager.getRoom(data.room_code);
     if (!room || room.host_session_id !== userId) return;
 
@@ -636,6 +760,7 @@ io.on('connection', socket => {
 
   socket.on('host_resume', data => {
     if (!data?.room_code) return;
+    if (rejectIfTerminated(data.room_code)) return;
     const room = roomManager.getRoom(data.room_code);
     if (!room || room.host_session_id !== userId) return;
 
@@ -644,6 +769,7 @@ io.on('connection', socket => {
 
   socket.on('host_skip', data => {
     if (!data?.room_code) return;
+    if (rejectIfTerminated(data.room_code)) return;
     const room = roomManager.getRoom(data.room_code);
     if (!room || room.host_session_id !== userId) return;
 
@@ -652,6 +778,7 @@ io.on('connection', socket => {
 
   socket.on('host_end_auction', data => {
     if (!data?.room_code) return;
+    if (rejectIfTerminated(data.room_code)) return;
     const room = roomManager.getRoom(data.room_code);
     if (!room || room.host_session_id !== userId) return;
 
@@ -660,6 +787,7 @@ io.on('connection', socket => {
 
   socket.on('host_kick', data => {
     if (!data?.room_code) return;
+    if (rejectIfTerminated(data.room_code)) return;
     const room = roomManager.getRoom(data.room_code);
     if (!room || room.host_session_id !== userId) return;
 
@@ -668,6 +796,7 @@ io.on('connection', socket => {
 
   socket.on('host_transfer', data => {
     if (!data?.room_code) return;
+    if (rejectIfTerminated(data.room_code)) return;
     const room = roomManager.getRoom(data.room_code);
     if (!room || room.host_session_id !== userId) return;
 
@@ -678,22 +807,54 @@ io.on('connection', socket => {
     if (!data?.room_code) return;
     const room = roomManager.getRoom(data.room_code);
     if (room && room.participants.has(userId)) {
+      if (roomManager.isRoomTerminated(room)) {
+        socket.emit('auction_terminated', {
+          roomCode: room.room_code,
+          reason: room.termination_reason || ALL_MANAGERS_EXITED_REASON,
+          terminatedAt: room.terminated_at || Date.now(),
+          message: room.auction_state.termination_message || ALL_MANAGERS_EXITED_MESSAGE,
+          sportType: room.settings.sport_type,
+          participants: Array.from(room.participants.values()),
+        });
+        return;
+      }
       roomManager.broadcastState(room);
     }
+  });
+
+  socket.on('request_next_player', data => {
+    const targetRoomCode = data?.room_code || boundRoomCode;
+    if (!targetRoomCode) return;
+    if (rejectIfTerminated(targetRoomCode)) return;
+    roomManager.requestNextPlayer(targetRoomCode, userId);
+  });
+
+  socket.on('room_leave', data => {
+    const targetRoomCode = data?.room_code || boundRoomCode;
+    if (!targetRoomCode) return;
+    roomManager.leaveRoom(targetRoomCode, userId, socket.id);
+    socket.leave(targetRoomCode);
   });
 
   // Stage Transitions
   socket.on('stage_change', data => {
     if (!data?.room_code) return;
+    if (rejectIfTerminated(data.room_code)) return;
     const room = roomManager.getRoom(data.room_code);
     if (!room || room.host_session_id !== userId) return;
 
-    roomManager.transitionStage(data.room_code, userId, data.stage, data.duration_seconds);
+    const ok = roomManager.transitionStage(data.room_code, userId, data.stage, data.duration_seconds);
+    if (!ok && data.stage === 'trading_window') {
+      socket.emit('error_message', {
+        message: 'Trade Round unlocks only once after Round 1 and Round 2 are both completed.',
+      });
+    }
   });
 
   // Spectator Toggle
   socket.on('toggle_spectator', data => {
     if (!data?.room_code) return;
+    if (rejectIfTerminated(data.room_code)) return;
     const room = roomManager.getRoom(data.room_code);
     if (!room || !room.participants.has(userId)) return;
 
@@ -703,15 +864,22 @@ io.on('connection', socket => {
   // Unsold Pool Configuration
   socket.on('unsold_pool_configure', data => {
     if (!data?.room_code) return;
+    if (rejectIfTerminated(data.room_code)) return;
     const room = roomManager.getRoom(data.room_code);
     if (!room || room.host_session_id !== userId) return;
 
-    roomManager.configureUnsoldPool(data.room_code, userId, data.player_ids, data.order_type);
+    const ok = roomManager.configureUnsoldPool(data.room_code, userId, data.player_ids, data.order_type);
+    if (!ok) {
+      socket.emit('error_message', {
+        message: 'Cannot configure Round 2 unsold pool while Round 1 is still active or after Round 2 completion.',
+      });
+    }
   });
 
   // Player Trading Window Events
   socket.on('trade_propose', data => {
     if (!data?.room_code) return;
+    if (rejectIfTerminated(data.room_code)) return;
     const room = roomManager.getRoom(data.room_code);
     if (!room || !room.participants.has(userId)) return;
 
@@ -730,6 +898,7 @@ io.on('connection', socket => {
 
   socket.on('trade_respond', data => {
     if (!data?.room_code) return;
+    if (rejectIfTerminated(data.room_code)) return;
     const room = roomManager.getRoom(data.room_code);
     if (!room || !room.participants.has(userId)) return;
 
@@ -748,6 +917,7 @@ io.on('connection', socket => {
 
   socket.on('trade_cancel', data => {
     if (!data?.room_code) return;
+    if (rejectIfTerminated(data.room_code)) return;
     const room = roomManager.getRoom(data.room_code);
     if (!room || !room.participants.has(userId)) return;
 
@@ -757,6 +927,7 @@ io.on('connection', socket => {
   // Playing XI Selection Events
   socket.on('playing_xi_save_draft', data => {
     if (!data?.room_code) return;
+    if (rejectIfTerminated(data.room_code)) return;
     const room = roomManager.getRoom(data.room_code);
     if (!room || !room.participants.has(userId)) return;
 
@@ -765,6 +936,7 @@ io.on('connection', socket => {
 
   socket.on('playing_xi_submit', data => {
     if (!data?.room_code) return;
+    if (rejectIfTerminated(data.room_code)) return;
     const room = roomManager.getRoom(data.room_code);
     if (!room || !room.participants.has(userId)) return;
 
@@ -839,23 +1011,16 @@ io.on('connection', socket => {
     roomManager.addReaction(data.room_code, reaction);
   });
 
-  socket.on('disconnect', () => {
+  socket.on('disconnect', (reason) => {
+    if (process.env.NODE_ENV === 'development') {
+      console.warn(`[DEV-MONITOR][SOCKET] Disconnected user=${userId} room=${boundRoomCode || 'none'} reason=${reason}`);
+    }
     roomManager.handleDisconnect(socket.id);
   });
 });
 
 export async function startServer(port = PORT): Promise<http.Server> {
-  // If running in live production without explicitly set secrets, provide safe defaults
-  if (process.env.NODE_ENV === 'production') {
-    if (!process.env.CLIENT_ORIGIN) {
-      process.env.CLIENT_ORIGIN = 'https://iplauctionlive.netlify.app';
-    }
-    if (!process.env.SESSION_SECRET && !process.env.JWT_SECRET) {
-      process.env.SESSION_SECRET = 'ipl_auction_production_default_session_secret_2026_super_secure';
-    }
-  }
-
-  // 1. Validate environment in production (with safe fallbacks)
+  // 1. Validate environment in production (no hardcoded secret fallbacks)
   validateProductionEnv();
 
   // 2. Bind port immediately so Render / edge proxies find an active listening server
@@ -902,6 +1067,16 @@ const handleShutdown = async (signal: string) => {
 
 process.on('SIGTERM', () => handleShutdown('SIGTERM'));
 process.on('SIGINT', () => handleShutdown('SIGINT'));
+
+if (process.env.NODE_ENV === 'development') {
+  process.on('uncaughtException', (err) => {
+    console.error('[DEV-MONITOR][UNCAUGHT_EXCEPTION]', err.message);
+  });
+  process.on('unhandledRejection', (reason) => {
+    const msg = reason instanceof Error ? reason.message : String(reason);
+    console.error('[DEV-MONITOR][UNHANDLED_REJECTION]', msg);
+  });
+}
 
 // Auto-start if running index.ts directly
 if (process.argv[1] && (process.argv[1].endsWith('index.ts') || process.argv[1].endsWith('index.js'))) {

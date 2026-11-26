@@ -3,6 +3,7 @@ node_modules/
 
 # Next.js / build output
 .next/
+.next-dev/
 out/
 dist/
 .dist/
@@ -24,7 +25,10 @@ __pycache__/
 *.py[cod]
 *.zip
 cache/
+scratch/
+docs/archive/verification_screenshots/
 
 # PKL Player Portraits (do not commit directly to public repo; hosted or deployed via asset pipeline)
 public/images/pkl-players/
+public/images/pkl-players-backup/
 

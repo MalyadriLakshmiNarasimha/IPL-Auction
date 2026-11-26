@@ -10,7 +10,7 @@ interface UnsoldAuctionBoardProps {
   unsoldPlayers: Player[];
   isHost: boolean;
   onReEnter: (selectedPlayerIds: string[], orderType: OrderType) => void;
-  onProceedToTrading: () => void;
+  onProceedToTrading?: () => void;
   onOpenDossier?: (player: Player) => void;
 }
 
@@ -18,7 +18,6 @@ export const UnsoldAuctionBoard: React.FC<UnsoldAuctionBoardProps> = ({
   unsoldPlayers,
   isHost,
   onReEnter,
-  onProceedToTrading,
   onOpenDossier,
 }) => {
   const [selectedIds, setSelectedIds] = useState<string[]>(unsoldPlayers.map(p => p.id));
@@ -63,13 +62,6 @@ export const UnsoldAuctionBoard: React.FC<UnsoldAuctionBoardProps> = ({
               className="px-3 py-1.5 rounded-pill bg-night-raised border border-night-border text-xs font-bold text-floodlight-muted hover:border-night-border"
             >
               Clear
-            </button>
-            <button
-              onClick={onProceedToTrading}
-              className="px-4 py-1.5 rounded-pill bg-night-raised hover:bg-night-border border border-night-border text-xs font-bold text-flare flex items-center gap-1.5"
-            >
-              <span>Skip to Trading Window</span>
-              <ArrowRight className="w-3.5 h-3.5" />
             </button>
           </div>
         )}

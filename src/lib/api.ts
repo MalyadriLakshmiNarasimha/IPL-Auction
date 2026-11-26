@@ -9,6 +9,8 @@
  * Provides resilient fallback to same-origin proxies if cross-origin requests encounter 404, 502, or network failures.
  */
 
+import { logDevApiFailure } from '@/lib/dev-monitor';
+
 export function getApiUrl(): string {
   if (typeof window !== 'undefined') {
     // In the browser, always use same-origin relative URLs for REST API endpoints.
@@ -94,6 +96,7 @@ export async function apiFetch<T = any>(
         (typeof data === 'object' && data?.error) ||
         (typeof data === 'string' && data.length < 200 ? data : '') ||
         `Request failed with status ${res.status}`;
+      logDevApiFailure(options.method || 'GET', normalizedEndpoint, res.status, errorMsg);
       return { ok: false, status: res.status, data, error: errorMsg };
     }
 

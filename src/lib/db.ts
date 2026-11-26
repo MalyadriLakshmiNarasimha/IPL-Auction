@@ -111,6 +111,10 @@ interface InMemoryRoom {
   name: string;
   host_user_id: string;
   status: string;
+  sport_type?: string | null;
+  termination_reason?: string | null;
+  terminated_at?: Date | null;
+  terminated_by_system?: boolean;
   created_at: Date;
   updated_at: Date;
 }
@@ -151,6 +155,10 @@ interface InMemoryRoomParticipant {
   franchise_color: string | null;
   is_host: boolean;
   is_spectator: boolean;
+  participation_status: string;
+  disqualification_reason: string | null;
+  disqualified_at: Date | null;
+  exited_at: Date | null;
   joined_at: Date;
   updated_at: Date;
 }
@@ -218,12 +226,10 @@ export const db = {
     },
 
     async count(): Promise<number> {
-      try {
-        const mysqlOk = await getDbAccess();
-        if (mysqlOk) {
-          return await prisma.user.count();
-        }
-      } catch {}
+      const mysqlOk = await getDbAccess();
+      if (mysqlOk) {
+        return await prisma.user.count();
+      }
       return memUsers.size;
     },
   },
@@ -291,7 +297,18 @@ export const db = {
   },
 
   room: {
-    async create(args: { data: { room_code: string; name: string; host_user_id: string; status?: string } }) {
+    async create(args: {
+      data: {
+        room_code: string;
+        name: string;
+        host_user_id: string;
+        status?: string;
+        sport_type?: string | null;
+        termination_reason?: string | null;
+        terminated_at?: Date | null;
+        terminated_by_system?: boolean;
+      };
+    }) {
       const mysqlOk = await getDbAccess();
       if (mysqlOk) {
         return prisma.room.create(args as any);
@@ -301,6 +318,10 @@ export const db = {
         name: args.data.name,
         host_user_id: args.data.host_user_id,
         status: args.data.status || 'lobby',
+        sport_type: args.data.sport_type || 'IPL',
+        termination_reason: args.data.termination_reason || null,
+        terminated_at: args.data.terminated_at || null,
+        terminated_by_system: args.data.terminated_by_system ?? false,
         created_at: new Date(),
         updated_at: new Date(),
       };
@@ -308,10 +329,10 @@ export const db = {
       return room;
     },
 
-    async findUnique(args: { where: { room_code: string } }) {
+    async findUnique(args: { where: { room_code: string }; include?: any; select?: any }) {
       const mysqlOk = await getDbAccess();
       if (mysqlOk) {
-        return prisma.room.findUnique(args);
+        return prisma.room.findUnique(args as any);
       }
       return memRooms.get(args.where.room_code.toUpperCase()) || null;
     },
@@ -325,16 +346,23 @@ export const db = {
     },
 
     async count(): Promise<number> {
-      try {
-        const mysqlOk = await getDbAccess();
-        if (mysqlOk) {
-          return await prisma.room.count();
-        }
-      } catch {}
+      const mysqlOk = await getDbAccess();
+      if (mysqlOk) {
+        return await prisma.room.count();
+      }
       return memRooms.size;
     },
 
-    async update(args: { where: { room_code: string }; data: { status?: string; name?: string } }) {
+    async update(args: {
+      where: { room_code: string };
+      data: {
+        status?: string;
+        name?: string;
+        termination_reason?: string | null;
+        terminated_at?: Date | null;
+        terminated_by_system?: boolean;
+      };
+    }) {
       const mysqlOk = await getDbAccess();
       if (mysqlOk) {
         return prisma.room.update(args as any);
@@ -344,6 +372,9 @@ export const db = {
       if (existing) {
         if (args.data.status !== undefined) existing.status = args.data.status;
         if (args.data.name !== undefined) existing.name = args.data.name;
+        if (args.data.termination_reason !== undefined) existing.termination_reason = args.data.termination_reason;
+        if (args.data.terminated_at !== undefined) existing.terminated_at = args.data.terminated_at;
+        if (args.data.terminated_by_system !== undefined) existing.terminated_by_system = args.data.terminated_by_system;
         existing.updated_at = new Date();
         memRooms.set(code, existing);
         return existing;
@@ -351,7 +382,16 @@ export const db = {
       return null;
     },
 
-    async updateMany(args: { where: { room_code: string }; data: { status?: string; name?: string } }) {
+    async updateMany(args: {
+      where: { room_code: string; status?: any };
+      data: {
+        status?: string;
+        name?: string;
+        termination_reason?: string | null;
+        terminated_at?: Date | null;
+        terminated_by_system?: boolean;
+      };
+    }) {
       const mysqlOk = await getDbAccess();
       if (mysqlOk) {
         return prisma.room.updateMany(args as any);
@@ -361,6 +401,9 @@ export const db = {
       if (existing) {
         if (args.data.status !== undefined) existing.status = args.data.status;
         if (args.data.name !== undefined) existing.name = args.data.name;
+        if (args.data.termination_reason !== undefined) existing.termination_reason = args.data.termination_reason;
+        if (args.data.terminated_at !== undefined) existing.terminated_at = args.data.terminated_at;
+        if (args.data.terminated_by_system !== undefined) existing.terminated_by_system = args.data.terminated_by_system;
         existing.updated_at = new Date();
         memRooms.set(code, existing);
         return { count: 1 };
@@ -571,8 +614,13 @@ export const db = {
         franchise_color?: string | null;
         is_host?: boolean;
         is_spectator?: boolean;
+        participation_status?: string;
+        disqualification_reason?: string | null;
+        disqualified_at?: Date | null;
+        exited_at?: Date | null;
       };
       update: {
+        user_id?: string | null;
         team_name?: string | null;
         team_name_normalized?: string | null;
         team_short_code?: string | null;
@@ -581,16 +629,31 @@ export const db = {
         franchise_name?: string | null;
         franchise_code?: string | null;
         franchise_color?: string | null;
+        is_host?: boolean;
         is_spectator?: boolean;
         display_name?: string;
+        participation_status?: string;
+        disqualification_reason?: string | null;
+        disqualified_at?: Date | null;
+        exited_at?: Date | null;
       };
     }) {
       const mysqlOk = await getDbAccess();
       if (mysqlOk) {
         try {
           return await (prisma as any).roomParticipant.upsert(args);
-        } catch {
-          // Fall through to in-memory fallback if room record does not exist in MySQL
+        } catch (err: any) {
+          // Concurrent upserts in MySQL InnoDB can race on the unique key (P2002); retry as an update
+          if (err?.code === 'P2002' && args.where?.room_code_session_id) {
+            return await (prisma as any).roomParticipant.update({
+              where: args.where,
+              data: args.update,
+            });
+          }
+          if (process.env.NODE_ENV !== 'test') {
+            throw err;
+          }
+          // Test-only fallback if unit test constructs RoomManager without a DB room row
         }
       }
       const roomCode = (args.create.room_code || args.where?.room_code_session_id?.room_code || '').toUpperCase();
@@ -609,6 +672,10 @@ export const db = {
         if (args.update.franchise_color !== undefined) existing.franchise_color = args.update.franchise_color;
         if (args.update.is_spectator !== undefined) existing.is_spectator = args.update.is_spectator;
         if (args.update.display_name !== undefined) existing.display_name = args.update.display_name;
+        if (args.update.participation_status !== undefined) existing.participation_status = args.update.participation_status;
+        if (args.update.disqualification_reason !== undefined) existing.disqualification_reason = args.update.disqualification_reason;
+        if (args.update.disqualified_at !== undefined) existing.disqualified_at = args.update.disqualified_at;
+        if (args.update.exited_at !== undefined) existing.exited_at = args.update.exited_at;
         existing.updated_at = new Date();
         return existing;
       }
@@ -629,11 +696,54 @@ export const db = {
         franchise_color: args.create.franchise_color || null,
         is_host: args.create.is_host || false,
         is_spectator: args.create.is_spectator || false,
+        participation_status: args.create.participation_status || 'ACTIVE',
+        disqualification_reason: args.create.disqualification_reason || null,
+        disqualified_at: args.create.disqualified_at || null,
+        exited_at: args.create.exited_at || null,
         joined_at: new Date(),
         updated_at: new Date(),
       };
       memParticipants.set(key, newPart);
       return newPart;
+    },
+
+    async updateMany(args: {
+      where: { room_code: string; session_id?: string; is_spectator?: boolean };
+      data: {
+        participation_status?: string;
+        disqualification_reason?: string | null;
+        disqualified_at?: Date | null;
+        exited_at?: Date | null;
+      };
+    }) {
+      const mysqlOk = await getDbAccess();
+      if (mysqlOk) {
+        try {
+          return await (prisma as any).roomParticipant.updateMany({
+            where: {
+              ...args.where,
+              room_code: args.where.room_code.toUpperCase(),
+            },
+            data: args.data,
+          });
+        } catch (err) {
+          if (process.env.NODE_ENV !== 'test') throw err;
+        }
+      }
+      const code = args.where.room_code.toUpperCase();
+      let count = 0;
+      for (const part of memParticipants.values()) {
+        if (part.room_code !== code) continue;
+        if (args.where.session_id !== undefined && part.session_id !== args.where.session_id) continue;
+        if (args.where.is_spectator !== undefined && part.is_spectator !== args.where.is_spectator) continue;
+        if (args.data.participation_status !== undefined) part.participation_status = args.data.participation_status;
+        if (args.data.disqualification_reason !== undefined) part.disqualification_reason = args.data.disqualification_reason;
+        if (args.data.disqualified_at !== undefined) part.disqualified_at = args.data.disqualified_at;
+        if (args.data.exited_at !== undefined) part.exited_at = args.data.exited_at;
+        part.updated_at = new Date();
+        count++;
+      }
+      return { count };
     },
 
     async findMany(args?: { where?: { room_code?: string } }) {
@@ -673,6 +783,14 @@ export const db = {
     }) {
       const mysqlOk = await getDbAccess();
       if (mysqlOk) {
+        if (process.env.NODE_ENV !== 'test') {
+          return await (prisma as any).commentaryLog.create({
+            data: {
+              ...args.data,
+              room_code: args.data.room_code.toUpperCase(),
+            },
+          });
+        }
         try {
           return await (prisma as any).commentaryLog.create({
             data: {
@@ -681,7 +799,7 @@ export const db = {
             },
           });
         } catch {
-          // Fall through to in-memory fallback if room record does not exist in MySQL
+          // Test-only fallback if unit test constructs RoomManager without a DB room row
         }
       }
       const log: InMemoryCommentaryLog = {

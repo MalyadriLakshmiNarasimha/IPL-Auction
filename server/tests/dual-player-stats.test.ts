@@ -628,10 +628,18 @@ describe('IPL Auction 2027 — Dual Player Statistics System', () => {
       const fs = require('fs');
       const path = require('path');
 
-      const csvPath = path.join(process.cwd(), 'IPL_MULTI_SOURCE_STATISTICS_COMPARISON.csv');
-      const mdCompPath = path.join(process.cwd(), 'IPL_MULTI_SOURCE_STATISTICS_COMPARISON.md');
-      const discPath = path.join(process.cwd(), 'IPL_STATISTICS_DISCREPANCY_REPORT.md');
-      const updatePath = path.join(process.cwd(), 'IPL_STATISTICS_DATASET_UPDATE_REPORT.md');
+      const resolveReport = (fileName: string) => {
+        const rootPath = path.join(process.cwd(), fileName);
+        if (fs.existsSync(rootPath)) return rootPath;
+        const mdPath = path.join(process.cwd(), 'md', fileName);
+        if (fs.existsSync(mdPath)) return mdPath;
+        return rootPath;
+      };
+
+      const csvPath = resolveReport('IPL_MULTI_SOURCE_STATISTICS_COMPARISON.csv');
+      const mdCompPath = resolveReport('IPL_MULTI_SOURCE_STATISTICS_COMPARISON.md');
+      const discPath = resolveReport('IPL_STATISTICS_DISCREPANCY_REPORT.md');
+      const updatePath = resolveReport('IPL_STATISTICS_DATASET_UPDATE_REPORT.md');
 
       expect(fs.existsSync(csvPath)).toBe(true);
       expect(fs.existsSync(mdCompPath)).toBe(true);
@@ -764,10 +772,18 @@ describe('IPL Auction 2027 — Dual Player Statistics System', () => {
       const fs = require('fs');
       const path = require('path');
 
-      const auditPath = path.join(process.cwd(), 'IPL_STATISTICS_DATA_AUDIT_REPORT.md');
-      const sourcePath = path.join(process.cwd(), 'IPL_STATISTICS_SOURCE_VERIFICATION.md');
-      const mappingPath = path.join(process.cwd(), 'IPL_STATISTICS_MAPPING_ERRORS.md');
-      const regressionPath = path.join(process.cwd(), 'IPL_STATISTICS_REGRESSION_TEST_REPORT.md');
+      const resolveReport = (fileName: string) => {
+        const rootPath = path.join(process.cwd(), fileName);
+        if (fs.existsSync(rootPath)) return rootPath;
+        const mdPath = path.join(process.cwd(), 'md', fileName);
+        if (fs.existsSync(mdPath)) return mdPath;
+        return rootPath;
+      };
+
+      const auditPath = resolveReport('IPL_STATISTICS_DATA_AUDIT_REPORT.md');
+      const sourcePath = resolveReport('IPL_STATISTICS_SOURCE_VERIFICATION.md');
+      const mappingPath = resolveReport('IPL_STATISTICS_MAPPING_ERRORS.md');
+      const regressionPath = resolveReport('IPL_STATISTICS_REGRESSION_TEST_REPORT.md');
 
       expect(fs.existsSync(auditPath)).toBe(true);
       expect(fs.existsSync(sourcePath)).toBe(true);

@@ -93,10 +93,30 @@ describe('Player Trading Window, Stages Lifecycle & Spectator Mode Verification'
     expect(guest.squad.length).toBe(1);
   });
 
-  it('3. Host transitions room to trading_window stage', () => {
+  it('3. Premature trading is blocked; completes Round 1 -> Round 2 before unlocking trading_window', () => {
     const room = roomManager.getRoom(roomCode)!;
-    const ok = roomManager.transitionStage(roomCode, 'host-user', 'trading_window', 120);
-    expect(ok).toBe(true);
+    // Must block trading while still in lobby / Round 1
+    expect(roomManager.transitionStage(roomCode, 'host-user', 'trading_window', 120)).toBe(false);
+
+    // Run through Round 1 and Round 2 legitimately
+    room.stage = 'main_auction';
+    room.auction_state.stage = 'main_auction';
+    room.auction_state.phase = 'bidding';
+    room.auction_state.round_number = 1;
+    room.pool = [];
+    room.unsold_pool = [getPlayerById('p-003')!];
+    roomManager.nextPlayer(room); // Completes Round 1 -> enters Round 2 (unsold_auction)
+    expect(room.stage).toBe('unsold_auction');
+    expect(room.auction_state.round1_completed).toBe(true);
+    expect(room.auction_state.round2_completed).toBe(false);
+
+    // Must still block trading while Round 2 is incomplete
+    expect(roomManager.transitionStage(roomCode, 'host-user', 'trading_window', 120)).toBe(false);
+
+    // Finish Round 2 pool -> unlocks trading_window automatically
+    room.pool = [];
+    roomManager.nextPlayer(room);
+    expect(room.auction_state.round2_completed).toBe(true);
     expect(room.stage).toBe('trading_window');
     expect(room.auction_state.phase).toBe('trading');
   });

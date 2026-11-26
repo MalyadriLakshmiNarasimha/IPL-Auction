@@ -1,9 +1,44 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { synthesizeIndianFemaleVoice } from '@/lib/server-tts';
+import { getTtsAvailability, synthesizeIndianFemaleVoice } from '@/lib/server-tts';
 import { VoiceModulationStyle } from '@/shared/types';
+
+function createFallbackResponse(reason: string = 'External TTS provider unavailable; use browser SpeechSynthesis fallback.') {
+  return NextResponse.json(
+    {
+      available: false,
+      fallbackToClient: true,
+      mode: 'web_speech',
+      rate: 1.1,
+      voicePreference: 'en-IN-female',
+      reason,
+    },
+    {
+      status: 200,
+      headers: {
+        'Cache-Control': 'no-store',
+        'X-TTS-Fallback': 'web-speech',
+      },
+    }
+  );
+}
 
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
+  if (searchParams.get('check') === '1') {
+    const availability = getTtsAvailability();
+    return NextResponse.json(
+      {
+        available: availability.fallbackMode === 'central_audio',
+        fallbackToClient: availability.fallbackMode !== 'central_audio',
+        mode: availability.fallbackMode,
+        externalConfigured: availability.externalConfigured,
+        rate: 1.1,
+        voicePreference: 'en-IN-female',
+      },
+      { status: 200, headers: { 'Cache-Control': 'no-store' } }
+    );
+  }
+
   const text = searchParams.get('text');
   const rawStyle = searchParams.get('style');
   const nationality = searchParams.get('nationality') || undefined;
@@ -27,14 +62,8 @@ export async function GET(req: NextRequest) {
     const result = await synthesizeIndianFemaleVoice(text, style, context);
 
     if (!result) {
-      // Signals frontend client to fall back to browser SpeechSynthesis with Indian female voice
-      return NextResponse.json(
-        {
-          error: 'Central voice synthesis unavailable. Fallback to client SpeechSynthesis.',
-          fallbackToClient: true,
-        },
-        { status: 503 }
-      );
+      // Return HTTP 200 fallback directive so browser switches seamlessly to Web Speech API without DevTools 503 console errors
+      return createFallbackResponse();
     }
 
     return new NextResponse(new Uint8Array(result.buffer), {
@@ -47,14 +76,8 @@ export async function GET(req: NextRequest) {
         'X-TTS-Cached': result.fromCache ? 'HIT' : 'MISS',
       },
     });
-  } catch (error) {
-    return NextResponse.json(
-      {
-        error: 'TTS synthesis error',
-        details: error instanceof Error ? error.message : String(error),
-      },
-      { status: 500 }
-    );
+  } catch {
+    return createFallbackResponse('Central TTS synthesis failed; automatically falling back to browser SpeechSynthesis.');
   }
 }
 

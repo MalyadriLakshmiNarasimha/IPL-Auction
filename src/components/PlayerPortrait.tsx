@@ -22,10 +22,13 @@ interface CentralImageMeta {
   imagePath: string | null;
   sourceUrl: string | null;
   sourceName: string;
-  verificationStatus: 'verified' | 'missing' | 'ambiguous';
+  verificationStatus: 'verified' | 'missing' | 'ambiguous' | 'silhouette_placeholder';
   verifiedAt: string;
   imageWidth: number | null;
   imageHeight: number | null;
+  isPlaceholder?: boolean;
+  requiresManualPhoto?: boolean;
+  placeholderReason?: string | null;
 }
 
 const CENTRAL_MAPPING: Record<string, CentralImageMeta> = playerImagesMap as unknown as Record<
@@ -78,7 +81,7 @@ export const PlayerPortrait: React.FC<PlayerPortraitProps> = ({
     : null;
 
   const isVerifiedInCentral = Boolean(
-    imageMeta?.verificationStatus === 'verified' && imageMeta?.imagePath
+    (imageMeta?.verificationStatus === 'verified' || imageMeta?.verificationStatus === 'silhouette_placeholder') && imageMeta?.imagePath
   );
   const photoUrl = isVerifiedInCentral ? imageMeta!.imagePath : player.image_url;
   const hasValidPhoto = Boolean(

@@ -9,15 +9,29 @@ import { ArrowRight, AlertCircle, Mail, Lock, Shield } from 'lucide-react';
 function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const redirectTarget = searchParams.get('redirect') || '/';
+  const rawRedirect = searchParams?.get('redirect') || '/';
+  // Sanitize redirect target: prevent redirect loops to /login, /register or external sites
+  const redirectTarget =
+    !rawRedirect ||
+    rawRedirect === '/login' ||
+    rawRedirect === '/register' ||
+    rawRedirect.startsWith('http:') ||
+    rawRedirect.startsWith('https:') ||
+    rawRedirect.startsWith('//')
+      ? '/'
+      : rawRedirect;
 
   // If already authenticated, redirect immediately to target without displaying login form
   React.useEffect(() => {
+    let isMounted = true;
     apiFetch('/api/auth/me').then(({ ok, data }) => {
-      if (ok && data?.authenticated && data?.user) {
+      if (isMounted && ok && data?.authenticated && data?.user) {
         window.location.href = redirectTarget;
       }
     }).catch(() => {});
+    return () => {
+      isMounted = false;
+    };
   }, [redirectTarget]);
 
   const [email, setEmail] = useState('');
@@ -29,8 +43,17 @@ function LoginForm() {
     e.preventDefault();
     setError(null);
 
-    if (!email.trim() || !password) {
-      setError('Please enter both email and password.');
+    const cleanEmail = email.trim().toLowerCase();
+    if (!cleanEmail) {
+      setError('Please enter your email address.');
+      return;
+    }
+    if (!cleanEmail.includes('@') || !cleanEmail.includes('.')) {
+      setError('Please enter a valid email address.');
+      return;
+    }
+    if (!password) {
+      setError('Please enter your password.');
       return;
     }
 
@@ -40,13 +63,13 @@ function LoginForm() {
       const res = await apiFetch<{ user: { id: string; name: string; email: string }; socket_token?: string }>('/api/auth/login', {
         method: 'POST',
         body: JSON.stringify({
-          email: email.trim().toLowerCase(),
+          email: cleanEmail,
           password,
         }),
       });
 
       if (!res.ok) {
-        throw new Error(res.error || 'Invalid credentials.');
+        throw new Error(res.error || 'Invalid email or password.');
       }
 
       // Update local storage and dispatch immediate auth event
@@ -61,7 +84,7 @@ function LoginForm() {
 
       window.location.href = redirectTarget;
     } catch (err: any) {
-      setError(err.message || 'Failed to log in.');
+      setError(err.message || 'Invalid email or password.');
       setIsLoading(false);
     }
   };
@@ -91,7 +114,7 @@ function LoginForm() {
           </div>
         )}
 
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <form onSubmit={handleSubmit} noValidate className="space-y-4">
           {/* Email */}
           <div>
             <label className="block text-xs font-bold uppercase tracking-wider text-floodlight-muted mb-1.5">
@@ -104,7 +127,6 @@ function LoginForm() {
                 value={email}
                 onChange={e => setEmail(e.target.value)}
                 placeholder="virat@example.com"
-                required
                 className="w-full bg-night pl-10 pr-4 py-2.5 rounded-lg text-sm text-floodlight border border-night-border focus:border-flare focus:outline-none placeholder:text-floodlight-subtle"
               />
             </div>
@@ -122,7 +144,6 @@ function LoginForm() {
                 value={password}
                 onChange={e => setPassword(e.target.value)}
                 placeholder="Enter your password"
-                required
                 className="w-full bg-night pl-10 pr-4 py-2.5 rounded-lg text-sm text-floodlight border border-night-border focus:border-flare focus:outline-none placeholder:text-floodlight-subtle"
               />
             </div>

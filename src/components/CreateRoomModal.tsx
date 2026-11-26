@@ -96,7 +96,7 @@ export const CreateRoomModal: React.FC<CreateRoomModalProps> = ({
             <div className="text-[11px] font-semibold text-purple-300/90 mt-0.5">Build Your Dream Seven</div>
             <div className="text-[10px] text-floodlight-muted mt-2 space-y-0.5">
               <div>• 12 Official Franchises</div>
-              <div>• 72 Verified Stars</div>
+              <div>• 235 Verified Players</div>
               <div>• ₹5 Cr Purse</div>
             </div>
           </button>

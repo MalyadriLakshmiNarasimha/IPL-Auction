@@ -35,18 +35,21 @@ model Session {
 }
 
 model Room {
-  room_code    String         @id @db.VarChar(6)
-  name         String         @db.VarChar(100)
-  host_user_id String
-  status       String         @default("lobby") @db.VarChar(32)
-  sport_type   String?        @default("IPL") @db.VarChar(16)
-  created_at   DateTime       @default(now())
-  updated_at      DateTime          @updatedAt
-  host            User              @relation(fields: [host_user_id], references: [id], onDelete: Cascade)
-  snapshots       RoomSnapshot[]
-  bid_events      BidEvent[]
-  participants    RoomParticipant[]
-  commentary_logs CommentaryLog[]
+  room_code            String            @id @db.VarChar(6)
+  name                 String            @db.VarChar(100)
+  host_user_id         String
+  status               String            @default("lobby") @db.VarChar(32)
+  sport_type           String?           @default("IPL") @db.VarChar(16)
+  termination_reason   String?           @db.VarChar(64)
+  terminated_at        DateTime?
+  terminated_by_system Boolean           @default(false)
+  created_at           DateTime          @default(now())
+  updated_at           DateTime          @updatedAt
+  host                 User              @relation(fields: [host_user_id], references: [id], onDelete: Cascade)
+  snapshots            RoomSnapshot[]
+  bid_events           BidEvent[]
+  participants         RoomParticipant[]
+  commentary_logs      CommentaryLog[]
 
   @@index([host_user_id])
   @@index([sport_type])
@@ -109,10 +112,14 @@ model RoomParticipant {
   franchise_name        String?  @db.VarChar(100)
   franchise_code        String?  @db.VarChar(10)
   franchise_color       String?  @db.VarChar(32)
-  is_host               Boolean  @default(false)
-  is_spectator          Boolean  @default(false)
-  joined_at             DateTime @default(now())
-  updated_at            DateTime @updatedAt
+  is_host                 Boolean   @default(false)
+  is_spectator            Boolean   @default(false)
+  participation_status    String    @default("ACTIVE") @db.VarChar(32)
+  disqualification_reason String?   @db.VarChar(64)
+  disqualified_at         DateTime?
+  exited_at               DateTime?
+  joined_at               DateTime  @default(now())
+  updated_at              DateTime  @updatedAt
 
   room                  Room     @relation(fields: [room_code], references: [room_code], onDelete: Cascade)
   user                  User?    @relation(fields: [user_id], references: [id], onDelete: SetNull)

@@ -17,8 +17,15 @@ export const PlayerDossierModal: React.FC<PlayerDossierModalProps> = ({ player, 
   const stats = player.stats_2026;
   const careerStats = getIplCareerStats(player) || player.ipl_career_stats;
 
+  const isPkl =
+    player.id?.startsWith('k-') ||
+    player.id?.startsWith('pkl-') ||
+    ['Raider', 'Defender', 'All-Rounder', 'RAID', 'DEF'].includes(player.role);
+
   const roleColor = (() => {
     const r = (player.role || '').toUpperCase();
+    if (r.startsWith('RAID')) return '#EA580C';
+    if (r.startsWith('DEF')) return '#2563EB';
     if (r.startsWith('BAT')) return '#F5B83D';
     if (r.startsWith('BOWL')) return '#4C8DFF';
     if (r.startsWith('ALL') || r === 'AR') return '#2FCB8F';
@@ -47,7 +54,7 @@ export const PlayerDossierModal: React.FC<PlayerDossierModalProps> = ({ player, 
                   {player.role}
                 </span>
                 <span className="text-[11px] font-bold text-flare uppercase tracking-wider">
-                  {player.category || 'IPL Talent'}
+                  {player.category || (isPkl ? 'PKL Talent' : 'IPL Talent')}
                 </span>
               </div>
               <h2 className="font-display text-xl sm:text-2xl font-black text-floodlight truncate mt-1">
@@ -76,39 +83,70 @@ export const PlayerDossierModal: React.FC<PlayerDossierModalProps> = ({ player, 
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 text-center">
             <div className="p-2.5 rounded-xl bg-night-raised border border-night-border">
               <div className="text-[10px] text-floodlight-muted font-bold uppercase">Nationality</div>
-              <div className="font-bold text-sm text-floodlight mt-0.5">{player.country}</div>
+              <div className="font-bold text-sm text-floodlight mt-0.5">{player.country || player.nationality}</div>
             </div>
             <div className="p-2.5 rounded-xl bg-night-raised border border-night-border">
               <div className="text-[10px] text-floodlight-muted font-bold uppercase">Base Price</div>
               <div className="font-display font-black text-sm text-flare mt-0.5">{formatCurrency(player.base_price)}</div>
             </div>
             <div className="p-2.5 rounded-xl bg-night-raised border border-night-border">
-              <div className="text-[10px] text-floodlight-muted font-bold uppercase">Status</div>
-              <div className="font-bold text-sm text-turf mt-0.5">{player.capped ? 'Capped International' : 'Uncapped'}</div>
+              <div className="text-[10px] text-floodlight-muted font-bold uppercase">
+                {isPkl ? 'Tier / Category' : 'Status'}
+              </div>
+              <div className="font-bold text-sm text-turf mt-0.5">
+                {isPkl
+                  ? player.category || (player.tier ? `Category ${player.tier}` : 'Category C')
+                  : player.capped
+                  ? 'Capped International'
+                  : 'Uncapped'}
+              </div>
             </div>
             <div className="p-2.5 rounded-xl bg-night-raised border border-night-border">
-              <div className="text-[10px] text-floodlight-muted font-bold uppercase">Batting Style</div>
-              <div className="font-bold text-sm text-floodlight mt-0.5 truncate">{player.batting_style || 'Right Handed'}</div>
+              <div className="text-[10px] text-floodlight-muted font-bold uppercase">
+                {isPkl ? 'Tactical Position' : 'Batting Style'}
+              </div>
+              <div className="font-bold text-sm text-floodlight mt-0.5 truncate">
+                {isPkl
+                  ? player.position_detail || player.role || 'Raider'
+                  : player.batting_style || 'Right Handed'}
+              </div>
             </div>
           </div>
 
-          {/* Batting & Bowling Styles */}
-          <div className="rounded-xl bg-night p-3.5 border border-night-border flex flex-col sm:flex-row justify-between gap-3">
-            <div>
-              <span className="text-[10px] text-floodlight-muted uppercase font-bold block">Batting Style</span>
-              <span className="font-bold text-sm text-floodlight">{player.batting_style || 'Right Handed Bat'}</span>
+          {/* Tactical Roles / Batting & Bowling Styles */}
+          {isPkl ? (
+            <div className="rounded-xl bg-night p-3.5 border border-night-border flex flex-col sm:flex-row justify-between gap-3">
+              <div>
+                <span className="text-[10px] text-floodlight-muted uppercase font-bold block">Primary Role</span>
+                <span className="font-bold text-sm text-floodlight">{player.role}</span>
+              </div>
+              <div>
+                <span className="text-[10px] text-floodlight-muted uppercase font-bold block">Tactical Sub-Position</span>
+                <span className="font-bold text-sm text-floodlight">{player.position_detail || player.role}</span>
+              </div>
+              <div>
+                <span className="text-[10px] text-floodlight-muted uppercase font-bold block">Registered PKL Franchise</span>
+                <span className="font-bold text-sm text-flare">{player.team || 'Central PKL Pool'}</span>
+              </div>
             </div>
-            <div>
-              <span className="text-[10px] text-floodlight-muted uppercase font-bold block">Bowling Specialization</span>
-              <span className="font-bold text-sm text-floodlight">{player.bowling_style || 'None / Part-Time'}</span>
+          ) : (
+            <div className="rounded-xl bg-night p-3.5 border border-night-border flex flex-col sm:flex-row justify-between gap-3">
+              <div>
+                <span className="text-[10px] text-floodlight-muted uppercase font-bold block">Batting Style</span>
+                <span className="font-bold text-sm text-floodlight">{player.batting_style || 'Right Handed Bat'}</span>
+              </div>
+              <div>
+                <span className="text-[10px] text-floodlight-muted uppercase font-bold block">Bowling Specialization</span>
+                <span className="font-bold text-sm text-floodlight">{player.bowling_style || 'None / Part-Time'}</span>
+              </div>
+              <div>
+                <span className="text-[10px] text-floodlight-muted uppercase font-bold block">Registered IPL Franchise</span>
+                <span className="font-bold text-sm text-flare">{player.team || 'Auction Central Pool'}</span>
+              </div>
             </div>
-            <div>
-              <span className="text-[10px] text-floodlight-muted uppercase font-bold block">Registered IPL Franchise</span>
-              <span className="font-bold text-sm text-flare">{player.team || 'Auction Central Pool'}</span>
-            </div>
-          </div>
+          )}
 
-          {/* Dual IPL Statistics (Career & 2026 Season) */}
+          {/* Dual Statistics (Career & Season) */}
           <PlayerStatsCarousel player={player} autoRotateInterval={5000} />
 
           {/* Strategic Scouting Assessment */}
@@ -118,9 +156,19 @@ export const PlayerDossierModal: React.FC<PlayerDossierModalProps> = ({ player, 
               Scouting Assessment & Squad Fit
             </span>
             <p className="leading-relaxed text-floodlight-muted">
-              {player.name} provides high strategic utility as an auction asset. With established domestic and international
-              match experience, this player bolsters squad depth and tactical flexibility. In competitive auction environments,
-              securing this profile provides immediate balance to the team roster.
+              {isPkl ? (
+                <>
+                  {player.name} provides high strategic utility as an auction asset. With established Pro Kabaddi League
+                  mat experience, this player bolsters squad depth and tactical flexibility. In competitive PKL auction environments,
+                  securing this profile provides immediate balance to the Starting 7 roster.
+                </>
+              ) : (
+                <>
+                  {player.name} provides high strategic utility as an auction asset. With established domestic and international
+                  match experience, this player bolsters squad depth and tactical flexibility. In competitive auction environments,
+                  securing this profile provides immediate balance to the team roster.
+                </>
+              )}
             </p>
           </div>
         </div>
